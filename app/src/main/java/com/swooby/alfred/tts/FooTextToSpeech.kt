@@ -253,7 +253,8 @@ class FooTextToSpeech {
                 if (!isStarted) {
                     return
                 }
-                if (status != TextToSpeech.SUCCESS) {
+                val success = status == TextToSpeech.SUCCESS
+                if (!success) {
                     FooLog.w(TAG, "onTextToSpeechInitialized: TextToSpeech failed to initialize: status == ${statusToString(status)}")
                 } else {
                     setVoiceName(voiceName)
@@ -278,15 +279,15 @@ class FooTextToSpeech {
                 listeners.endTraversing()
 
                 if (!isInitialized) {
-                    return
-                }
-
-                val iterator = speechQueue.iterator()
-                var utteranceInfo: UtteranceInfo
-                while (iterator.hasNext()) {
-                    utteranceInfo = iterator.next()
-                    iterator.remove()
-                    speak(false, utteranceInfo.text, utteranceInfo.runAfter)
+                    stop()
+                } else {
+                    val iterator = speechQueue.iterator()
+                    var utteranceInfo: UtteranceInfo
+                    while (iterator.hasNext()) {
+                        utteranceInfo = iterator.next()
+                        iterator.remove()
+                        speak(false, utteranceInfo.text, utteranceInfo.runAfter)
+                    }
                 }
             }
         } finally {
