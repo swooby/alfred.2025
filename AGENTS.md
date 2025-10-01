@@ -31,7 +31,7 @@ app/
 
 ## 3. Coding conventions
 ### Kotlin & coroutines
-- Target Kotlin 2.0 / JVM 17; prefer idiomatic constructs (data classes, sealed types, extension functions).
+- Target Kotlin 2.0 / JVM 21; prefer idiomatic constructs (data classes, sealed types, extension functions).
 - Keep coroutine dispatchers explicit. Use structured concurrency—cancel scopes in lifecycle callbacks (`onDestroy`, etc.).
 - Prefer suspend DAO functions returning domain models. Normalize timestamps via `Clock.System.now()`.
 

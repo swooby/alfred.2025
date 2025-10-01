@@ -88,14 +88,14 @@ fun PermissionsScreen(
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            "Alfred Setup",
+            "Alfred 2025 Setup",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
 
         PermissionCard(
             title = "Post Notifications",
-            description = "Lets Alfred speak and show status; required on Android 13+.",
+            description = "Lets Alfred 2025 speak and show status; required on Android 13+.",
             granted = notifGranted,
             actionLabel = if (Build.VERSION.SDK_INT >= 33) "Grant" else "Open Settings",
             onClick = {
@@ -109,7 +109,7 @@ fun PermissionsScreen(
 
         PermissionCard(
             title = "Notification Listener Access",
-            description = "Allows Alfred to read media sessions and notifications for smarter announcements.",
+            description = "Allows Alfred 2025 to read media sessions and notifications for smarter announcements.",
             granted = listenerGranted,
             actionLabel = "Open Settings",
             onClick = { ctx.startActivity(intentOpenNotificationListenerSettings()) }
@@ -117,7 +117,7 @@ fun PermissionsScreen(
 
         PermissionCard(
             title = "Ignore Battery Optimizations",
-            description = "Keeps Alfred responsive in the background. Recommended.",
+            description = "Keeps Alfred 2025 responsive in the background. Recommended.",
             granted = ignoringDoze,
             actionLabel = "Allow",
             onClick = { ctx.startActivity(intentRequestIgnoreBatteryOptimizations(ctx)) },
@@ -129,7 +129,7 @@ fun PermissionsScreen(
             enabled = essentialsGranted,
             onClick = onEssentialsGranted,
             modifier = Modifier.align(Alignment.End)
-        ) { Text(if (essentialsGranted) "Start Alfred" else "Complete required steps") }
+        ) { Text(if (essentialsGranted) "Start Alfred 2025" else "Complete required steps") }
     }
 }
 
@@ -158,7 +158,7 @@ private fun PermissionCard(
                 AssistChip(onClick = {}, label = { Text(status) }, enabled = false)
             }
             Text(
-                if (optional) "$description (This is optional; Alfred works without it.)"
+                if (optional) "$description (This is optional; Alfred 2025 works without it.)"
                 else description,
                 style = MaterialTheme.typography.bodyMedium
             )
