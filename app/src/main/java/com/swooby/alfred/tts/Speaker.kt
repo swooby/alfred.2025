@@ -5,11 +5,8 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.speech.tts.TextToSpeech
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.LinkedList
 import java.util.Locale
-import kotlin.coroutines.resume
 
 interface Speaker {
     suspend fun speak(text: String)
@@ -21,8 +18,8 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
     private val am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val tts = TextToSpeech(app, this)
     private val syncLock = Any()
-    private val initDeferred = CompletableDeferred<Boolean>()
     private val speechQueue = LinkedList<String>()
+    private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
     private var isInitialized = false
 
     override fun onInit(status: Int) {
@@ -37,8 +34,30 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
+                
+                // Set utterance progress listener once during initialization
+                tts.setOnUtteranceProgressListener(object: android.speech.tts.UtteranceProgressListener(){
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        utteranceId?.let { id ->
+                            synchronized(syncLock) {
+                                audioFocusRequests.remove(id)?.let { afr ->
+                                    am.abandonAudioFocusRequest(afr)
+                                }
+                            }
+                        }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        utteranceId?.let { id ->
+                            synchronized(syncLock) {
+                                audioFocusRequests.remove(id)?.let { afr ->
+                                    am.abandonAudioFocusRequest(afr)
+                                }
+                            }
+                        }
+                    }
+                })
             }
-            initDeferred.complete(isInitialized)
             
             // Process queued speech requests
             if (isInitialized) {
@@ -52,8 +71,6 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
         }
     }
 
-    suspend fun awaitInit(): Boolean = initDeferred.await()
-
     override suspend fun speak(text: String) {
         if (text.isBlank()) return
         
@@ -65,12 +82,10 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
                 speechQueue.add(text)
             }
         }
-        
-        // Wait for initialization to complete
-        initDeferred.await()
     }
 
     private fun speakInternal(text: String) {
+        val utteranceId = "alfred-" + System.nanoTime()
         val afr = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -78,22 +93,23 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
                     .build()
             ).build()
         am.requestAudioFocus(afr)
+        
+        synchronized(syncLock) {
+            audioFocusRequests[utteranceId] = afr
+        }
+        
         try {
-            val id = tts.speak(text, TextToSpeech.QUEUE_ADD, null, "alfred-" + System.nanoTime())
-            if (id != TextToSpeech.ERROR) {
-                tts.setOnUtteranceProgressListener(object: android.speech.tts.UtteranceProgressListener(){
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { 
-                        am.abandonAudioFocusRequest(afr)
-                    }
-                    override fun onError(utteranceId: String?) { 
-                        am.abandonAudioFocusRequest(afr)
-                    }
-                })
-            } else {
+            val result = tts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId)
+            if (result == TextToSpeech.ERROR) {
+                synchronized(syncLock) {
+                    audioFocusRequests.remove(utteranceId)
+                }
                 am.abandonAudioFocusRequest(afr)
             }
         } catch (e: Exception) {
+            synchronized(syncLock) {
+                audioFocusRequests.remove(utteranceId)
+            }
             am.abandonAudioFocusRequest(afr)
         }
     }
@@ -101,6 +117,10 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
     override fun shutdown() {
         synchronized(syncLock) {
             speechQueue.clear()
+            audioFocusRequests.values.forEach { afr ->
+                am.abandonAudioFocusRequest(afr)
+            }
+            audioFocusRequests.clear()
             tts.shutdown()
         }
     }
