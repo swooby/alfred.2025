@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.speech.tts.TextToSpeech
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import kotlin.coroutines.resume
@@ -18,21 +19,30 @@ class SpeakerImpl(context: Context) : Speaker, TextToSpeech.OnInitListener {
     private val app = context.applicationContext
     private val am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val tts = TextToSpeech(app, this)
+    private val initDeferred = CompletableDeferred<Boolean>()
     private var ready = false
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
-        tts.language = Locale.getDefault()
-        tts.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-        )
+        if (ready) {
+            tts.language = Locale.getDefault()
+            tts.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+        }
+        initDeferred.complete(ready)
     }
 
+    suspend fun awaitInit(): Boolean = initDeferred.await()
+
     override suspend fun speak(text: String) {
-        if (!ready || text.isBlank()) return
+        if (text.isBlank()) return
+        // Wait for initialization to complete
+        if (!initDeferred.await()) return
+        
         val afr = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
                 AudioAttributes.Builder()
