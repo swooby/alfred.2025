@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.*
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.core.summary.Utterance
-import com.swooby.alfred.tts.SpeakerImpl
+import com.swooby.alfred.tts.FooTextToSpeech
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -17,9 +17,8 @@ class HourlyDigestWorker(appCtx: Context, params: WorkerParameters): CoroutineWo
         val from = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() - 60L*60L*1000L)
         val recent = app.db.events().listByTime("u_local", from, now, 5000)
         val digest: Utterance.Digest = app.summarizer.digest("Last hour", recent)
-        val speaker = SpeakerImpl(applicationContext)
-        speaker.speak((listOf(digest.title) + digest.lines).joinToString(" "))
-        speaker.shutdown()
+        val text = (listOf(digest.title) + digest.lines).joinToString(" ")
+        FooTextToSpeech.speak(app, text)
         Result.success()
     }
     companion object {
