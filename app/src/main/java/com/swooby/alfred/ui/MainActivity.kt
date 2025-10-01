@@ -30,32 +30,22 @@ class MainActivity : ComponentActivity() {
                 Surface {
                     val ctx = LocalContext.current
 
-                    // Check if essentials are already granted at startup
                     val notifGranted = isNotificationPermissionGranted(ctx)
                     val listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
-                    val essentialsGranted = notifGranted && listenerGranted
+                    var essentialsGranted by remember { mutableStateOf(notifGranted && listenerGranted) }
 
-                    // Track whether user has completed permissions setup
-                    var permissionsCompleted by remember { mutableStateOf(essentialsGranted) }
-
-                    // Auto-start service if essentials already granted
-                    if (essentialsGranted && permissionsCompleted) {
+                    // Auto-start service when essentials are granted
+                    if (essentialsGranted) {
                         LaunchedEffect(Unit) {
                             startForegroundService(Intent(this@MainActivity, PipelineService::class.java))
                         }
-                    }
-
-                    if (!permissionsCompleted) {
+                        SettingsScreen(app)
+                    } else {
                         PermissionsScreen(
-                            onReadyToStart = {
-                                // Start foreground pipeline after essentials granted
-                                startForegroundService(Intent(this@MainActivity, PipelineService::class.java))
-                                permissionsCompleted = true
+                            onEssentialsGranted = {
+                                essentialsGranted = true
                             }
                         )
-                    } else {
-                        // Show Settings after starting (you can add tabs later)
-                        SettingsScreen(app)
                     }
                 }
             }

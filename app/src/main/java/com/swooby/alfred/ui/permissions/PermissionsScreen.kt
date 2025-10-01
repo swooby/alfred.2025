@@ -24,7 +24,7 @@ import com.swooby.alfred.util.*
 
 @Composable
 fun PermissionsScreen(
-    onReadyToStart: () -> Unit
+    onEssentialsGranted: () -> Unit
 ) {
     val ctx = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -127,7 +127,7 @@ fun PermissionsScreen(
         val essentialsGranted = notifGranted && listenerGranted
         Button(
             enabled = essentialsGranted,
-            onClick = onReadyToStart,
+            onClick = onEssentialsGranted,
             modifier = Modifier.align(Alignment.End)
         ) { Text(if (essentialsGranted) "Start Alfred" else "Complete required steps") }
     }
