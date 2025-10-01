@@ -35,21 +35,22 @@ class MainActivity : ComponentActivity() {
                     val listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
                     val essentialsGranted = notifGranted && listenerGranted
 
-                    var started by remember { mutableStateOf(essentialsGranted) }
+                    // Track whether user has completed permissions setup
+                    var permissionsCompleted by remember { mutableStateOf(essentialsGranted) }
 
                     // Auto-start service if essentials already granted
-                    if (essentialsGranted && started) {
+                    if (essentialsGranted && permissionsCompleted) {
                         LaunchedEffect(Unit) {
                             startForegroundService(Intent(this@MainActivity, PipelineService::class.java))
                         }
                     }
 
-                    if (!started) {
+                    if (!permissionsCompleted) {
                         PermissionsScreen(
                             onReadyToStart = {
                                 // Start foreground pipeline after essentials granted
                                 startForegroundService(Intent(this@MainActivity, PipelineService::class.java))
-                                started = true
+                                permissionsCompleted = true
                             }
                         )
                     } else {
