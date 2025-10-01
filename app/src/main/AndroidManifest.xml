@@ -14,10 +14,10 @@
     <application
         android:name=".AlfredApp"
         android:icon="@mipmap/ic_launcher"
-        android:label="Alfred 2017"
+        android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Alfred2017">
+        android:theme="@style/Theme.Alfred2025">
 
         <activity
             android:name=".ui.MainActivity"

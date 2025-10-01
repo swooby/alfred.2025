@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.swooby.alfred2017"
+    namespace = "com.swooby.alfred"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.swooby.alfred2017"
+        applicationId = "com.swooby.alfred2025"
         minSdk = 34
         targetSdk = 36
         versionCode = 1
