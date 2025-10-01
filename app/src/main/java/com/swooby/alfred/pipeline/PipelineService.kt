@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.swooby.alfred.AlfredApp
+import com.swooby.alfred.R
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
@@ -93,12 +94,16 @@ class PipelineService : Service() {
         val chId = "alfred_pipeline"
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(chId, "Alfred", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(
+                chId,
+                getString(R.string.pipeline_notification_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            )
         )
 
         val builder = NotificationCompat.Builder(this, chId)
             .setSmallIcon(android.R.drawable.stat_notify_more)
-            .setContentTitle("Alfred is listening")
+            .setContentTitle(getString(R.string.pipeline_notification_title))
             .setOngoing(true)
 
         if (promptEnable) {
@@ -108,8 +113,8 @@ class PipelineService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             builder
-                .setContentText("Enable Notification access for media tracking")
-                .addAction(0, "Enable", pi)
+                .setContentText(getString(R.string.pipeline_notification_permission))
+                .addAction(0, getString(R.string.pipeline_notification_action_enable), pi)
         }
 
         return builder.build()
