@@ -12,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,13 +40,21 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Scaffold(
                     topBar = {
-                        TopAppBar(title = { Text(text = stringResource(R.string.main_top_app_bar_title)) })
-                    }
+                        TopAppBar(
+                            title = { Text(text = stringResource(R.string.main_top_app_bar_title)) },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ) { innerPadding ->
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(innerPadding)
+                            .padding(innerPadding),
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         val ctx = LocalContext.current
 

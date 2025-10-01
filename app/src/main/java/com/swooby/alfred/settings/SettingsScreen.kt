@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -162,7 +163,18 @@ private fun SettingsContent_Preview() {
     var speakScreenOff by remember { mutableStateOf(false) }
 
     MaterialTheme {
-        Scaffold(topBar = { TopAppBar(title = { Text("Alfred Settings") }) }) { padding ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Alfred Settings") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ) { padding ->
             SettingsContent(
                 quietStart = quietStart,
                 quietEnd = quietEnd,
