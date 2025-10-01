@@ -16,8 +16,7 @@ import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
 import com.swooby.alfred.sources.NotifSvc
 import com.swooby.alfred.sources.SystemSources
-import com.swooby.alfred.tts.Speaker
-import com.swooby.alfred.tts.SpeakerImpl
+import com.swooby.alfred.tts.FooTextToSpeech
 import com.swooby.alfred.util.hasNotificationListenerAccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +28,7 @@ import kotlinx.datetime.TimeZone
 
 class PipelineService : Service() {
     private val app by lazy { application as AlfredApp }
-    private lateinit var speaker: Speaker
+    private lateinit var tts: FooTextToSpeech
     private lateinit var sysSources: SystemSources
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val tz = TimeZone.currentSystemDefault()
@@ -39,7 +38,7 @@ class PipelineService : Service() {
         super.onCreate()
         startForeground(42, buildOngoingNotification())
 
-        speaker = SpeakerImpl(this)
+        tts = FooTextToSpeech.instance.start(app)
         sysSources = SystemSources(this, app)
         sysSources.start()
 
@@ -76,15 +75,16 @@ class PipelineService : Service() {
                     cfg = cfg
                 )
                 if (decision is Decision.Speak) {
-                    app.summarizer.livePhrase(ev)?.let { utter -> speaker.speak(utter.text) }
+                    app.summarizer.livePhrase(ev)?.let { utter -> tts.speak(utter.text) }
                 }
             }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
     override fun onDestroy() {
-        app.mediaSource.stop(); speaker.shutdown(); scope.cancel(); super.onDestroy()
+        app.mediaSource.stop(); tts.stop(); scope.cancel(); super.onDestroy()
     }
 
     override fun onBind(p0: Intent?): IBinder? = null
