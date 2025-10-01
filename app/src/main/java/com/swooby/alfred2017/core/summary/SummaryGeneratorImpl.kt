@@ -18,7 +18,7 @@ class SummaryGeneratorImpl : SummaryGenerator {
             .sum() / 1000
         val screenOnCount = events.count { it.eventType == "display.on" }
         if (notifCount > 0) lines += "Notifications: {}.".format(notifCount)
-        if (musicSec > 0) lines += "Music time: {} min.".format(musicSec // 60)
+        if (musicSec > 0) lines += "Music time: {} min.".format(musicSec / 60)
         if (screenOnCount > 0) lines += "Screen ons: {}.".format(screenOnCount)
         if (lines.isEmpty()) lines += "Nothing notable."
         return Utterance.Digest(3, title, lines)

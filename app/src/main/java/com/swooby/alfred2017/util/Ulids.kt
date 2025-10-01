@@ -1,26 +1,43 @@
 package com.swooby.alfred2017.util
 
-import java.security.SecureRandom
 import java.math.BigInteger
+import java.security.SecureRandom
 
 object Ulids {
     private val rnd = SecureRandom()
-    fun newUlid(nowMs: Long = System.currentTimeMillis()): String {
-        val time = nowMs and ((1L shl 48) - 1)
-        val rand = ByteArray(10).also { rnd.nextBytes(it) }
-        val buffer = ByteArray(16)
-        for (i in 0 until 6) buffer[i] = ((time shr (8 * (5 - i))) and 0xFF).toByte()
-        System.arraycopy(rand, 0, buffer, 6, 10)
-        return toBase32Crockford(buffer)
-    }
     private val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ".toCharArray()
-    private fun toBase32Crockford(bytes: ByteArray): String {
-        val bits = BigInteger(1, bytes).toString(2).padStart(128, '0')
-        val sb = StringBuilder(26)
-        for (i in 0 until 26) {
-            val chunk = bits.substring(i*5, i*5+5)
-            sb.append(ALPHABET[Integer.parseInt(chunk, 2)])
+    private val THIRTY_TWO = BigInteger.valueOf(32L)
+
+    /** Returns a 26-char ULID string. */
+    fun newUlid(nowMs: Long = System.currentTimeMillis()): String {
+        // 48-bit time (ms) + 80-bit randomness = 128 bits (16 bytes)
+        val bytes = ByteArray(16)
+
+        // Time into first 6 bytes (big-endian)
+        var t = nowMs and ((1L shl 48) - 1)
+        for (i in 5 downTo 0) {
+            bytes[i] = (t and 0xFF).toByte()
+            t = t ushr 8
         }
-        return sb.toString()
+
+        // Random into last 10 bytes
+        val rand = ByteArray(10).also { rnd.nextBytes(it) }
+        System.arraycopy(rand, 0, bytes, 6, 10)
+
+        // Encode 128-bit number as 26 Crockford base32 chars
+        return encodeBase32(bytes)
+    }
+
+    private fun encodeBase32(bytes: ByteArray): String {
+        // Interpret as positive BigInteger
+        var n = BigInteger(1, bytes)
+        val out = CharArray(26)
+        // Produce least-significant digit last (right-aligned)
+        for (i in 25 downTo 0) {
+            val dr = n.divideAndRemainder(THIRTY_TWO)
+            out[i] = ALPHABET[dr[1].toInt()]
+            n = dr[0]
+        }
+        return String(out)
     }
 }

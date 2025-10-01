@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- a simple “A” badge; replace with your logo later -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,12 L86,96 L72,96 L65,78 L43,78 L36,96 L22,96 Z
+                        M47,66 L61,66 L54,48 Z"/>
+</vector>

@@ -2,8 +2,8 @@ package com.swooby.alfred2017.sources
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.MediaMetadata
 import android.media.session.MediaController
-import android.media.session.MediaMetadata
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import com.swooby.alfred2017.AlfredApp
@@ -11,7 +11,6 @@ import com.swooby.alfred2017.core.ingest.RawEvent
 import com.swooby.alfred2017.data.EventEntity
 import com.swooby.alfred2017.data.Sensitivity
 import com.swooby.alfred2017.util.Ulids
-import kotlinx.datetime.Clock
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -25,11 +24,15 @@ class MediaSessionsSource(
     private val tracker = MediaSessionDurationTracker()
 
     fun start() {
-        refreshSessions()
-        msm.addOnActiveSessionsChangedListener(
-            listener,
-            ComponentName(ctx, com.swooby.alfred2017.sources.NotifSvc::class.java)
-        )
+        try {
+            refreshSessions()
+            msm.addOnActiveSessionsChangedListener(
+                listener,
+                ComponentName(ctx, NotifSvc::class.java)
+            )
+        } catch (se: SecurityException) {
+            // No access yet; caller should have gated this, but be safe.
+        }
     }
 
     fun stop() {
@@ -39,11 +42,15 @@ class MediaSessionsSource(
     }
 
     private fun refreshSessions() {
-        val controllers = msm.getActiveSessions(
-            ComponentName(ctx, com.swooby.alfred2017.sources.NotifSvc::class.java)
-        ) ?: emptyList()
-        controllers.forEach { if (!controllerCallbacks.containsKey(it)) attach(it) }
-        controllerCallbacks.keys.toList().forEach { if (!controllers.contains(it)) detach(it) }
+        try {
+            val controllers = msm.getActiveSessions(
+                ComponentName(ctx, com.swooby.alfred2017.sources.NotifSvc::class.java)
+            ) ?: emptyList()
+            controllers.forEach { if (!controllerCallbacks.containsKey(it)) attach(it) }
+            controllerCallbacks.keys.toList().forEach { if (!controllers.contains(it)) detach(it) }
+        } catch (se: SecurityException) {
+            // ignore; no access
+        }
     }
 
     private fun attach(controller: MediaController) {
@@ -51,7 +58,11 @@ class MediaSessionsSource(
         controllerCallbacks[controller] = cb
         controller.registerCallback(cb)
         controller.playbackState?.let { state ->
-            if (state.state == PlaybackState.STATE_PLAYING) emitMediaStart(controller, controller.metadata, state)
+            if (state.state == PlaybackState.STATE_PLAYING) emitMediaStart(
+                controller,
+                controller.metadata,
+                state
+            )
         }
     }
 
@@ -77,6 +88,7 @@ class MediaSessionsSource(
                 PlaybackState.STATE_PAUSED,
                 PlaybackState.STATE_STOPPED,
                 PlaybackState.STATE_NONE -> emitMediaStop(c, md, state)
+
                 else -> {}
             }
         }
@@ -123,10 +135,16 @@ class MediaSessionsSource(
                 if (durMs > 0) put("track_duration_ms", durMs.toInt())
                 put("volume_stream_music", currentMusicVolume(ctx))
             },
-            tags = listOf("music","now_playing"),
+            tags = listOf("music", "now_playing"),
             sessionId = span.sessionId
         )
-        app.ingest.submit(RawEvent(ev, fingerprint = pkg + "|" + title + "|" + artist + "|" + album + "|" + span.sessionId + "|start", coalesceKey = "media:" + pkg + ":now_playing"))
+        app.ingest.submit(
+            RawEvent(
+                ev,
+                fingerprint = pkg + "|" + title + "|" + artist + "|" + album + "|" + span.sessionId + "|start",
+                coalesceKey = "media:" + pkg + ":now_playing"
+            )
+        )
     }
 
     private fun emitMediaStop(c: MediaController, md: MediaMetadata?, st: PlaybackState) {
@@ -167,7 +185,13 @@ class MediaSessionsSource(
             tags = listOf("music"),
             sessionId = q.sessionId
         )
-        app.ingest.submit(RawEvent(ev, fingerprint = pkg + "|" + title + "|" + artist + "|" + album + "|" + q.sessionId + "|stop", coalesceKey = "media:" + pkg + ":now_playing"))
+        app.ingest.submit(
+            RawEvent(
+                ev,
+                fingerprint = pkg + "|" + title + "|" + artist + "|" + album + "|" + q.sessionId + "|stop",
+                coalesceKey = "media:" + pkg + ":now_playing"
+            )
+        )
     }
 
     private fun routeName(c: MediaController): String {
