@@ -2,6 +2,7 @@ package com.swooby.alfred.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +29,11 @@ import androidx.compose.ui.unit.dp
 import com.swooby.alfred.AlfredApp
 
 @Composable
-fun SettingsScreen(app: AlfredApp) {
+fun SettingsScreen(
+    app: AlfredApp,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
     val vm = settingsViewModel(app)
     val rules by vm.rules.collectAsState()
 
@@ -56,11 +61,12 @@ fun SettingsScreen(app: AlfredApp) {
         onLocalQuietEndChange = { quietEnd = it },
         onLocalDisabledAppsChange = { disabledAppsCsv = it },
         onLocalEnabledTypesChange = { enabledTypesCsv = it },
+        modifier = modifier,
+        contentPadding = contentPadding,
     )
 }
 
 /** Pure UI: easy to preview & unit-test */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
     quietStart: String,
@@ -77,75 +83,76 @@ fun SettingsContent(
     onLocalQuietEndChange: (String) -> Unit,
     onLocalDisabledAppsChange: (String) -> Unit,
     onLocalEnabledTypesChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text("Alfred Settings") }) }) { pad ->
-        Column(
-            Modifier
-                .padding(pad)
-                .padding(16.dp)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+    Column(
+        modifier
+            .padding(contentPadding)
+            .padding(16.dp)
+            .fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
 
-            Text("Quiet Hours (HH:mm)", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = quietStart,
-                    onValueChange = onLocalQuietStartChange,
-                    label = { Text("Start e.g. 22:00") },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = quietEnd,
-                    onValueChange = onLocalQuietEndChange,
-                    label = { Text("End e.g. 07:00") },
-                    modifier = Modifier.weight(1f)
-                )
-                Button(
-                    onClick = {
-                        onSaveQuietHours(
-                            quietStart.ifBlank { null },
-                            quietEnd.ifBlank { null }
-                        )
-                    }
-                ) { Text("Save") }
-            }
-
-            Row {
-                Checkbox(
-                    checked = speakScreenOff,
-                    onCheckedChange = { onSpeakScreenOffChange(it) }
-                )
-                Text("Speak only when screen is OFF", modifier = Modifier.padding(start = 8.dp))
-            }
-
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Disabled apps (CSV of package names)",
-                style = MaterialTheme.typography.titleMedium
+        Text("Quiet Hours (HH:mm)", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = quietStart,
+                onValueChange = onLocalQuietStartChange,
+                label = { Text("Start e.g. 22:00") },
+                modifier = Modifier.weight(1f)
             )
             OutlinedTextField(
-                value = disabledAppsCsv,
-                onValueChange = onLocalDisabledAppsChange,
-                modifier = Modifier.fillMaxWidth()
+                value = quietEnd,
+                onValueChange = onLocalQuietEndChange,
+                label = { Text("End e.g. 07:00") },
+                modifier = Modifier.weight(1f)
             )
-            Button(onClick = { onSaveDisabledApps(disabledAppsCsv) }) { Text("Save") }
-
-            Spacer(Modifier.height(8.dp))
-            Text("Enabled event types (CSV)", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = enabledTypesCsv,
-                onValueChange = onLocalEnabledTypesChange,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(onClick = { onSaveEnabledTypes(enabledTypesCsv) }) { Text("Save") }
+            Button(
+                onClick = {
+                    onSaveQuietHours(
+                        quietStart.ifBlank { null },
+                        quietEnd.ifBlank { null }
+                    )
+                }
+            ) { Text("Save") }
         }
+
+        Row {
+            Checkbox(
+                checked = speakScreenOff,
+                onCheckedChange = { onSpeakScreenOffChange(it) }
+            )
+            Text("Speak only when screen is OFF", modifier = Modifier.padding(start = 8.dp))
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Disabled apps (CSV of package names)",
+            style = MaterialTheme.typography.titleMedium
+        )
+        OutlinedTextField(
+            value = disabledAppsCsv,
+            onValueChange = onLocalDisabledAppsChange,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = { onSaveDisabledApps(disabledAppsCsv) }) { Text("Save") }
+
+        Spacer(Modifier.height(8.dp))
+        Text("Enabled event types (CSV)", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = enabledTypesCsv,
+            onValueChange = onLocalEnabledTypesChange,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = { onSaveEnabledTypes(enabledTypesCsv) }) { Text("Save") }
     }
 }
 
 /** Compose Preview — no DataStore or ViewModel required */
 @Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun SettingsContent_Preview() {
     // Preview uses local state to exercise the UI
     var quietStart by remember { mutableStateOf("22:00") }
@@ -155,20 +162,23 @@ private fun SettingsContent_Preview() {
     var speakScreenOff by remember { mutableStateOf(false) }
 
     MaterialTheme {
-        SettingsContent(
-            quietStart = quietStart,
-            quietEnd = quietEnd,
-            disabledAppsCsv = disabledAppsCsv,
-            enabledTypesCsv = enabledTypesCsv,
-            speakScreenOff = speakScreenOff,
-            onSaveQuietHours = { _, _ -> /* no-op in preview */ },
-            onSpeakScreenOffChange = { speakScreenOff = it },
-            onSaveDisabledApps = { /* no-op in preview */ },
-            onSaveEnabledTypes = { /* no-op in preview */ },
-            onLocalQuietStartChange = { quietStart = it },
-            onLocalQuietEndChange = { quietEnd = it },
-            onLocalDisabledAppsChange = { disabledAppsCsv = it },
-            onLocalEnabledTypesChange = { enabledTypesCsv = it },
-        )
+        Scaffold(topBar = { TopAppBar(title = { Text("Alfred Settings") }) }) { padding ->
+            SettingsContent(
+                quietStart = quietStart,
+                quietEnd = quietEnd,
+                disabledAppsCsv = disabledAppsCsv,
+                enabledTypesCsv = enabledTypesCsv,
+                speakScreenOff = speakScreenOff,
+                onSaveQuietHours = { _, _ -> /* no-op in preview */ },
+                onSpeakScreenOffChange = { speakScreenOff = it },
+                onSaveDisabledApps = { /* no-op in preview */ },
+                onSaveEnabledTypes = { /* no-op in preview */ },
+                onLocalQuietStartChange = { quietStart = it },
+                onLocalQuietEndChange = { quietEnd = it },
+                onLocalDisabledAppsChange = { disabledAppsCsv = it },
+                onLocalEnabledTypesChange = { enabledTypesCsv = it },
+                contentPadding = padding,
+            )
+        }
     }
 }
