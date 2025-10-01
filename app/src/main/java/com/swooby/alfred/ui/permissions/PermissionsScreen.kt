@@ -30,7 +30,11 @@ fun PermissionsScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     // --- status state ---
-    var notifGranted by remember { mutableStateOf(isNotificationPermissionGranted(ctx)) }
+    var notifGranted by remember {
+        mutableStateOf(
+            isNotificationPermissionGranted(ctx)
+        )
+    }
     var listenerGranted by remember {
         mutableStateOf(
             hasNotificationListenerAccess(
@@ -120,12 +124,12 @@ fun PermissionsScreen(
             optional = true
         )
 
-        val essentialsOk = notifGranted && listenerGranted
+        val essentialsGranted = notifGranted && listenerGranted
         Button(
-            enabled = essentialsOk,
+            enabled = essentialsGranted,
             onClick = onReadyToStart,
             modifier = Modifier.align(Alignment.End)
-        ) { Text(if (essentialsOk) "Start Alfred" else "Complete required steps") }
+        ) { Text(if (essentialsGranted) "Start Alfred" else "Complete required steps") }
     }
 }
 

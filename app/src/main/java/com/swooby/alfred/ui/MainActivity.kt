@@ -29,9 +29,12 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface {
                     val ctx = LocalContext.current
+
                     // Check if essentials are already granted at startup
-                    val essentialsGranted = isNotificationPermissionGranted(ctx) && 
-                                          hasNotificationListenerAccess(ctx, NotifSvc::class.java)
+                    val notifGranted = isNotificationPermissionGranted(ctx)
+                    val listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
+                    val essentialsGranted = notifGranted && listenerGranted
+
                     var started by remember { mutableStateOf(essentialsGranted) }
 
                     // Auto-start service if essentials already granted
