@@ -30,10 +30,12 @@ class MainActivity : ComponentActivity() {
                 Surface {
                     val ctx = LocalContext.current
 
-                    val notifGranted = isNotificationPermissionGranted(ctx)
-                    val listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
-                    var essentialsGranted by remember { mutableStateOf(notifGranted && listenerGranted) }
-
+                    var essentialsGranted by remember {
+                        mutableStateOf(
+                            isNotificationPermissionGranted(ctx) &&
+                                    hasNotificationListenerAccess(ctx, NotifSvc::class.java)
+                        )
+                    }
                     // Auto-start service when essentials are granted
                     if (essentialsGranted) {
                         LaunchedEffect(Unit) {
