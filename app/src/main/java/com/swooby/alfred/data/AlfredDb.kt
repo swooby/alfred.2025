@@ -15,7 +15,7 @@ abstract class AlfredDb : RoomDatabase() {
         fun open(context: Context): AlfredDb =
             Room.databaseBuilder(context, AlfredDb::class.java, "alfred.db")
                 .addTypeConverter(RoomConverters())
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }
 }

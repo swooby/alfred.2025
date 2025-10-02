@@ -14,7 +14,7 @@ class RoomConverters {
     fun fromInstant(value: Instant?): String? = value?.toString()
 
     @TypeConverter
-    fun toInstant(value: String?): Instant? = value?.toInstant()
+    fun toInstant(value: String?): Instant? = value?.let { Instant.parse(it) }
 
     @TypeConverter
     fun fromJsonObject(value: JsonObject?): String? =
