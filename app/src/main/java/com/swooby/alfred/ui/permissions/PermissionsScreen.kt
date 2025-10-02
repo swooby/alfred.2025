@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
+import com.swooby.alfred.R
 import com.swooby.alfred.sources.NotifSvc
 import com.swooby.alfred.util.*
 
@@ -88,16 +90,20 @@ fun PermissionsScreen(
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            "Alfred 2025 Setup",
+            stringResource(R.string.permissions_title_setup),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
 
         PermissionCard(
-            title = "Post Notifications",
-            description = "Lets Alfred 2025 speak and show status; required on Android 13+.",
+            title = stringResource(R.string.permissions_post_notifications_title),
+            description = stringResource(R.string.permissions_post_notifications_description),
             granted = notifGranted,
-            actionLabel = if (Build.VERSION.SDK_INT >= 33) "Grant" else "Open Settings",
+            actionLabel = if (Build.VERSION.SDK_INT >= 33) {
+                stringResource(R.string.permissions_action_grant)
+            } else {
+                stringResource(R.string.permissions_action_open_settings)
+            },
             onClick = {
                 if (Build.VERSION.SDK_INT >= 33) {
                     notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -108,18 +114,18 @@ fun PermissionsScreen(
         )
 
         PermissionCard(
-            title = "Notification Listener Access",
-            description = "Allows Alfred 2025 to read media sessions and notifications for smarter announcements.",
+            title = stringResource(R.string.permissions_notification_listener_title),
+            description = stringResource(R.string.permissions_notification_listener_description),
             granted = listenerGranted,
-            actionLabel = "Open Settings",
+            actionLabel = stringResource(R.string.permissions_action_open_settings),
             onClick = { ctx.startActivity(intentOpenNotificationListenerSettings()) }
         )
 
         PermissionCard(
-            title = "Ignore Battery Optimizations",
-            description = "Keeps Alfred 2025 responsive in the background. Recommended.",
+            title = stringResource(R.string.permissions_ignore_battery_title),
+            description = stringResource(R.string.permissions_ignore_battery_description),
             granted = ignoringDoze,
-            actionLabel = "Allow",
+            actionLabel = stringResource(R.string.permissions_action_allow),
             onClick = { ctx.startActivity(intentRequestIgnoreBatteryOptimizations(ctx)) },
             optional = true
         )
@@ -129,7 +135,15 @@ fun PermissionsScreen(
             enabled = essentialsGranted,
             onClick = onEssentialsGranted,
             modifier = Modifier.align(Alignment.End)
-        ) { Text(if (essentialsGranted) "Start Alfred 2025" else "Complete required steps") }
+        ) {
+            Text(
+                if (essentialsGranted) {
+                    stringResource(R.string.permissions_start_button)
+                } else {
+                    stringResource(R.string.permissions_complete_steps)
+                }
+            )
+        }
     }
 }
 
@@ -151,15 +165,18 @@ private fun PermissionCard(
                     modifier = Modifier.weight(1f)
                 )
                 val status = when {
-                    granted -> "Granted"
-                    optional -> "Optional"
-                    else -> "Missing"
+                    granted -> stringResource(R.string.permissions_status_granted)
+                    optional -> stringResource(R.string.permissions_status_optional)
+                    else -> stringResource(R.string.permissions_status_missing)
                 }
                 AssistChip(onClick = {}, label = { Text(status) }, enabled = false)
             }
             Text(
-                if (optional) "$description (This is optional; Alfred 2025 works without it.)"
-                else description,
+                if (optional) {
+                    stringResource(R.string.permissions_optional_description, description)
+                } else {
+                    description
+                },
                 style = MaterialTheme.typography.bodyMedium
             )
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {

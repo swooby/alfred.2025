@@ -2,4 +2,32 @@
 <resources>
     <string name="app_name">Alfred 2025</string>
     <string name="main_top_app_bar_title">Alfred 2025</string>
+    <string name="settings_title">Alfred Settings</string>
+    <string name="settings_quiet_hours_label">Quiet Hours (HH:mm)</string>
+    <string name="settings_quiet_hours_start_label">Start e.g. 22:00</string>
+    <string name="settings_quiet_hours_end_label">End e.g. 07:00</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_speak_screen_off">Speak only when screen is OFF</string>
+    <string name="settings_disabled_apps_label">Disabled apps (CSV of package names)</string>
+    <string name="settings_enabled_event_types_label">Enabled event types (CSV)</string>
+    <string name="pipeline_notification_channel_name">Alfred</string>
+    <string name="pipeline_notification_title">Alfred is listening</string>
+    <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
+    <string name="pipeline_notification_action_enable">Enable</string>
+    <string name="permissions_title_setup">Alfred 2025 Setup</string>
+    <string name="permissions_post_notifications_title">Post Notifications</string>
+    <string name="permissions_post_notifications_description">Lets Alfred 2025 speak and show status; required on Android 13+.</string>
+    <string name="permissions_action_grant">Grant</string>
+    <string name="permissions_action_open_settings">Open Settings</string>
+    <string name="permissions_notification_listener_title">Notification Listener Access</string>
+    <string name="permissions_notification_listener_description">Allows Alfred 2025 to read media sessions and notifications for smarter announcements.</string>
+    <string name="permissions_ignore_battery_title">Ignore Battery Optimizations</string>
+    <string name="permissions_ignore_battery_description">Keeps Alfred 2025 responsive in the background. Recommended.</string>
+    <string name="permissions_action_allow">Allow</string>
+    <string name="permissions_start_button">Start Alfred 2025</string>
+    <string name="permissions_complete_steps">Complete required steps</string>
+    <string name="permissions_status_granted">Granted</string>
+    <string name="permissions_status_optional">Optional</string>
+    <string name="permissions_status_missing">Missing</string>
+    <string name="permissions_optional_description">%1$s (This is optional; Alfred 2025 works without it.)</string>
 </resources>
