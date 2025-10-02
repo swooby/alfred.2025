@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                     window.statusBarColor = colorScheme.primary.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
-                        ?.isAppearanceLightStatusBars = false
+                        .isAppearanceLightStatusBars = false
                 }
 
                 Scaffold(

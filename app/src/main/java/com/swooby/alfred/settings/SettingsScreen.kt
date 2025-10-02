@@ -152,8 +152,8 @@ fun SettingsContent(
 
 /** Compose Preview — no DataStore or ViewModel required */
 @Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)
-@Composable
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun SettingsContent_Preview() {
     // Preview uses local state to exercise the UI
     var quietStart by remember { mutableStateOf("22:00") }
