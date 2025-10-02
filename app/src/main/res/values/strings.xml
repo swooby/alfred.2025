@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Alfred 2025</string>
+    <string name="main_top_app_bar_title">Alfred 2025</string>
     <string name="settings_title">Alfred Settings</string>
     <string name="settings_quiet_hours_label">Quiet Hours (HH:mm)</string>
     <string name="settings_quiet_hours_start_label">Start e.g. 22:00</string>
