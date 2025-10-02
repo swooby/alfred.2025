@@ -10,7 +10,7 @@ import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.util.Ulids
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class SystemSources(private val ctx: Context, private val app: AlfredApp) {
     private val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

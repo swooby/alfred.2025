@@ -7,8 +7,8 @@ import com.swooby.alfred.core.summary.Utterance
 import com.swooby.alfred.tts.FooTextToSpeech
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class HourlyDigestWorker(appCtx: Context, params: WorkerParameters): CoroutineWorker(appCtx, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {

@@ -233,6 +233,11 @@ class FooTextToSpeech {
                             "android.speech.tts.TextToSpeech"
                         )
                     )
+                    // Kotlin 2.2.20 bug falsely warns:
+                    // "This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic."
+                    // https://youtrack.jetbrains.com/issue/KT-80399/Anonymous-Kotlin-class-incorrectly-warns-about-deprecated-java-override-despite-Deprecated-annotation
+                    // Available in: 2.3.0-Beta1, State: Fixed, Fix in builds: 2.3.0-dev-5366
+                    @SuppressWarnings("Deprecated")
                     override fun onError(utteranceId: String?) {
                         onError(utteranceId, TextToSpeech.ERROR)
                     }

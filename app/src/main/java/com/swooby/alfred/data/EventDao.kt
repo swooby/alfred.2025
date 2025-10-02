@@ -1,7 +1,7 @@
 package com.swooby.alfred.data
 
 import androidx.room.*
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 @Dao
 interface EventDao {

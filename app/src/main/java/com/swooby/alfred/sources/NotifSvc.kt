@@ -7,9 +7,9 @@ import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
 import com.swooby.alfred.util.Ulids
-import kotlinx.datetime.Clock
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.time.Clock
 
 class NotifSvc : NotificationListenerService() {
     private val app get() = application as AlfredApp

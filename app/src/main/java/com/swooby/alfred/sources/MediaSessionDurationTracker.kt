@@ -3,8 +3,8 @@ package com.swooby.alfred.sources
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import com.swooby.alfred.util.Ulids
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 data class MediaPlaySpan(
     val sessionId: String,

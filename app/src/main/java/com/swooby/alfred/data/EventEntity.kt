@@ -1,9 +1,13 @@
 package com.swooby.alfred.data
 
-import androidx.room.*
-import kotlinx.datetime.Instant
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import androidx.room.TypeConverters
+import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Instant
 
 @Entity(
     tableName = "events",
@@ -34,12 +38,15 @@ data class EventEntity(
     val subjectParentId: String? = null,
 
     @field:TypeConverters(RoomConverters::class)
+    @Contextual
     val tsStart: Instant,
     @field:TypeConverters(RoomConverters::class)
+    @Contextual
     val tsEnd: Instant? = null,
     val durationMs: Long? = null,
     val timezone: String? = null,
     @field:TypeConverters(RoomConverters::class)
+    @Contextual
     val ingestAt: Instant? = null,
 
     val platform: String = "android",

@@ -2,8 +2,7 @@ package com.swooby.alfred.data
 
 import androidx.room.ProvidedTypeConverter
 import androidx.room.TypeConverter
-import kotlinx.datetime.Instant
-import kotlinx.datetime.toInstant
+import kotlin.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
