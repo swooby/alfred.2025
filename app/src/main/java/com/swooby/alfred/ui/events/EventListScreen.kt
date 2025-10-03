@@ -90,6 +90,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1124,20 +1125,22 @@ private fun EventListPreview() {
         )
     )
 
-    EventListScreen(
-        state = EventListUiState(
-            query = "",
-            allEvents = sampleEvents,
-            visibleEvents = sampleEvents
-        ),
-        userInitials = "A",
-        onQueryChange = {},
-        onRefresh = {},
-        onNavigateToSettings = {},
-        onSelectionModeChange = {},
-        onEventSelectionChange = { _, _ -> },
-        onSelectAll = {},
-        onUnselectAll = {},
-        onDeleteSelected = {}
-    )
+    AlfredTheme {
+        EventListScreen(
+            state = EventListUiState(
+                query = "",
+                allEvents = sampleEvents,
+                visibleEvents = sampleEvents
+            ),
+            userInitials = "A",
+            onQueryChange = {},
+            onRefresh = {},
+            onNavigateToSettings = {},
+            onSelectionModeChange = {},
+            onEventSelectionChange = { _, _ -> },
+            onSelectAll = {},
+            onUnselectAll = {},
+            onDeleteSelected = {}
+        )
+    }
 }

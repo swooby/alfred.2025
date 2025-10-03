@@ -10,12 +10,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.ui.MainActivity
+import com.swooby.alfred.ui.theme.AlfredTheme
 
 class EventListActivity : ComponentActivity() {
 
@@ -34,15 +36,18 @@ class EventListActivity : ComponentActivity() {
         )
 
         setContent {
-            MaterialTheme {
+            AlfredTheme {
+                val surfaceColor = MaterialTheme.colorScheme.surface
+                val useLightSystemIcons = surfaceColor.luminance() > 0.5f
+
                 SideEffect {
                     window.statusBarColor = Color.Transparent.toArgb()
                     window.navigationBarColor = Color.Transparent.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
                         .apply {
-                            isAppearanceLightStatusBars = true
-                            isAppearanceLightNavigationBars = true
+                            isAppearanceLightStatusBars = useLightSystemIcons
+                            isAppearanceLightNavigationBars = useLightSystemIcons
                         }
                 }
 
