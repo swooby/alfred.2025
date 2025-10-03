@@ -6,18 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.swooby.alfred.data.EventDao
 import com.swooby.alfred.data.EventEntity
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -166,72 +169,6 @@ class EventListViewModel(
         }
     }
 
-    fun deleteEvent(eventId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isPerformingAction = true,
-                    errorMessage = null
-                )
-            }
-            try {
-                eventDao.deleteByIds(userId, listOf(eventId))
-                val now = clock.now()
-                _state.update { current ->
-                    val updatedAll = current.allEvents.filterNot { it.eventId == eventId }
-                    val filtered = applyFilter(updatedAll, current.query)
-                    current.copy(
-                        isPerformingAction = false,
-                        allEvents = updatedAll,
-                        visibleEvents = filtered,
-                        selectedEventIds = current.selectedEventIds - eventId,
-                        selectionMode = current.selectionMode && (current.selectedEventIds - eventId).isNotEmpty(),
-                        lastUpdated = now
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
-        }
-    }
-
-    fun clearAllEvents() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isPerformingAction = true,
-                    errorMessage = null
-                )
-            }
-            try {
-                eventDao.clearAllForUser(userId)
-                val now = clock.now()
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        allEvents = emptyList(),
-                        visibleEvents = emptyList(),
-                        selectedEventIds = emptySet(),
-                        selectionMode = false,
-                        lastUpdated = now
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
-        }
-    }
-
     private fun observeEvents() {
         viewModelScope.launch {
             lookbackStart
@@ -239,13 +176,20 @@ class EventListViewModel(
                     eventDao.observeRecent(userId, from, limit)
                 }
                 .flowOn(Dispatchers.IO)
-                .catch { t ->
-                    _state.update { current ->
-                        current.copy(
-                            isLoading = false,
-                            isPerformingAction = false,
-                            errorMessage = t.message ?: t::class.simpleName ?: "error",
-                        )
+                .retryWhen { cause, attempt ->
+                    if (cause is CancellationException) {
+                        false
+                    } else {
+                        _state.update { current ->
+                            current.copy(
+                                isLoading = false,
+                                isPerformingAction = false,
+                                errorMessage = cause.message ?: cause::class.simpleName ?: "error",
+                            )
+                        }
+                        val multiplier = (attempt + 1).coerceAtMost(MAX_RETRY_MULTIPLIER)
+                        delay(RETRY_BASE_DELAY.inWholeMilliseconds * multiplier)
+                        true
                     }
                 }
                 .collect { events ->
@@ -266,6 +210,7 @@ class EventListViewModel(
                         )
                     }
                 }
+            }
         }
     }
 
@@ -307,5 +252,10 @@ class EventListViewModel(
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
         }
+    }
+
+    private companion object {
+        private const val MAX_RETRY_MULTIPLIER = 6L
+        private val RETRY_BASE_DELAY = 1.seconds
     }
 }
