@@ -529,10 +529,10 @@ private fun EventListHeader(
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = chipContainerColor,
                                 labelColor = headerContentColor,
-                                iconContentColor = headerContentColor,
+                                iconColor = headerContentColor,
                                 disabledContainerColor = chipContainerColor.copy(alpha = 0.5f),
                                 disabledLabelColor = headerContentColor.copy(alpha = 0.4f),
-                                disabledLeadingIconColor = headerContentColor.copy(alpha = 0.4f)
+                                disabledIconColor = headerContentColor.copy(alpha = 0.4f)
                             )
                         )
                     }
