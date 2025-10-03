@@ -10,9 +10,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swooby.alfred.AlfredApp
+import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.ui.MainActivity
 
 class EventListActivity : ComponentActivity() {
@@ -25,6 +27,11 @@ class EventListActivity : ComponentActivity() {
         val userId = intent.getStringExtra(EXTRA_USER_ID) ?: DEFAULT_USER_ID
         val viewModelFactory = EventListViewModel.Factory(app.db.events(), userId)
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
+
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, PipelineService::class.java)
+        )
 
         setContent {
             MaterialTheme {
