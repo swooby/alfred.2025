@@ -28,6 +28,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.events.EventListActivity"
+            android:exported="false" />
+
         <service
             android:name=".pipeline.PipelineService"
             android:exported="false"
