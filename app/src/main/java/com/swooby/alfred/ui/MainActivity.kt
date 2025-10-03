@@ -1,6 +1,5 @@
 package com.swooby.alfred.ui
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,25 +12,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import com.swooby.alfred.AlfredApp
-import com.swooby.alfred.pipeline.PipelineService
-import com.swooby.alfred.settings.SettingsScreen
-import com.swooby.alfred.sources.NotifSvc
-import com.swooby.alfred.ui.permissions.PermissionsScreen
-import com.swooby.alfred.util.hasNotificationListenerAccess
-import com.swooby.alfred.util.isNotificationPermissionGranted
 import com.swooby.alfred.R
+import com.swooby.alfred.settings.SettingsScreen
+import com.swooby.alfred.ui.theme.AlfredTheme
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -40,14 +30,15 @@ class MainActivity : ComponentActivity() {
         val app = application as AlfredApp
 
         setContent {
-            MaterialTheme {
+            AlfredTheme {
                 val colorScheme = MaterialTheme.colorScheme
+                val useLightStatusIcons = colorScheme.primary.luminance() > 0.5f
 
                 SideEffect {
                     window.statusBarColor = colorScheme.primary.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = false
+                        .isAppearanceLightStatusBars = useLightStatusIcons
                 }
 
                 Scaffold(
@@ -70,27 +61,7 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding),
                         color = colorScheme.surfaceVariant
                     ) {
-                        val ctx = LocalContext.current
-
-                        var essentialsGranted by remember {
-                            mutableStateOf(
-                                isNotificationPermissionGranted(ctx) &&
-                                        hasNotificationListenerAccess(ctx, NotifSvc::class.java)
-                            )
-                        }
-                        // Auto-start service when essentials are granted
-                        if (essentialsGranted) {
-                            LaunchedEffect(Unit) {
-                                startForegroundService(Intent(this@MainActivity, PipelineService::class.java))
-                            }
-                            SettingsScreen(app, modifier = Modifier.fillMaxSize())
-                        } else {
-                            PermissionsScreen(
-                                onEssentialsGranted = {
-                                    essentialsGranted = true
-                                }
-                            )
-                        }
+                        SettingsScreen(app, modifier = Modifier.fillMaxSize())
                     }
                 }
             }
