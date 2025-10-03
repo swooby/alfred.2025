@@ -1,6 +1,7 @@
 package com.swooby.alfred.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 import kotlin.time.Instant
 
 @Dao
@@ -39,4 +40,16 @@ interface EventDao {
         toTs: Instant,
         limit: Int = 500
     ): List<EventEntity>
+
+    @Query("""
+        SELECT * FROM events
+        WHERE userId = :userId AND tsStart >= :fromTs
+        ORDER BY tsStart DESC
+        LIMIT :limit
+    """)
+    fun observeRecent(
+        userId: String,
+        fromTs: Instant,
+        limit: Int = 500
+    ): Flow<List<EventEntity>>
 }

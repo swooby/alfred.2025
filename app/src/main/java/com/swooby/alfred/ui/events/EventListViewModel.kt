@@ -10,6 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -41,9 +44,11 @@ class EventListViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
+    private val lookbackStart = MutableStateFlow(calculateLookbackStart(clock.now()))
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
 
     init {
+        observeEvents()
         refresh()
     }
 
@@ -56,46 +61,14 @@ class EventListViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    isPerformingAction = false,
-                    errorMessage = null
-                )
-            }
-            try {
-                val now = clock.now()
-                val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
-                val from = Instant.fromEpochMilliseconds(fromEpochMillis)
-                val events = eventDao
-                    .listByTime(userId, from, now, limit)
-                    .sortedByDescending(EventEntity::tsStart)
-                _state.update { current ->
-                    val existingIds = events.map { it.eventId }.toSet()
-                    val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
-                    val filtered = applyFilter(events, current.query)
-                    current.copy(
-                        isLoading = false,
-                        isPerformingAction = false,
-                        allEvents = events,
-                        visibleEvents = filtered,
-                        lastUpdated = now,
-                        errorMessage = null,
-                        selectedEventIds = sanitizedSelection,
-                        selectionMode = current.selectionMode && events.isNotEmpty(),
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isLoading = false,
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
+        _state.update {
+            it.copy(
+                isLoading = true,
+                isPerformingAction = false,
+                errorMessage = null
+            )
         }
+        lookbackStart.value = calculateLookbackStart()
     }
 
     fun setSelectionMode(enabled: Boolean) {
@@ -242,6 +215,48 @@ class EventListViewModel(
                 }
             }
         }
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            lookbackStart
+                .flatMapLatest { from ->
+                    eventDao.observeRecent(userId, from, limit)
+                }
+                .flowOn(Dispatchers.IO)
+                .catch { t ->
+                    _state.update { current ->
+                        current.copy(
+                            isLoading = false,
+                            isPerformingAction = false,
+                            errorMessage = t.message ?: t::class.simpleName ?: "error",
+                        )
+                    }
+                }
+                .collect { events ->
+                    val now = clock.now()
+                    _state.update { current ->
+                        val existingIds = events.map(EventEntity::eventId).toSet()
+                        val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
+                        val filtered = applyFilter(events, current.query)
+                        current.copy(
+                            isLoading = false,
+                            isPerformingAction = false,
+                            allEvents = events,
+                            visibleEvents = filtered,
+                            lastUpdated = now,
+                            errorMessage = null,
+                            selectedEventIds = sanitizedSelection,
+                            selectionMode = current.selectionMode && events.isNotEmpty(),
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun calculateLookbackStart(now: Instant = clock.now()): Instant {
+        val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
+        return Instant.fromEpochMilliseconds(fromEpochMillis)
     }
 
     private fun applyFilter(events: List<EventEntity>, query: String): List<EventEntity> {
