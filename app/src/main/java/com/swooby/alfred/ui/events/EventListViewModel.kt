@@ -6,15 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.swooby.alfred.data.EventDao
 import com.swooby.alfred.data.EventEntity
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -41,9 +47,11 @@ class EventListViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
+    private val lookbackStart = MutableStateFlow(calculateLookbackStart(clock.now()))
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
 
     init {
+        observeEvents()
         refresh()
     }
 
@@ -56,46 +64,14 @@ class EventListViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    isPerformingAction = false,
-                    errorMessage = null
-                )
-            }
-            try {
-                val now = clock.now()
-                val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
-                val from = Instant.fromEpochMilliseconds(fromEpochMillis)
-                val events = eventDao
-                    .listByTime(userId, from, now, limit)
-                    .sortedByDescending(EventEntity::tsStart)
-                _state.update { current ->
-                    val existingIds = events.map { it.eventId }.toSet()
-                    val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
-                    val filtered = applyFilter(events, current.query)
-                    current.copy(
-                        isLoading = false,
-                        isPerformingAction = false,
-                        allEvents = events,
-                        visibleEvents = filtered,
-                        lastUpdated = now,
-                        errorMessage = null,
-                        selectedEventIds = sanitizedSelection,
-                        selectionMode = current.selectionMode && events.isNotEmpty(),
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isLoading = false,
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
+        _state.update {
+            it.copy(
+                isLoading = true,
+                isPerformingAction = false,
+                errorMessage = null
+            )
         }
+        lookbackStart.value = calculateLookbackStart()
     }
 
     fun setSelectionMode(enabled: Boolean) {
@@ -244,6 +220,55 @@ class EventListViewModel(
         }
     }
 
+    private fun observeEvents() {
+        viewModelScope.launch {
+            lookbackStart
+                .flatMapLatest { from ->
+                    eventDao.observeRecent(userId, from, limit)
+                }
+                .flowOn(Dispatchers.IO)
+                .retryWhen { cause, attempt ->
+                    if (cause is CancellationException) {
+                        false
+                    } else {
+                        _state.update { current ->
+                            current.copy(
+                                isLoading = false,
+                                isPerformingAction = false,
+                                errorMessage = cause.message ?: cause::class.simpleName ?: "error",
+                            )
+                        }
+                        val multiplier = (attempt + 1).coerceAtMost(MAX_RETRY_MULTIPLIER)
+                        delay(RETRY_BASE_DELAY.inWholeMilliseconds * multiplier)
+                        true
+                    }
+                }
+                .collect { events ->
+                    val now = clock.now()
+                    _state.update { current ->
+                        val existingIds = events.map(EventEntity::eventId).toSet()
+                        val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
+                        val filtered = applyFilter(events, current.query)
+                        current.copy(
+                            isLoading = false,
+                            isPerformingAction = false,
+                            allEvents = events,
+                            visibleEvents = filtered,
+                            lastUpdated = now,
+                            errorMessage = null,
+                            selectedEventIds = sanitizedSelection,
+                            selectionMode = current.selectionMode && events.isNotEmpty(),
+                        )
+                    }
+            }
+        }
+    }
+
+    private fun calculateLookbackStart(now: Instant = clock.now()): Instant {
+        val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
+        return Instant.fromEpochMilliseconds(fromEpochMillis)
+    }
+
     private fun applyFilter(events: List<EventEntity>, query: String): List<EventEntity> {
         if (query.isBlank()) return events
         val locale = Locale.getDefault()
@@ -277,5 +302,10 @@ class EventListViewModel(
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
         }
+    }
+
+    private companion object {
+        private const val MAX_RETRY_MULTIPLIER = 6L
+        private val RETRY_BASE_DELAY = 1.seconds
     }
 }
