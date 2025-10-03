@@ -55,6 +55,8 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -286,6 +288,8 @@ private fun EventListScaffold(
                 onMenuClick = onMenuClick,
                 onAvatarClick = onAvatarClick
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
@@ -551,7 +555,7 @@ private fun EventListContent(
             .fillMaxSize()
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
     ) {
         item {
             Text(
@@ -686,7 +690,9 @@ private fun TimelineEventRow(
                 } else {
                     { onLongPress() }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 4.dp)
             )
         }
     }
