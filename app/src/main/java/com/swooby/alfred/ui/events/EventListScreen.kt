@@ -195,12 +195,13 @@ fun EventListScreen(
                     onEventSelectionChange(event.eventId, isSelected)
                 },
                 onEventLongPress = { event ->
-                    if (state.isPerformingAction) return@onEventLongPress
-                    if (!state.selectionMode) {
-                        onSelectionModeChange(true)
-                    }
-                    if (!state.selectedEventIds.contains(event.eventId)) {
-                        onEventSelectionChange(event.eventId, true)
+                    if (!state.isPerformingAction) {
+                        if (!state.selectionMode) {
+                            onSelectionModeChange(true)
+                        }
+                        if (!state.selectedEventIds.contains(event.eventId)) {
+                            onEventSelectionChange(event.eventId, true)
+                        }
                     }
                 }
             )
