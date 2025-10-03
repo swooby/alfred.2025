@@ -10,10 +10,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.ui.events.EventListActivity
+import com.swooby.alfred.ui.theme.AlfredTheme
 
 class PermissionsActivity : ComponentActivity() {
 
@@ -23,14 +25,15 @@ class PermissionsActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            MaterialTheme {
+            AlfredTheme {
                 val colorScheme = MaterialTheme.colorScheme
+                val useLightStatusIcons = colorScheme.surface.luminance() > 0.5f
 
                 SideEffect {
                     window.statusBarColor = colorScheme.surface.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = true
+                        .isAppearanceLightStatusBars = useLightStatusIcons
                 }
 
                 Surface(
