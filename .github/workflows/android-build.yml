@@ -6,6 +6,11 @@ on:
       - main
   pull_request:
 
+env:
+  JAVA_VERSION: '21'
+  ANDROID_PLATFORM_API: '36'
+  ANDROID_BUILD_TOOLS: '36.0.0-rc1'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,20 +23,20 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: latest
           packages: |-
             platform-tools
 
-      - name: Install preview SDK components
+      - name: Install Android SDK components
         run: |
           yes | sdkmanager --licenses
-          yes | sdkmanager --channel=3 "platforms;android-36" "build-tools;36.0.0-rc1"
+          yes | sdkmanager --channel=3 "platforms;android-${ANDROID_PLATFORM_API}" "build-tools;${ANDROID_BUILD_TOOLS}"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
