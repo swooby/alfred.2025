@@ -209,6 +209,7 @@ class EventListViewModel(
                             selectionMode = current.selectionMode && events.isNotEmpty(),
                         )
                     }
+                }
             }
         }
     }
