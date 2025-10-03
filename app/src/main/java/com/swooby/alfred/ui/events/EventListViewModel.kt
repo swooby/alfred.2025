@@ -108,10 +108,6 @@ class EventListViewModel(
         }
     }
 
-    fun clearSelection() {
-        _state.update { it.copy(selectedEventIds = emptySet()) }
-    }
-
     fun selectAllVisible() {
         _state.update { current ->
             val visibleIds = current.visibleEvents.map(EventEntity::eventId).toSet()
@@ -162,72 +158,6 @@ class EventListViewModel(
                         isPerformingAction = false,
                         allEvents = updatedAll,
                         visibleEvents = filtered,
-                        selectedEventIds = emptySet(),
-                        selectionMode = false,
-                        lastUpdated = now
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
-        }
-    }
-
-    fun deleteEvent(eventId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isPerformingAction = true,
-                    errorMessage = null
-                )
-            }
-            try {
-                eventDao.deleteByIds(userId, listOf(eventId))
-                val now = clock.now()
-                _state.update { current ->
-                    val updatedAll = current.allEvents.filterNot { it.eventId == eventId }
-                    val filtered = applyFilter(updatedAll, current.query)
-                    current.copy(
-                        isPerformingAction = false,
-                        allEvents = updatedAll,
-                        visibleEvents = filtered,
-                        selectedEventIds = current.selectedEventIds - eventId,
-                        selectionMode = current.selectionMode && (current.selectedEventIds - eventId).isNotEmpty(),
-                        lastUpdated = now
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "error",
-                    )
-                }
-            }
-        }
-    }
-
-    fun clearAllEvents() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update {
-                it.copy(
-                    isPerformingAction = true,
-                    errorMessage = null
-                )
-            }
-            try {
-                eventDao.clearAllForUser(userId)
-                val now = clock.now()
-                _state.update { current ->
-                    current.copy(
-                        isPerformingAction = false,
-                        allEvents = emptyList(),
-                        visibleEvents = emptyList(),
                         selectedEventIds = emptySet(),
                         selectionMode = false,
                         lastUpdated = now
