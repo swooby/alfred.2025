@@ -774,29 +774,45 @@ private fun SelectionBottomBar(
                 text = LocalizedStrings.selectionCountLabel(selectedCount),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             TextButton(
                 onClick = if (allVisibleSelected) onUnselectAll else onSelectAll,
-                enabled = actionsEnabled && hasVisibleEvents
+                enabled = actionsEnabled && hasVisibleEvents,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.SelectAll,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                val label = if (allVisibleSelected) {
-                    LocalizedStrings.unselectAllLabel
-                } else {
-                    LocalizedStrings.selectAllLabel
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.SelectAll,
+                        contentDescription = null
+                    )
+                    val label = if (allVisibleSelected) {
+                        LocalizedStrings.unselectAllLabel
+                    } else {
+                        LocalizedStrings.selectAllLabel
+                    }
+                    Text(
+                        text = label,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
-                Text(text = label)
             }
             FilledTonalButton(
                 onClick = onDeleteSelected,
-                enabled = actionsEnabled && selectedCount > 0
+                enabled = actionsEnabled && selectedCount > 0,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                Text(text = LocalizedStrings.deleteSelectedLabel)
+                Text(
+                    text = LocalizedStrings.deleteSelectedLabel,
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
     }
