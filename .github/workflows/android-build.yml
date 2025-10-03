@@ -24,13 +24,6 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: latest
-          packages: |-
-            platform-tools
-
       - name: Restore Android SDK cache
         id: restore-android-sdk
         uses: actions/cache/restore@v4
@@ -40,6 +33,14 @@ jobs:
             ${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ env.PREVIEW_BUILD_TOOLS }}
             ${{ env.ANDROID_SDK_ROOT }}/licenses
           key: android-sdk-preview-${{ runner.os }}-${{ env.PREVIEW_API_LEVEL }}-${{ env.PREVIEW_BUILD_TOOLS }}
+
+      - name: Set up Android SDK
+        if: steps.restore-android-sdk.outputs.cache-hit != 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: latest
+          packages: |-
+            platform-tools
 
       - name: Install preview SDK components
         if: steps.restore-android-sdk.outputs.cache-hit != 'true'
