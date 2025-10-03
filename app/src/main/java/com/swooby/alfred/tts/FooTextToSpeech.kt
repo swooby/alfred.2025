@@ -1,6 +1,9 @@
 package com.swooby.alfred.tts
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -71,32 +74,18 @@ class FooTextToSpeech {
     private val utteranceCallbacks = mutableMapOf<String, Runnable>()
     private val runAfterSpeak = Runnable { onRunAfterSpeak() }
 
+    private val audioFocusController: FooAudioFocusController
+    private val audioFocusControllerCallbacks: FooAudioFocusController.Callbacks
+    private var audioFocusControllerHandle: FooAudioFocusController.FocusHandle? = null
+
     /*
-    private val audioFocusListener: FooAudioFocusListener
-    private val audioFocusListenerCallbacks: FooAudioFocusListenerCallbacks
     private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
-    private var audioStreamType: Int = TextToSpeech.Engine.DEFAULT_STREAM
-    private var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
     */
 
     private var applicationContext: Context? = null
     private var tts: TextToSpeech? = null
     private var nextUtteranceId = 0
-
-    init {
-        FooLog.v(TAG, "+FooTextToSpeech()")
-        //...
-        FooLog.v(TAG, "-FooTextToSpeech()")
-    }
-
-    fun attach(callbacks: FooTextToSpeechCallbacks) {
-        synchronized(syncLock) { listeners.attach(callbacks) }
-    }
-
-    fun detach(callbacks: FooTextToSpeechCallbacks) {
-        synchronized(syncLock) { listeners.detach(callbacks) }
-    }
 
     val voices: Set<Voice>?
         get() {
@@ -138,7 +127,7 @@ class FooTextToSpeech {
                     val voices = voices
                     if (voices != null) {
                         for (voice in voices) {
-                            //FooLog.e(TAG, "setVoiceName: voice=${FooString.quote(voice.name)}");
+                            //FooLog.e(TAG, "setVoiceName: voice=${FooString.quote(voice.name)}"); // debug
                             if (voiceName.equals(voice.name, ignoreCase = true)) {
                                 foundVoice = voice
                                 break
@@ -155,7 +144,6 @@ class FooTextToSpeech {
     }
 
     var voiceSpeed: Float = DEFAULT_VOICE_SPEED
-        get() = field
         /**
          * @param value Speech rate. `1.0` is the normal speech rate,
          * lower values slow down the speech (`0.5` is half the normal speech rate),
@@ -167,7 +155,6 @@ class FooTextToSpeech {
         }
 
     var voicePitch: Float = DEFAULT_VOICE_PITCH
-        get() = field
         /**
          * @param value Speech pitch. `1.0` is the normal pitch,
          * lower values lower the tone of the synthesized voice,
@@ -178,14 +165,19 @@ class FooTextToSpeech {
             tts?.setPitch(value)
         }
 
-    /*
-    @Suppress("MemberVisibilityCanBePrivate")
-    var audioStreamType: Int
-        get() = mAudioStreamType
-        set(audioStreamType) {
-            synchronized(mSyncLock) { mAudioStreamType = audioStreamType }
+    var audioStreamType: Int = TextToSpeech.Engine.DEFAULT_STREAM
+        get() {
+            synchronized(syncLock) { return field }
+        }
+        private set(value) {
+            synchronized(syncLock) {
+                field = value
+            }
         }
 
+
+    /*
+    private var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
     var volumeRelativeToAudioStream: Float
         /**
          * @return 0 (silence) to 1 (maximum)
@@ -220,6 +212,41 @@ class FooTextToSpeech {
                 field = value
             }
         }
+
+    init {
+        FooLog.v(TAG, "+FooTextToSpeech()")
+        audioFocusController = FooAudioFocusController.instance
+        audioFocusControllerCallbacks = object : FooAudioFocusController.Callbacks() {
+            override fun onFocusGained(
+                audioFocusController: FooAudioFocusController,
+                audioFocusRequest: AudioFocusRequest
+            ): Boolean {
+                return this@FooTextToSpeech.onAudioFocusGained(
+                    audioFocusRequest
+                )
+            }
+
+            override fun onFocusLost(
+                audioFocusController: FooAudioFocusController,
+                audioFocusRequest: AudioFocusRequest,
+                focusChange: Int
+            ): Boolean {
+                return this@FooTextToSpeech.onAudioFocusLost(
+                    audioFocusRequest,
+                    focusChange
+                )
+            }
+        }
+        FooLog.v(TAG, "-FooTextToSpeech()")
+    }
+
+    fun attach(callbacks: FooTextToSpeechCallbacks) {
+        synchronized(syncLock) { listeners.attach(callbacks) }
+    }
+
+    fun detach(callbacks: FooTextToSpeechCallbacks) {
+        synchronized(syncLock) { listeners.detach(callbacks) }
+    }
 
     fun stop() {
         synchronized(syncLock) {
@@ -339,14 +366,18 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "+onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
-        /*
-        mAudioFocusListener.audioFocusStart(
-            mApplicationContext!!,
-            audioStreamType,
-            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
-            mAudioFocusListenerCallbacks
+
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANT)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .setLegacyStreamType(audioStreamType)
+            .build()
+        audioFocusControllerHandle = audioFocusController.acquire(
+            context = applicationContext!!,
+            audioAttributes = audioAttributes,
+            callbacks = audioFocusControllerCallbacks
         )
-        */
+
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "-onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
@@ -412,11 +443,7 @@ class FooTextToSpeech {
             val size = utteranceCallbacks.size
             if (size == 0) {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
-
-                /*
-                mAudioFocusListener.audioFocusStop(mAudioFocusListenerCallbacks)
-                */
-
+                audioFocusControllerHandle?.release()
             } else {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
             }
@@ -444,21 +471,19 @@ class FooTextToSpeech {
         FooLog.d(TAG, "-clear()")
     }
 
-    /*
-    private fun onAudioFocusGained(audioFocusStreamType: Int, audioFocusDurationHint: Int) {
+    private fun onAudioFocusGained(audioFocusRequest: AudioFocusRequest): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained(audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)})")
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained(audioFocusRequest)")
         }
+        return false
     }
 
     private fun onAudioFocusLost(
-        audioFocusListener: FooAudioFocusListener,
-        audioFocusStreamType: Int,
-        audioFocusDurationHint: Int,
+        audioFocusRequest: AudioFocusRequest,
         focusChange: Int
     ): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)}, focusChange=${FooAudioUtils.audioFocusToString(focusChange)})")
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusRequest, focusChange=${FooAudioUtils.audioFocusToString(focusChange)})")
         }
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
@@ -475,7 +500,6 @@ class FooTextToSpeech {
             FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusStop()")
         }
     }
-    */
 
     fun speak(text: String): Boolean {
         return speak(false, text)

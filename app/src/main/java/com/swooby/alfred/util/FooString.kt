@@ -12,10 +12,12 @@ object FooString {
         return value.isNullOrEmpty()
     }
 
+    @JvmStatic
     fun isNullOrEmpty(value: CharSequence?): Boolean {
         return value.isNullOrEmpty()
     }
 
+    @JvmStatic
     fun toString(value: Any?): String? {
         return value?.toString()
     }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="audio_stream_voice_call">Voice Call</string>
+    <string name="audio_stream_system">System</string>
+    <string name="audio_stream_ring">Ring</string>
+    <string name="audio_stream_media">Media</string>
+    <string name="audio_stream_alarm">Alarm</string>
+    <string name="audio_stream_notification">Notification</string>
+    <string name="audio_stream_bluetooth_sco">Bluetooth SCO</string>
+    <string name="audio_stream_system_enforced">System Enforced</string>
+    <string name="audio_stream_dtmf">DTMF</string>
+    <string name="audio_stream_text_to_speech">Text-To-Speech</string>
+    <string name="audio_stream_unknown">Unknown</string>
+</resources>
