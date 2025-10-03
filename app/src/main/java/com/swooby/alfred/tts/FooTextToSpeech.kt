@@ -14,6 +14,7 @@ import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
 import com.swooby.alfred.util.FooListenerManager
 import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.FooString
+import kotlin.jvm.Volatile
 
 /**
  * NOTE: There should be only one TextToSpeech instance per application.
@@ -76,7 +77,45 @@ class FooTextToSpeech {
 
     private val audioFocusController: FooAudioFocusController
     private val audioFocusControllerCallbacks: FooAudioFocusController.Callbacks
+    @Volatile
     private var audioFocusControllerHandle: FooAudioFocusController.FocusHandle? = null
+
+    private fun acquireAudioFocusIfNecessary(audioAttributes: AudioAttributes) {
+        val context = applicationContext
+            ?: throw IllegalStateException("start(context) must be called before acquiring audio focus")
+
+        val needsAcquire = synchronized(syncLock) {
+            audioFocusControllerHandle == null
+        }
+        if (!needsAcquire) {
+            if (VERBOSE_LOG_AUDIO_FOCUS) {
+                FooLog.v(TAG, "#AUDIOFOCUS_TTS acquireAudioFocusIfNecessary(): already acquired; reusing handle")
+            }
+            return
+        }
+
+        val handle = audioFocusController.acquire(
+            context = context,
+            audioAttributes = audioAttributes,
+            callbacks = audioFocusControllerCallbacks
+        )
+
+        var orphanHandle: FooAudioFocusController.FocusHandle? = null
+        synchronized(syncLock) {
+            if (audioFocusControllerHandle == null) {
+                audioFocusControllerHandle = handle
+            } else {
+                orphanHandle = handle
+            }
+        }
+        orphanHandle?.release()
+    }
+
+    private fun clearAudioFocusLocked(): FooAudioFocusController.FocusHandle? {
+        val handle = audioFocusControllerHandle ?: return null
+        audioFocusControllerHandle = null
+        return handle
+    }
 
     /*
     private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -372,11 +411,7 @@ class FooTextToSpeech {
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .setLegacyStreamType(audioStreamType)
             .build()
-        audioFocusControllerHandle = audioFocusController.acquire(
-            context = applicationContext!!,
-            audioAttributes = audioAttributes,
-            callbacks = audioFocusControllerCallbacks
-        )
+        acquireAudioFocusIfNecessary(audioAttributes)
 
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "-onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
@@ -439,21 +474,26 @@ class FooTextToSpeech {
 
     private fun onRunAfterSpeak() {
         FooLog.v(TAG, "+onRunAfterSpeak()")
-        synchronized(syncLock) {
+        val handleToRelease = synchronized(syncLock) {
             val size = utteranceCallbacks.size
             if (size == 0) {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
-                audioFocusControllerHandle?.release()
+                clearAudioFocusLocked()
             } else {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
+                null
             }
+        }
+        handleToRelease?.let {
+            it.release()
+            onAudioFocusStop()
         }
         FooLog.v(TAG, "-onRunAfterSpeak()")
     }
 
     fun clear() {
         FooLog.d(TAG, "+clear()")
-        synchronized(syncLock) {
+        val handleToRelease = synchronized(syncLock) {
             speechQueue.clear()
 
             /*
@@ -467,6 +507,11 @@ class FooTextToSpeech {
                 tts!!.stop()
             }
             utteranceCallbacks.clear()
+            clearAudioFocusLocked()
+        }
+        handleToRelease?.let {
+            it.release()
+            onAudioFocusStop()
         }
         FooLog.d(TAG, "-clear()")
     }
