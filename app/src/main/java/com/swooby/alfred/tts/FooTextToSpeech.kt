@@ -288,8 +288,8 @@ class FooTextToSpeech {
     }
 
     fun stop() {
-        clear()
         synchronized(syncLock) {
+            clear()
             isStarted = false
             tts?.let {
                 it.stop()
