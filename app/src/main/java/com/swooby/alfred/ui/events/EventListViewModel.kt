@@ -111,10 +111,29 @@ class EventListViewModel(
     fun selectAllVisible() {
         _state.update { current ->
             val visibleIds = current.visibleEvents.map(EventEntity::eventId).toSet()
-            current.copy(
-                selectionMode = true,
-                selectedEventIds = current.selectedEventIds + visibleIds
-            )
+            if (visibleIds.isEmpty()) {
+                current
+            } else {
+                current.copy(
+                    selectionMode = true,
+                    selectedEventIds = current.selectedEventIds + visibleIds
+                )
+            }
+        }
+    }
+
+    fun unselectAllVisible() {
+        _state.update { current ->
+            val visibleIds = current.visibleEvents.map(EventEntity::eventId).toSet()
+            if (visibleIds.isEmpty()) {
+                current
+            } else {
+                val updatedSelection = current.selectedEventIds - visibleIds
+                current.copy(
+                    selectionMode = current.selectionMode,
+                    selectedEventIds = updatedSelection
+                )
+            }
         }
     }
 

@@ -60,6 +60,7 @@ class EventListActivity : ComponentActivity() {
                     onSelectionModeChange = viewModel::setSelectionMode,
                     onEventSelectionChange = viewModel::setEventSelection,
                     onSelectAll = viewModel::selectAllVisible,
+                    onUnselectAll = viewModel::unselectAllVisible,
                     onDeleteSelected = viewModel::deleteSelected
                 )
             }

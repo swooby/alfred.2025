@@ -104,6 +104,7 @@ fun EventListScreen(
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
     onSelectAll: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -186,6 +187,7 @@ fun EventListScreen(
                 },
                 onSelectionModeChange = onSelectionModeChange,
                 onSelectAll = onSelectAll,
+                onUnselectAll = onUnselectAll,
                 onDeleteSelected = {
                     if (!state.isPerformingAction && state.selectedEventIds.isNotEmpty()) {
                         showDeleteSelectedDialog = true
@@ -235,6 +237,7 @@ private fun EventListScaffold(
     onAvatarClick: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onSelectAll: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
@@ -260,6 +263,7 @@ private fun EventListScaffold(
                     visibleCount = state.visibleEvents.size,
                     visibleSelectedCount = visibleSelectedCount,
                     onSelectAll = onSelectAll,
+                    onUnselectAll = onUnselectAll,
                     onDeleteSelected = onDeleteSelected,
                     onExitSelection = { onSelectionModeChange(false) },
                     actionsEnabled = actionsEnabled
@@ -736,6 +740,7 @@ private fun SelectionBottomBar(
     visibleCount: Int,
     visibleSelectedCount: Int,
     onSelectAll: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onExitSelection: () -> Unit,
     actionsEnabled: Boolean,
@@ -746,6 +751,8 @@ private fun SelectionBottomBar(
         color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
         tonalElevation = 6.dp
     ) {
+        val hasVisibleEvents = visibleCount > 0
+        val allVisibleSelected = hasVisibleEvents && visibleSelectedCount == visibleCount
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -770,15 +777,20 @@ private fun SelectionBottomBar(
                 fontWeight = FontWeight.SemiBold
             )
             TextButton(
-                onClick = onSelectAll,
-                enabled = actionsEnabled && visibleCount > 0 && visibleSelectedCount < visibleCount
+                onClick = if (allVisibleSelected) onUnselectAll else onSelectAll,
+                enabled = actionsEnabled && hasVisibleEvents
             ) {
                 Icon(
                     imageVector = Icons.Outlined.SelectAll,
                     contentDescription = null
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = LocalizedStrings.selectAllLabel)
+                val label = if (allVisibleSelected) {
+                    LocalizedStrings.unselectAllLabel
+                } else {
+                    LocalizedStrings.selectAllLabel
+                }
+                Text(text = label)
             }
             FilledTonalButton(
                 onClick = onDeleteSelected,
@@ -1006,6 +1018,9 @@ private object LocalizedStrings {
     val selectAllLabel: String
         @Composable get() = stringResource(R.string.event_list_select_all)
 
+    val unselectAllLabel: String
+        @Composable get() = stringResource(R.string.event_list_unselect_all)
+
     val deleteSelectedLabel: String
         @Composable get() = stringResource(R.string.event_list_delete_selected)
 
@@ -1100,6 +1115,7 @@ private fun EventListPreview() {
         onSelectionModeChange = {},
         onEventSelectionChange = { _, _ -> },
         onSelectAll = {},
+        onUnselectAll = {},
         onDeleteSelected = {}
     )
 }

@@ -42,6 +42,7 @@
     <string name="event_list_timeline_title">Timeline</string>
     <string name="event_list_selection_count">%1$d selected</string>
     <string name="event_list_select_all">Select all</string>
+    <string name="event_list_unselect_all">Unselect all</string>
     <string name="event_list_delete_selected">Delete selected</string>
     <string name="event_list_exit_selection">Exit selection mode</string>
     <string name="event_list_delete_selected_title">Delete selected events?</string>
