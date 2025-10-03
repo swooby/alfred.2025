@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,10 +34,8 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -52,8 +51,6 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
@@ -63,10 +60,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -83,7 +81,6 @@ import java.util.Locale
 import kotlin.time.Instant
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventListScreen(
     state: EventListUiState,
@@ -105,10 +102,11 @@ fun EventListScreen(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(colorScheme.primaryContainer, colorScheme.surface) {
+    val backgroundBrush = remember(colorScheme.primary, colorScheme.tertiary, colorScheme.surface) {
         Brush.verticalGradient(
             colors = listOf(
-                colorScheme.primaryContainer.copy(alpha = 0.55f),
+                colorScheme.primary.copy(alpha = 0.3f),
+                colorScheme.tertiary.copy(alpha = 0.22f),
                 colorScheme.surface
             )
         )
@@ -152,7 +150,6 @@ fun EventListScreen(
                 .fillMaxSize()
                 .background(backgroundBrush)
         ) {
-            val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
             EventListScaffold(
                 state = state,
                 userInitials = userInitials,
@@ -164,14 +161,12 @@ fun EventListScreen(
                 },
                 onAvatarClick = {
                     coroutineScope.launch { drawerState.open() }
-                },
-                scrollBehavior = scrollBehavior
+                }
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EventListScaffold(
     state: EventListUiState,
@@ -181,20 +176,23 @@ private fun EventListScaffold(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
     Scaffold(
         modifier = modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+            .fillMaxSize(),
         containerColor = Color.Transparent,
         contentColor = colorScheme.onSurface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            EventListTopBar(
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            EventListHeader(
                 query = state.query,
                 isRefreshing = state.isLoading,
                 userInitials = userInitials,
@@ -202,16 +200,11 @@ private fun EventListScaffold(
                 onQueryChange = onQueryChange,
                 onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
-                onAvatarClick = onAvatarClick,
-                scrollBehavior = scrollBehavior
+                onAvatarClick = onAvatarClick
             )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             AnimatedVisibility(
                 visible = state.isLoading,
                 enter = fadeIn(),
@@ -234,9 +227,8 @@ private fun EventListScaffold(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EventListTopBar(
+private fun EventListHeader(
     query: String,
     isRefreshing: Boolean,
     userInitials: String,
@@ -245,58 +237,96 @@ private fun EventListTopBar(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val headerShape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+    val headerBrush = remember(colorScheme.primary, colorScheme.secondary, colorScheme.tertiary) {
+        Brush.verticalGradient(
+            colors = listOf(
+                colorScheme.primary,
+                colorScheme.secondary,
+                colorScheme.tertiary
+            )
+        )
+    }
+    val headerContentColor = colorScheme.onPrimary
+    val searchContainerColor = remember(headerContentColor) {
+        if (headerContentColor.luminance() > 0.5f) {
+            Color.Black.copy(alpha = 0.2f)
+        } else {
+            Color.White.copy(alpha = 0.2f)
+        }
+    }
 
-    LargeTopAppBar(
-        navigationIcon = {
-            IconButton(onClick = onMenuClick) {
-                Icon(
-                    imageVector = Icons.Outlined.Menu,
-                    contentDescription = LocalizedStrings.menuContentDescription
-                )
-            }
-        },
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = LocalizedStrings.headerSubtitle,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = LocalizedStrings.headerTitle,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                SearchField(
-                    query = query,
-                    isRefreshing = isRefreshing,
-                    onQueryChange = onQueryChange,
-                    onRefresh = onRefresh
-                )
-                lastUpdated?.let { instant ->
-                    Text(
-                        text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(elevation = 10.dp, shape = headerShape, clip = false)
+            .clip(headerShape)
+            .background(headerBrush)
+    ) {
+        Column(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onMenuClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.Menu,
+                        contentDescription = LocalizedStrings.menuContentDescription,
+                        tint = headerContentColor
                     )
                 }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = LocalizedStrings.headerSubtitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = headerContentColor.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = LocalizedStrings.headerTitle,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = headerContentColor
+                    )
+                }
+                Avatar(
+                    initials = userInitials,
+                    onClick = onAvatarClick,
+                    backgroundColor = headerContentColor.copy(alpha = 0.24f),
+                    contentColor = headerContentColor
+                )
             }
-        },
-        actions = {
-            Avatar(initials = userInitials, onClick = onAvatarClick)
-        },
-        scrollBehavior = scrollBehavior,
-        colors = TopAppBarDefaults.largeTopAppBarColors(
-            containerColor = Color.Transparent,
-            scrolledContainerColor = colorScheme.surface,
-            navigationIconContentColor = colorScheme.onSurface,
-            titleContentColor = colorScheme.onSurface,
-            actionIconContentColor = colorScheme.onSurface
-        )
-    )
+
+            SearchField(
+                query = query,
+                isRefreshing = isRefreshing,
+                onQueryChange = onQueryChange,
+                onRefresh = onRefresh,
+                containerColor = searchContainerColor,
+                contentColor = headerContentColor
+            )
+
+            lastUpdated?.let { instant ->
+                Text(
+                    text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = headerContentColor.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -305,32 +335,43 @@ private fun SearchField(
     isRefreshing: Boolean,
     onQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
+    containerColor: Color? = null,
+    contentColor: Color? = null,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val fieldContainerColor = containerColor ?: colorScheme.surfaceColorAtElevation(3.dp)
+    val fieldContentColor = contentColor ?: colorScheme.onSurface
 
     TextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text(text = LocalizedStrings.searchPlaceholder) },
+        placeholder = {
+            Text(
+                text = LocalizedStrings.searchPlaceholder,
+                color = fieldContentColor.copy(alpha = 0.7f)
+            )
+        },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Outlined.Search,
                 contentDescription = null,
-                tint = colorScheme.onSurfaceVariant
+                tint = fieldContentColor.copy(alpha = 0.75f)
             )
         },
         trailingIcon = {
             if (isRefreshing) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
+                    color = fieldContentColor
                 )
             } else {
                 IconButton(onClick = onRefresh) {
                     Icon(
                         imageVector = Icons.Outlined.Refresh,
-                        contentDescription = LocalizedStrings.refreshContentDescription
+                        contentDescription = LocalizedStrings.refreshContentDescription,
+                        tint = fieldContentColor
                     )
                 }
             }
@@ -338,19 +379,27 @@ private fun SearchField(
         singleLine = true,
         shape = RoundedCornerShape(28.dp),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = colorScheme.surfaceColorAtElevation(3.dp),
-            unfocusedContainerColor = colorScheme.surfaceColorAtElevation(1.dp),
-            disabledContainerColor = colorScheme.surfaceColorAtElevation(1.dp),
+            focusedContainerColor = fieldContainerColor,
+            unfocusedContainerColor = fieldContainerColor,
+            disabledContainerColor = fieldContainerColor,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,
-            cursorColor = colorScheme.primary
+            cursorColor = fieldContentColor,
+            focusedTextColor = fieldContentColor,
+            unfocusedTextColor = fieldContentColor,
+            placeholderColor = fieldContentColor.copy(alpha = 0.7f)
         )
     )
 }
 
 @Composable
-private fun Avatar(initials: String, onClick: () -> Unit) {
+private fun Avatar(
+    initials: String,
+    onClick: () -> Unit,
+    backgroundColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
     val avatarContentDescription = LocalizedStrings.avatarContentDescription
 
     Surface(
@@ -359,13 +408,15 @@ private fun Avatar(initials: String, onClick: () -> Unit) {
             .clip(CircleShape)
             .semantics { contentDescription = avatarContentDescription },
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
+        color = backgroundColor,
+        contentColor = contentColor,
         onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Text(
                 text = initials,
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = contentColor
             )
         }
     }
@@ -388,8 +439,9 @@ private fun EventListContent(state: EventListUiState, modifier: Modifier = Modif
         item {
             Text(
                 text = LocalizedStrings.timelineTitle,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
@@ -418,13 +470,13 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         Surface(
             modifier = Modifier.size(96.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
+            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(
                     imageVector = Icons.Outlined.Inbox,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -434,7 +486,8 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             text = LocalizedStrings.emptyTitle,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -523,12 +576,25 @@ private fun TimelineIndicator(
 @Composable
 private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
     val colorScheme = MaterialTheme.colorScheme
+    val cardShape = RoundedCornerShape(24.dp)
+    val cardBrush = remember(colorScheme.surface, colorScheme.secondaryContainer) {
+        Brush.verticalGradient(
+            colors = listOf(
+                colorScheme.surfaceColorAtElevation(4.dp),
+                colorScheme.secondaryContainer.copy(alpha = 0.55f)
+            )
+        )
+    }
 
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        tonalElevation = 2.dp,
-        color = colorScheme.surfaceColorAtElevation(1.dp)
+    Box(
+        modifier = modifier
+            .clip(cardShape)
+            .background(cardBrush)
+            .border(
+                width = 1.dp,
+                color = colorScheme.primary.copy(alpha = 0.12f),
+                shape = cardShape
+            )
     ) {
         Column(
             modifier = Modifier
@@ -563,8 +629,8 @@ private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
                     onClick = {},
                     label = { Text(text = event.eventCategory) },
                     colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = colorScheme.secondaryContainer,
-                        labelColor = colorScheme.onSecondaryContainer
+                        containerColor = colorScheme.tertiaryContainer,
+                        labelColor = colorScheme.onTertiaryContainer
                     )
                 )
                 Text(
@@ -585,7 +651,7 @@ private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
                 Text(
                     text = LocalizedStrings.tagsLabel(tagLine),
                     style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant
+                    color = colorScheme.secondary
                 )
             }
 
@@ -593,7 +659,7 @@ private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
                 Text(
                     text = LocalizedStrings.eventTypeLabel(event.eventType),
                     style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant
+                    color = colorScheme.primary
                 )
                 event.subjectEntityId?.let {
                     Text(
