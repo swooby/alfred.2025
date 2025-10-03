@@ -59,7 +59,9 @@ class EventListViewModel(
                 val now = clock.now()
                 val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
                 val from = Instant.fromEpochMilliseconds(fromEpochMillis)
-                val events = eventDao.listByTime(userId, from, now, limit)
+                val events = eventDao
+                    .listByTime(userId, from, now, limit)
+                    .sortedByDescending(EventEntity::tsStart)
                 _state.update { current ->
                     val filtered = applyFilter(events, current.query)
                     current.copy(
