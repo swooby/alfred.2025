@@ -28,7 +28,15 @@ jobs:
           packages: |-
             platform-tools
 
+      - name: Cache Android SDK
+        id: cache-android-sdk
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_SDK_ROOT }}
+          key: android-sdk-${{ runner.os }}-android-36-36.0.0-rc1
+
       - name: Install preview SDK components
+        if: steps.cache-android-sdk.outputs.cache-hit != 'true'
         run: |
           yes | sdkmanager --licenses
           yes | sdkmanager --channel=3 "platforms;android-36" "build-tools;36.0.0-rc1"
