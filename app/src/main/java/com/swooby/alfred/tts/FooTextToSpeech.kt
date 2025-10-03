@@ -81,7 +81,7 @@ class FooTextToSpeech {
     @Volatile
     private var audioFocusControllerHandle: FooAudioFocusController.FocusHandle? = null
 
-    private fun acquireAudioFocusIfNecessary(audioAttributes: AudioAttributes) {
+    private fun acquireAudioFocusIfNecessary(audioAttributes: AudioAttributes): Boolean {
         val context = applicationContext
             ?: throw IllegalStateException("start(context) must be called before acquiring audio focus")
 
@@ -92,14 +92,17 @@ class FooTextToSpeech {
             if (VERBOSE_LOG_AUDIO_FOCUS) {
                 FooLog.v(TAG, "#AUDIOFOCUS_TTS acquireAudioFocusIfNecessary(): already acquired; reusing handle")
             }
-            return
+            return true
         }
 
         val handle = audioFocusController.acquire(
             context = context,
             audioAttributes = audioAttributes,
             callbacks = audioFocusControllerCallbacks
-        )
+        ) ?: run {
+            FooLog.w(TAG, "#AUDIOFOCUS_TTS acquireAudioFocusIfNecessary(): request denied; skipping handle")
+            return false
+        }
 
         var orphanHandle: FooAudioFocusController.FocusHandle? = null
         synchronized(syncLock) {
@@ -110,6 +113,7 @@ class FooTextToSpeech {
             }
         }
         orphanHandle?.release()
+        return true
     }
 
     private fun clearAudioFocusLocked(): FooAudioFocusController.FocusHandle? {
@@ -397,7 +401,12 @@ class FooTextToSpeech {
             FooLog.v(TAG, "+onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
 
-        acquireAudioFocusIfNecessary(audioAttributes)
+        if (!acquireAudioFocusIfNecessary(audioAttributes) && VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.w(
+                TAG,
+                "#AUDIOFOCUS_TTS onUtteranceStart: unable to acquire audio focus"
+            )
+        }
 
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "-onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
@@ -600,8 +609,21 @@ class FooTextToSpeech {
                     params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
 
                     if (VERBOSE_LOG_UTTERANCE_IDS) {
-                        FooLog.v(TAG, "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
+                        FooLog.v(
+                            TAG,
+                            "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}"
+                        )
                     }
+
+                    if (!acquireAudioFocusIfNecessary(audioAttributes)) {
+                        FooLog.w(
+                            TAG,
+                            "speakInternal: audio focus denied; skipping utteranceId=${FooString.quote(utteranceId)}"
+                        )
+                        runAfter?.run()
+                        return false
+                    }
+
                     if (runAfter != null) {
                         utteranceCallbacks[utteranceId] = runAfter
                     }
