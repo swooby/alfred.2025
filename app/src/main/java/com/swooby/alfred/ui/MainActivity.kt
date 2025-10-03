@@ -15,11 +15,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
 import com.swooby.alfred.settings.SettingsScreen
+import com.swooby.alfred.ui.theme.AlfredTheme
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -28,14 +30,15 @@ class MainActivity : ComponentActivity() {
         val app = application as AlfredApp
 
         setContent {
-            MaterialTheme {
+            AlfredTheme {
                 val colorScheme = MaterialTheme.colorScheme
+                val useLightStatusIcons = colorScheme.primary.luminance() > 0.5f
 
                 SideEffect {
                     window.statusBarColor = colorScheme.primary.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = false
+                        .isAppearanceLightStatusBars = useLightStatusIcons
                 }
 
                 Scaffold(

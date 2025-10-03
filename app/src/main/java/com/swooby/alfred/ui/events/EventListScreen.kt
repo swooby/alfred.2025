@@ -90,6 +90,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -343,21 +344,29 @@ private fun EventListHeader(
             )
         )
     }
-    val isHeaderLight = colorScheme.primaryContainer.luminance() > 0.5f
-    val headerContentColor = if (isHeaderLight) {
-        Color(0xFF1D1B20)
-    } else {
-        Color.White
+    val headerBackgroundLuminance = remember(
+        colorScheme.primaryContainer,
+        colorScheme.secondaryContainer,
+        colorScheme.tertiaryContainer
+    ) {
+        val colors = listOf(
+            colorScheme.primaryContainer,
+            colorScheme.secondaryContainer,
+            colorScheme.tertiaryContainer
+        )
+        colors.fold(0f) { total, color -> total + color.luminance() } / colors.size
     }
-    val outlineColor = if (isHeaderLight) {
-        headerContentColor.copy(alpha = 0.12f)
+    val isHeaderBackgroundLight = headerBackgroundLuminance > 0.5f
+    val headerContentColor = Color.White
+    val outlineColor = if (isHeaderBackgroundLight) {
+        colorScheme.primary.copy(alpha = 0.12f)
     } else {
-        Color.White.copy(alpha = 0.2f)
+        headerContentColor.copy(alpha = 0.2f)
     }
-    val searchContainerColor = if (isHeaderLight) {
+    val searchContainerColor = if (isHeaderBackgroundLight) {
         Color.White.copy(alpha = 0.92f)
     } else {
-        Color.White.copy(alpha = 0.16f)
+        Color.White.copy(alpha = 0.18f)
     }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -413,7 +422,7 @@ private fun EventListHeader(
                     Avatar(
                         initials = userInitials,
                         onClick = onAvatarClick,
-                        backgroundColor = Color.White.copy(alpha = if (isHeaderLight) 0.65f else 0.22f),
+                        backgroundColor = Color.White.copy(alpha = if (isHeaderBackgroundLight) 0.65f else 0.24f),
                         contentColor = headerContentColor
                     )
                 }
@@ -1124,20 +1133,22 @@ private fun EventListPreview() {
         )
     )
 
-    EventListScreen(
-        state = EventListUiState(
-            query = "",
-            allEvents = sampleEvents,
-            visibleEvents = sampleEvents
-        ),
-        userInitials = "A",
-        onQueryChange = {},
-        onRefresh = {},
-        onNavigateToSettings = {},
-        onSelectionModeChange = {},
-        onEventSelectionChange = { _, _ -> },
-        onSelectAll = {},
-        onUnselectAll = {},
-        onDeleteSelected = {}
-    )
+    AlfredTheme {
+        EventListScreen(
+            state = EventListUiState(
+                query = "",
+                allEvents = sampleEvents,
+                visibleEvents = sampleEvents
+            ),
+            userInitials = "A",
+            onQueryChange = {},
+            onRefresh = {},
+            onNavigateToSettings = {},
+            onSelectionModeChange = {},
+            onEventSelectionChange = { _, _ -> },
+            onSelectAll = {},
+            onUnselectAll = {},
+            onDeleteSelected = {}
+        )
+    }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
+import com.swooby.alfred.ui.theme.AlfredTheme
 
 @Composable
 fun SettingsScreen(
@@ -176,7 +177,7 @@ private fun SettingsContent_Preview() {
     var enabledTypesCsv by remember { mutableStateOf("media.start,media.stop,notif.post,display.on,display.off") }
     var speakScreenOff by remember { mutableStateOf(false) }
 
-    MaterialTheme {
+    AlfredTheme {
         Scaffold(
             topBar = {
                 TopAppBar(
