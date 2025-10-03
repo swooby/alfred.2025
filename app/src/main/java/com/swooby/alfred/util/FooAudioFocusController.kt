@@ -79,7 +79,7 @@ class FooAudioFocusController private constructor() {
     /**
      * Acquire a focus handle.
      * @param tag Optional log tag (purely for logs; does not affect ownership).
-     * @throws IllegalStateException when the platform denies audio focus.
+     * @return a [FocusHandle] when audio focus is granted, otherwise null.
      */
     @Synchronized
     fun acquire(
@@ -88,12 +88,12 @@ class FooAudioFocusController private constructor() {
         focusGainType: Int = AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
         callbacks: Callbacks? = null,
         tag: String? = null
-    ): FocusHandle {
+    ): FocusHandle? {
         if (audioManager == null) {
             audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         }
 
-        val tag = if (tag.isNullOrBlank()) "" else "[$tag] "
+        val logTag = if (tag.isNullOrBlank()) "" else "[$tag] "
 
         // Attach per-caller callbacks for the lifetime of this handle.
         callbacks?.let { listeners.attach(it) }
@@ -101,14 +101,14 @@ class FooAudioFocusController private constructor() {
         val wasZero = (liveHolders == 0)
         liveHolders += 1
 
-        if (VERBOSE) FooLog.v(TAG, "${tag}acquire(): holders=$liveHolders (wasZero=$wasZero)")
+        if (VERBOSE) FooLog.v(TAG, "${logTag}acquire(): holders=$liveHolders (wasZero=$wasZero)")
 
         if (wasZero) {
             // First holder triggers the system request
             val audioFocusRequest = buildRequest(audioAttributes, focusGainType)
             val result = audioManager!!.requestAudioFocus(audioFocusRequest)
             val granted = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-            if (VERBOSE) FooLog.v(TAG, "${tag}requestAudioFocus result=$result granted=$granted")
+            if (VERBOSE) FooLog.v(TAG, "${logTag}requestAudioFocus result=$result granted=$granted")
             if (granted) {
                 currentAudioFocusRequest = audioFocusRequest
                 currentAudioAttributes   = audioAttributes
@@ -118,11 +118,12 @@ class FooAudioFocusController private constructor() {
                 // roll back this acquire since request failed
                 liveHolders -= 1
                 callbacks?.let { listeners.detach(it) }
-                throw IllegalStateException("Audio focus not granted (result=$result)")
+                FooLog.w(TAG, "${logTag}requestAudioFocus denied: result=$result; returning null handle")
+                return null
             }
         }
 
-        return FocusHandle(nextId.getAndIncrement(), tag, callbacks)
+        return FocusHandle(nextId.getAndIncrement(), logTag, callbacks)
     }
 
     @Synchronized
