@@ -39,7 +39,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -952,7 +952,7 @@ private fun EventCard(
         Modifier.clickable(
             enabled = actionsEnabled,
             interactionSource = interactionSource,
-            indication = rememberRipple(bounded = true)
+            indication = ripple(bounded = true)
         ) { onClick() }
     } else {
         Modifier
