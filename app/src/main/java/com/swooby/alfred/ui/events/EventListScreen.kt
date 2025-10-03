@@ -509,7 +509,7 @@ private fun EventListHeader(
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = chipContainerColor,
                                 labelColor = headerContentColor,
-                                leadingIconColor = headerContentColor,
+                                iconColor = headerContentColor,
                                 selectedContainerColor = colorScheme.primary.copy(alpha = if (isHeaderLight) 0.25f else 0.5f),
                                 selectedLabelColor = headerContentColor,
                                 selectedLeadingIconColor = headerContentColor
