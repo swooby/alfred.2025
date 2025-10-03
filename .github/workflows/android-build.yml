@@ -31,9 +31,9 @@ jobs:
           packages: |-
             platform-tools
 
-      - name: Cache Android SDK
-        id: cache-android-sdk
-        uses: actions/cache@v4
+      - name: Restore Android SDK cache
+        id: restore-android-sdk
+        uses: actions/cache/restore@v4
         with:
           path: |
             ${{ env.ANDROID_SDK_ROOT }}/platforms/android-${{ env.PREVIEW_API_LEVEL }}
@@ -42,10 +42,20 @@ jobs:
           key: android-sdk-preview-${{ runner.os }}-${{ env.PREVIEW_API_LEVEL }}-${{ env.PREVIEW_BUILD_TOOLS }}
 
       - name: Install preview SDK components
-        if: steps.cache-android-sdk.outputs.cache-hit != 'true'
+        if: steps.restore-android-sdk.outputs.cache-hit != 'true'
         run: |
           yes | sdkmanager --licenses
           yes | sdkmanager --channel=3 "platforms;android-${{ env.PREVIEW_API_LEVEL }}" "build-tools;${{ env.PREVIEW_BUILD_TOOLS }}"
+
+      - name: Save Android SDK cache
+        if: steps.restore-android-sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.ANDROID_SDK_ROOT }}/platforms/android-${{ env.PREVIEW_API_LEVEL }}
+            ${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ env.PREVIEW_BUILD_TOOLS }}
+            ${{ env.ANDROID_SDK_ROOT }}/licenses
+          key: android-sdk-preview-${{ runner.os }}-${{ env.PREVIEW_API_LEVEL }}-${{ env.PREVIEW_BUILD_TOOLS }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
