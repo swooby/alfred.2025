@@ -38,8 +38,12 @@ jobs:
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Build debug and release APKs
-        run: ./gradlew assembleDebug assembleRelease
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build release APK
+        if: github.ref == 'refs/heads/main'
+        run: ./gradlew assembleRelease
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -48,6 +52,7 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Upload release APK
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
