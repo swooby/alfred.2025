@@ -1,6 +1,9 @@
 package com.swooby.alfred.tts
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -8,6 +11,8 @@ import android.speech.tts.Voice
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPart
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSilence
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
+import com.swooby.alfred.util.FooAudioFocusController
+import com.swooby.alfred.util.FooAudioUtils
 import com.swooby.alfred.util.FooListenerManager
 import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.FooString
@@ -71,32 +76,76 @@ class FooTextToSpeech {
     private val utteranceCallbacks = mutableMapOf<String, Runnable>()
     private val runAfterSpeak = Runnable { onRunAfterSpeak() }
 
-    /*
-    private val audioFocusListener: FooAudioFocusListener
-    private val audioFocusListenerCallbacks: FooAudioFocusListenerCallbacks
-    private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
-    private var audioStreamType: Int = TextToSpeech.Engine.DEFAULT_STREAM
-    private var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
-    */
+    private val audioFocusController: FooAudioFocusController
+    private val audioFocusControllerCallbacks: FooAudioFocusController.Callbacks
+    @Volatile
+    private var audioFocusControllerHandle: FooAudioFocusController.FocusHandle? = null
+
+    /**
+     * Audio‑focus acquisition strategy:
+     *  - Read/assign `audioFocusControllerHandle` only while holding `syncLock`.
+     *  - Perform the potentially blocking framework `acquire(...)` call *outside* the lock.
+     *  - Use double‑checked publication under `syncLock`; if another thread wins the race,
+     *    release the extra handle to avoid leaks.
+     */
+    private fun audioFocusAcquireTry(audioAttributes: AudioAttributes): Boolean {
+        val context = applicationContext
+            ?: throw IllegalStateException("start(context) must be called before acquiring audio focus")
+
+        // Fast path: if we already hold a handle, reuse it.
+        synchronized(syncLock) {
+            if (audioFocusControllerHandle != null) {
+                if (VERBOSE_LOG_AUDIO_FOCUS) {
+                    FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audioFocusControllerHandle already acquired; reusing")
+                }
+                return true
+            }
+        }
+
+        // Slow path: request focus WITHOUT holding the lock.
+        // This avoids blocking other threads that might be calling speak()/stop() and also
+        // prevents lock inversions with framework callbacks.
+        val newHandle = audioFocusController.acquire(
+            context = context,
+            audioAttributes = audioAttributes,
+            callbacks = audioFocusControllerCallbacks
+        )
+        if (newHandle == null) {
+            FooLog.w(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audio focus request denied (ex: another app has AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE); ignoring")
+            return false
+        }
+
+        synchronized(syncLock) {
+            if (VERBOSE_LOG_AUDIO_FOCUS) {
+                FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audio focus newHandle acquired; checking if no other thread acquired one...")
+            }
+            if (audioFocusControllerHandle == null) {
+                if (VERBOSE_LOG_AUDIO_FOCUS) {
+                    FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: no other thread acquired audioFocusControllerHandle; audioFocusControllerHandle = newHandle")
+                }
+                audioFocusControllerHandle = newHandle
+                null
+            } else {
+                newHandle
+            }
+        }?.let {
+            if (VERBOSE_LOG_AUDIO_FOCUS) {
+                FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: another thread already acquired audioFocusControllerHandle; newHandle.release()")
+            }
+            it.release()
+        }
+        return true
+    }
+
+    private fun audioFocusHandleClearLocked(): FooAudioFocusController.FocusHandle? {
+        val handle = audioFocusControllerHandle ?: return null
+        audioFocusControllerHandle = null
+        return handle
+    }
 
     private var applicationContext: Context? = null
     private var tts: TextToSpeech? = null
     private var nextUtteranceId = 0
-
-    init {
-        FooLog.v(TAG, "+FooTextToSpeech()")
-        //...
-        FooLog.v(TAG, "-FooTextToSpeech()")
-    }
-
-    fun attach(callbacks: FooTextToSpeechCallbacks) {
-        synchronized(syncLock) { listeners.attach(callbacks) }
-    }
-
-    fun detach(callbacks: FooTextToSpeechCallbacks) {
-        synchronized(syncLock) { listeners.detach(callbacks) }
-    }
 
     val voices: Set<Voice>?
         get() {
@@ -138,7 +187,7 @@ class FooTextToSpeech {
                     val voices = voices
                     if (voices != null) {
                         for (voice in voices) {
-                            //FooLog.e(TAG, "setVoiceName: voice=${FooString.quote(voice.name)}");
+                            //FooLog.e(TAG, "setVoiceName: voice=${FooString.quote(voice.name)}"); // debug
                             if (voiceName.equals(voice.name, ignoreCase = true)) {
                                 foundVoice = voice
                                 break
@@ -155,7 +204,6 @@ class FooTextToSpeech {
     }
 
     var voiceSpeed: Float = DEFAULT_VOICE_SPEED
-        get() = field
         /**
          * @param value Speech rate. `1.0` is the normal speech rate,
          * lower values slow down the speech (`0.5` is half the normal speech rate),
@@ -167,7 +215,6 @@ class FooTextToSpeech {
         }
 
     var voicePitch: Float = DEFAULT_VOICE_PITCH
-        get() = field
         /**
          * @param value Speech pitch. `1.0` is the normal pitch,
          * lower values lower the tone of the synthesized voice,
@@ -178,28 +225,33 @@ class FooTextToSpeech {
             tts?.setPitch(value)
         }
 
-    /*
-    @Suppress("MemberVisibilityCanBePrivate")
-    var audioStreamType: Int
-        get() = mAudioStreamType
-        set(audioStreamType) {
-            synchronized(mSyncLock) { mAudioStreamType = audioStreamType }
+    var audioAttributes: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+        get() {
+            synchronized(syncLock) { return field }
+        }
+        private set(value) {
+            synchronized(syncLock) {
+                field = value
+                tts?.setAudioAttributes(field)
+            }
         }
 
-    var volumeRelativeToAudioStream: Float
+    var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
         /**
          * @return 0 (silence) to 1 (maximum)
          */
         get() {
-            synchronized(mSyncLock) { return mVolumeRelativeToAudioStream }
+            synchronized(syncLock) { return field }
         }
         /**
          * @param volumeRelativeToAudioStream 0 (silence) to 1 (maximum)
          */
         set(volumeRelativeToAudioStream) {
-            synchronized(mSyncLock) { mVolumeRelativeToAudioStream = volumeRelativeToAudioStream }
+            synchronized(syncLock) { field = volumeRelativeToAudioStream }
         }
-    */
 
     var isStarted: Boolean = false
         get() {
@@ -220,6 +272,36 @@ class FooTextToSpeech {
                 field = value
             }
         }
+
+    init {
+        FooLog.v(TAG, "+FooTextToSpeech()")
+        audioFocusController = FooAudioFocusController.instance
+        audioFocusControllerCallbacks = object : FooAudioFocusController.Callbacks() {
+            override fun onFocusGained(
+                audioFocusController: FooAudioFocusController,
+                audioFocusRequest: AudioFocusRequest
+            ): Boolean {
+                return this@FooTextToSpeech.onAudioFocusGained()
+            }
+
+            override fun onFocusLost(
+                audioFocusController: FooAudioFocusController,
+                audioFocusRequest: AudioFocusRequest,
+                focusChange: Int
+            ): Boolean {
+                return this@FooTextToSpeech.onAudioFocusLost(focusChange)
+            }
+        }
+        FooLog.v(TAG, "-FooTextToSpeech()")
+    }
+
+    fun attach(callbacks: FooTextToSpeechCallbacks) {
+        synchronized(syncLock) { listeners.attach(callbacks) }
+    }
+
+    fun detach(callbacks: FooTextToSpeechCallbacks) {
+        synchronized(syncLock) { listeners.detach(callbacks) }
+    }
 
     fun stop() {
         synchronized(syncLock) {
@@ -253,34 +335,6 @@ class FooTextToSpeech {
             } else {
                 isStarted = true
                 tts = TextToSpeech(applicationContext) { status -> onTextToSpeechInitialized(status) }
-                tts!!.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        this@FooTextToSpeech.onUtteranceStart(utteranceId)
-                    }
-
-                    override fun onDone(utteranceId: String?) {
-                        this@FooTextToSpeech.onUtteranceDone(utteranceId)
-                    }
-
-                    @Deprecated(
-                        "Deprecated in Java", ReplaceWith(
-                            "onError(utteranceId, TextToSpeech.ERROR)",
-                            "android.speech.tts.TextToSpeech"
-                        )
-                    )
-                    // Kotlin 2.2.20 bug falsely warns:
-                    // "This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic."
-                    // https://youtrack.jetbrains.com/issue/KT-80399/Anonymous-Kotlin-class-incorrectly-warns-about-deprecated-java-override-despite-Deprecated-annotation
-                    // Available in: 2.3.0-Beta1, State: Fixed, Fix in builds: 2.3.0-dev-5366
-                    @SuppressWarnings("Deprecated")
-                    override fun onError(utteranceId: String?) {
-                        onError(utteranceId, TextToSpeech.ERROR)
-                    }
-
-                    override fun onError(utteranceId: String?, errorCode: Int) {
-                        this@FooTextToSpeech.onUtteranceError(utteranceId, errorCode)
-                    }
-                })
             }
             return this
         }
@@ -297,19 +351,42 @@ class FooTextToSpeech {
                 if (!success) {
                     FooLog.w(TAG, "onTextToSpeechInitialized: TextToSpeech failed to initialize: status == ${statusToString(status)}")
                 } else {
+                    tts?.let {
+                        //it.language = Locale.getDefault()
+                        it.setAudioAttributes(audioAttributes)
+                        it.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                            override fun onStart(utteranceId: String?) {
+                                this@FooTextToSpeech.onUtteranceStart(utteranceId)
+                            }
+
+                            override fun onDone(utteranceId: String?) {
+                                this@FooTextToSpeech.onUtteranceDone(utteranceId)
+                            }
+
+                            @Deprecated(
+                                "Deprecated in Java", ReplaceWith(
+                                    "onError(utteranceId, TextToSpeech.ERROR)",
+                                    "android.speech.tts.TextToSpeech"
+                                )
+                            )
+                            // Kotlin 2.2.20 bug falsely warns:
+                            // "This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic."
+                            // https://youtrack.jetbrains.com/issue/KT-80399/Anonymous-Kotlin-class-incorrectly-warns-about-deprecated-java-override-despite-Deprecated-annotation
+                            // Available in: 2.3.0-Beta1, State: Fixed, Fix in builds: 2.3.0-dev-5366
+                            @SuppressWarnings("Deprecated")
+                            override fun onError(utteranceId: String?) {
+                                onError(utteranceId, TextToSpeech.ERROR)
+                            }
+
+                            override fun onError(utteranceId: String?, errorCode: Int) {
+                                this@FooTextToSpeech.onUtteranceError(utteranceId, errorCode)
+                            }
+                        })
+                    }
+
                     setVoiceName(voiceName)
                     voiceSpeed = voiceSpeed
                     voicePitch = voicePitch
-
-                    /*
-                    tts.language = Locale.getDefault()
-                    tts.setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build()
-                    )
-                    */
 
                     isInitialized = true
                 }
@@ -339,14 +416,7 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "+onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
-        /*
-        mAudioFocusListener.audioFocusStart(
-            mApplicationContext!!,
-            audioStreamType,
-            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
-            mAudioFocusListenerCallbacks
-        )
-        */
+        audioFocusAcquireTry(audioAttributes)
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "-onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
@@ -356,15 +426,6 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "+onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
         }
-        /*
-        utteranceId?.let { id ->
-            synchronized(syncLock) {
-                audioFocusRequests.remove(id)?.let { afr ->
-                    am.abandonAudioFocusRequest(afr)
-                }
-            }
-        }
-        */
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -383,15 +444,6 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.w(TAG, "+onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
         }
-        /*
-        utteranceId?.let { id ->
-            synchronized(syncLock) {
-                audioFocusRequests.remove(id)?.let { afr ->
-                    am.abandonAudioFocusRequest(afr)
-                }
-            }
-        }
-        */
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -407,21 +459,29 @@ class FooTextToSpeech {
     }
 
     private fun onRunAfterSpeak() {
-        FooLog.v(TAG, "+onRunAfterSpeak()")
+        if (VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.v(TAG, "+onRunAfterSpeak()")
+        }
         synchronized(syncLock) {
             val size = utteranceCallbacks.size
             if (size == 0) {
-                FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
-
-                /*
-                mAudioFocusListener.audioFocusStop(mAudioFocusListenerCallbacks)
-                */
-
+                if (VERBOSE_LOG_AUDIO_FOCUS) {
+                    FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
+                }
+                audioFocusHandleClearLocked()
             } else {
-                FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
+                if (VERBOSE_LOG_AUDIO_FOCUS) {
+                    FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
+                }
+                null
             }
+        }?.let {
+            it.release()
+            onAudioFocusStop()
         }
-        FooLog.v(TAG, "-onRunAfterSpeak()")
+        if (VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.v(TAG, "-onRunAfterSpeak()")
+        }
     }
 
     fun clear() {
@@ -429,36 +489,29 @@ class FooTextToSpeech {
         synchronized(syncLock) {
             speechQueue.clear()
 
-            /*
-            audioFocusRequests.values.forEach { afr ->
-                am.abandonAudioFocusRequest(afr)
-            }
-            audioFocusRequests.clear()
-            */
-
             if (isInitialized) {
                 tts!!.stop()
             }
             utteranceCallbacks.clear()
+
+            audioFocusHandleClearLocked()
+        }?.let {
+            it.release()
+            onAudioFocusStop()
         }
         FooLog.d(TAG, "-clear()")
     }
 
-    /*
-    private fun onAudioFocusGained(audioFocusStreamType: Int, audioFocusDurationHint: Int) {
+    private fun onAudioFocusGained(): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained(audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)})")
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained()")
         }
+        return false
     }
 
-    private fun onAudioFocusLost(
-        audioFocusListener: FooAudioFocusListener,
-        audioFocusStreamType: Int,
-        audioFocusDurationHint: Int,
-        focusChange: Int
-    ): Boolean {
+    private fun onAudioFocusLost(focusChange: Int): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)}, focusChange=${FooAudioUtils.audioFocusToString(focusChange)})")
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(focusChange=${FooAudioUtils.audioFocusGainLossToString(focusChange)})")
         }
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
@@ -475,7 +528,6 @@ class FooTextToSpeech {
             FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusStop()")
         }
     }
-    */
 
     fun speak(text: String): Boolean {
         return speak(false, text)
@@ -506,6 +558,10 @@ class FooTextToSpeech {
 
     @Suppress("MemberVisibilityCanBePrivate")
     fun speak(clear: Boolean, builder: FooTextToSpeechBuilder?, runAfter: Runnable?): Boolean {
+
+        //
+        // Always suffix runAfterSpeak to release any audio focus acquired in onUtteranceStart.
+        //
         @Suppress("NAME_SHADOWING")
         val runAfter = if (runAfter == null) {
             runAfterSpeak
@@ -567,14 +623,25 @@ class FooTextToSpeech {
                     val utteranceId = "text_$nextUtteranceId"
                     val params = Bundle()
 
-                    /*
-                    params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, audioStreamType)
                     params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
-                    */
 
                     if (VERBOSE_LOG_UTTERANCE_IDS) {
                         FooLog.v(TAG, "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
                     }
+
+                    if (!audioFocusAcquireTry(audioAttributes)) {
+                        // Being denied an audio focus request poses an interesting dilemma.
+                        // Something else has exclusive audio focus; The right thing to do is to either queue this utterance or drop it [and call runAfter].
+                        // For now we will do neither and intentionally continue to speak even if audio focus is denied.
+                        // If this causes any usability problem (ex: TTS speaking while we are in a call) then it will be obvious and we can address it then.
+                        FooLog.w(TAG, "speakInternal: audio focus denied; speaking anyway; TODO: fix any usability problem this exposes")
+                        /*
+                        FooLog.w(TAG, "speakInternal: audio focus denied; skipping utteranceId=${FooString.quote(utteranceId)}")
+                        runAfter?.run()
+                        return false
+                        */
+                    }
+
                     if (runAfter != null) {
                         utteranceCallbacks[utteranceId] = runAfter
                     }
