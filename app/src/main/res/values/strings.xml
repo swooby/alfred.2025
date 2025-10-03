@@ -37,10 +37,15 @@
     <string name="event_list_refresh_cd">Refresh timeline</string>
     <string name="event_list_avatar_cd">Open account menu</string>
     <string name="event_list_search_placeholder">Search events</string>
-    <string name="event_list_recent_section">Recent activity</string>
+    <string name="event_list_header_subtitle">Your Alfred digest</string>
+    <string name="event_list_header_title">Activity timeline</string>
+    <string name="event_list_timeline_title">Timeline</string>
     <string name="event_list_empty_title">Nothing to hear yet</string>
     <string name="event_list_empty_body">When Alfred ingests new activity it will appear here automatically.</string>
+    <string name="event_list_empty_hint">Pull to refresh or check back in a moment.</string>
     <string name="event_list_last_updated">Updated %1$s</string>
-    <string name="event_list_event_type">Type: %1$s</string>
+    <string name="event_list_event_time">Logged %1$s</string>
+    <string name="event_list_event_type">Source: %1$s</string>
     <string name="event_list_entity_id">Entity ID: %1$s</string>
+    <string name="event_list_tags">Tags: %1$s</string>
 </resources>

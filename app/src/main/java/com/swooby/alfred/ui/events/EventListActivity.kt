@@ -30,9 +30,13 @@ class EventListActivity : ComponentActivity() {
             MaterialTheme {
                 SideEffect {
                     window.statusBarColor = Color.Transparent.toArgb()
+                    window.navigationBarColor = Color.Transparent.toArgb()
                     WindowCompat
                         .getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = false
+                        .apply {
+                            isAppearanceLightStatusBars = true
+                            isAppearanceLightNavigationBars = true
+                        }
                 }
 
                 val viewModel: EventListViewModel = viewModel(factory = viewModelFactory)

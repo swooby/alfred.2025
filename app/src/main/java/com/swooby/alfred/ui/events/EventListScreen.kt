@@ -3,13 +3,16 @@ package com.swooby.alfred.ui.events
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,49 +22,57 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
@@ -91,6 +102,16 @@ fun EventListScreen(
         if (!message.isNullOrBlank()) {
             snackbarHostState.showSnackbar(message)
         }
+    }
+
+    val colorScheme = MaterialTheme.colorScheme
+    val backgroundBrush = remember(colorScheme.primaryContainer, colorScheme.surface) {
+        Brush.verticalGradient(
+            colors = listOf(
+                colorScheme.primaryContainer.copy(alpha = 0.55f),
+                colorScheme.surface
+            )
+        )
     }
 
     ModalNavigationDrawer(
@@ -126,19 +147,27 @@ fun EventListScreen(
         modifier = modifier,
         scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)
     ) {
-        EventListScaffold(
-            state = state,
-            userInitials = userInitials,
-            snackbarHostState = snackbarHostState,
-            onQueryChange = onQueryChange,
-            onRefresh = onRefresh,
-            onMenuClick = {
-                coroutineScope.launch { drawerState.open() }
-            },
-            onAvatarClick = {
-                coroutineScope.launch { drawerState.open() }
-            },
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundBrush)
+        ) {
+            val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+            EventListScaffold(
+                state = state,
+                userInitials = userInitials,
+                snackbarHostState = snackbarHostState,
+                onQueryChange = onQueryChange,
+                onRefresh = onRefresh,
+                onMenuClick = {
+                    coroutineScope.launch { drawerState.open() }
+                },
+                onAvatarClick = {
+                    coroutineScope.launch { drawerState.open() }
+                },
+                scrollBehavior = scrollBehavior
+            )
+        }
     }
 }
 
@@ -152,21 +181,19 @@ private fun EventListScaffold(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = colorScheme.surface,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(colorScheme.surface)
-                .padding(innerPadding)
-        ) {
+        modifier = modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = Color.Transparent,
+        contentColor = colorScheme.onSurface,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
             EventListTopBar(
                 query = state.query,
                 isRefreshing = state.isLoading,
@@ -176,8 +203,15 @@ private fun EventListScaffold(
                 onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
                 onAvatarClick = onAvatarClick,
+                scrollBehavior = scrollBehavior
             )
-
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
             AnimatedVisibility(
                 visible = state.isLoading,
                 enter = fadeIn(),
@@ -189,8 +223,6 @@ private fun EventListScaffold(
                         .padding(horizontal = 24.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             EventListContent(
                 state = state,
@@ -213,88 +245,108 @@ private fun EventListTopBar(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = colorScheme.surface,
-        tonalElevation = 6.dp,
-        shadowElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onMenuClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Menu,
-                        contentDescription = LocalizedStrings.menuContentDescription,
-                        tint = colorScheme.onSurface
+
+    LargeTopAppBar(
+        navigationIcon = {
+            IconButton(onClick = onMenuClick) {
+                Icon(
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = LocalizedStrings.menuContentDescription
+                )
+            }
+        },
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = LocalizedStrings.headerSubtitle,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = LocalizedStrings.headerTitle,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                SearchField(
+                    query = query,
+                    isRefreshing = isRefreshing,
+                    onQueryChange = onQueryChange,
+                    onRefresh = onRefresh
+                )
+                lastUpdated?.let { instant ->
+                    Text(
+                        text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.weight(1f))
-                Avatar(initials = userInitials, onClick = onAvatarClick)
             }
+        },
+        actions = {
+            Avatar(initials = userInitials, onClick = onAvatarClick)
+        },
+        scrollBehavior = scrollBehavior,
+        colors = TopAppBarDefaults.largeTopAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = colorScheme.surface,
+            navigationIconContentColor = colorScheme.onSurface,
+            titleContentColor = colorScheme.onSurface,
+            actionIconContentColor = colorScheme.onSurface
+        )
+    )
+}
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp),
-                placeholder = { Text(text = LocalizedStrings.searchPlaceholder) },
-                singleLine = true,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    if (isRefreshing) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        IconButton(onClick = onRefresh) {
-                            Icon(
-                                imageVector = Icons.Outlined.Refresh,
-                                contentDescription = LocalizedStrings.refreshContentDescription
-                            )
-                        }
-                    }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = colorScheme.surfaceContainer,
-                    unfocusedContainerColor = colorScheme.surfaceContainerHigh,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = colorScheme.primary
-                )
+@Composable
+private fun SearchField(
+    query: String,
+    isRefreshing: Boolean,
+    onQueryChange: (String) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    TextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text(text = LocalizedStrings.searchPlaceholder) },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Outlined.Search,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant
             )
-
-            lastUpdated?.let { instant ->
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text(text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant))) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = colorScheme.surfaceContainerHigh,
-                        labelColor = colorScheme.onSurfaceVariant,
-                        disabledContainerColor = colorScheme.surfaceContainerHigh,
-                        disabledLabelColor = colorScheme.onSurfaceVariant
-                    )
+        },
+        trailingIcon = {
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
                 )
+            } else {
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = LocalizedStrings.refreshContentDescription
+                    )
+                }
             }
-        }
-    }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(28.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = colorScheme.surfaceColorAtElevation(3.dp),
+            unfocusedContainerColor = colorScheme.surfaceColorAtElevation(1.dp),
+            disabledContainerColor = colorScheme.surfaceColorAtElevation(1.dp),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = colorScheme.primary
+        )
+    )
 }
 
 @Composable
@@ -303,12 +355,12 @@ private fun Avatar(initials: String, onClick: () -> Unit) {
 
     Surface(
         modifier = Modifier
-            .size(40.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .semantics { contentDescription = avatarContentDescription },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.primaryContainer,
-        onClick = onClick,
+        onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Text(
@@ -330,21 +382,27 @@ private fun EventListContent(state: EventListUiState, modifier: Modifier = Modif
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp)
     ) {
         item {
             Text(
-                text = LocalizedStrings.recentSection,
+                text = LocalizedStrings.timelineTitle,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
-        items(state.visibleEvents) { event ->
-            EventRow(event = event)
+        itemsIndexed(state.visibleEvents) { index, event ->
+            TimelineEventRow(
+                event = event,
+                isFirst = index == 0,
+                isLast = index == state.visibleEvents.lastIndex
+            )
         }
+
+        item { Spacer(modifier = Modifier.height(8.dp)) }
     }
 }
 
@@ -352,15 +410,31 @@ private fun EventListContent(state: EventListUiState, modifier: Modifier = Modif
 private fun EmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
-            .padding(horizontal = 32.dp)
+            .padding(horizontal = 36.dp)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Surface(
+            modifier = Modifier.size(96.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(
+                    imageVector = Icons.Outlined.Inbox,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = LocalizedStrings.emptyTitle,
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -369,16 +443,92 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = LocalizedStrings.emptyCta,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
 @Composable
-private fun EventRow(event: EventEntity, modifier: Modifier = Modifier) {
+private fun TimelineEventRow(
+    event: EventEntity,
+    isFirst: Boolean,
+    isLast: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        TimelineIndicator(
+            isFirst = isFirst,
+            isLast = isLast,
+            modifier = Modifier
+                .width(24.dp)
+                .fillMaxHeight()
+        )
+        EventCard(event = event, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun TimelineIndicator(
+    isFirst: Boolean,
+    isLast: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val color = MaterialTheme.colorScheme.primary
+
+    Canvas(modifier = modifier) {
+        val centerX = size.width / 2f
+        val centerY = size.height / 2f
+        val strokeWidth = 4.dp.toPx()
+        val lineColor = color.copy(alpha = 0.35f)
+
+        if (!isFirst) {
+            drawLine(
+                color = lineColor,
+                start = androidx.compose.ui.geometry.Offset(centerX, 0f),
+                end = androidx.compose.ui.geometry.Offset(centerX, centerY),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+        if (!isLast) {
+            drawLine(
+                color = lineColor,
+                start = androidx.compose.ui.geometry.Offset(centerX, centerY),
+                end = androidx.compose.ui.geometry.Offset(centerX, size.height),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+        drawCircle(
+            color = color,
+            radius = 6.dp.toPx(),
+            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+        )
+    }
+}
+
+@Composable
+private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier,
         shape = RoundedCornerShape(24.dp),
-        tonalElevation = 3.dp
+        tonalElevation = 2.dp,
+        color = colorScheme.surfaceColorAtElevation(1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -390,66 +540,66 @@ private fun EventRow(event: EventEntity, modifier: Modifier = Modifier) {
                 Text(
                     text = event.subjectEntity,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (!event.eventAction.isBlank()) {
+                if (event.eventAction.isNotBlank()) {
                     Text(
                         text = event.eventAction,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = event.eventCategory,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SuggestionChip(
+                    onClick = {},
+                    label = { Text(text = event.eventCategory) },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = colorScheme.secondaryContainer,
+                        labelColor = colorScheme.onSecondaryContainer
+                    )
                 )
-                Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = formatInstant(event.tsStart),
+                    text = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart)),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = colorScheme.onSurfaceVariant
                 )
             }
 
             if (event.tags.isNotEmpty()) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    event.tags.take(3).forEach { tag ->
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(text = tag) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        )
+                val previewTags = event.tags.take(4)
+                val tagLine = buildString {
+                    append(previewTags.joinToString(separator = ", "))
+                    if (event.tags.size > previewTags.size) {
+                        append(", …")
                     }
                 }
+                Text(
+                    text = LocalizedStrings.tagsLabel(tagLine),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant
+                )
             }
 
-            Divider(color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = LocalizedStrings.eventTypeLabel(event.eventType),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = colorScheme.onSurfaceVariant
                 )
                 event.subjectEntityId?.let {
                     Text(
                         text = LocalizedStrings.entityIdLabel(it),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -459,47 +609,55 @@ private fun EventRow(event: EventEntity, modifier: Modifier = Modifier) {
 
 private object LocalizedStrings {
     val drawerTitle: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_drawer_title)
+        @Composable get() = stringResource(R.string.event_list_drawer_title)
 
     val drawerSettings: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_drawer_settings)
+        @Composable get() = stringResource(R.string.event_list_drawer_settings)
 
     val menuContentDescription: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_menu_cd)
+        @Composable get() = stringResource(R.string.event_list_menu_cd)
 
     val refreshContentDescription: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_refresh_cd)
-
-    val searchPlaceholder: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_search_placeholder)
-
-    val recentSection: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_recent_section)
-
-    val emptyTitle: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_empty_title)
-
-    val emptyBody: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_empty_body)
-
-    val lastUpdatedLabel: (String) -> String
-        @Composable get() = { value -> stringResourceWrapper(R.string.event_list_last_updated, value) }
+        @Composable get() = stringResource(R.string.event_list_refresh_cd)
 
     val avatarContentDescription: String
-        @Composable get() = stringResourceWrapper(R.string.event_list_avatar_cd)
+        @Composable get() = stringResource(R.string.event_list_avatar_cd)
 
-    @Composable
-    fun eventTypeLabel(eventType: String): String =
-        stringResourceWrapper(R.string.event_list_event_type, eventType)
+    val searchPlaceholder: String
+        @Composable get() = stringResource(R.string.event_list_search_placeholder)
 
-    @Composable
-    fun entityIdLabel(id: String): String =
-        stringResourceWrapper(R.string.event_list_entity_id, id)
-}
+    val headerSubtitle: String
+        @Composable get() = stringResource(R.string.event_list_header_subtitle)
 
-@Composable
-private fun stringResourceWrapper(id: Int, vararg args: Any): String {
-    return androidx.compose.ui.res.stringResource(id = id, *args)
+    val headerTitle: String
+        @Composable get() = stringResource(R.string.event_list_header_title)
+
+    val timelineTitle: String
+        @Composable get() = stringResource(R.string.event_list_timeline_title)
+
+    val emptyTitle: String
+        @Composable get() = stringResource(R.string.event_list_empty_title)
+
+    val emptyBody: String
+        @Composable get() = stringResource(R.string.event_list_empty_body)
+
+    val emptyCta: String
+        @Composable get() = stringResource(R.string.event_list_empty_hint)
+
+    val lastUpdatedLabel: (String) -> String
+        @Composable get() = { value -> stringResource(R.string.event_list_last_updated, value) }
+
+    val eventTimestampLabel: (String) -> String
+        @Composable get() = { value -> stringResource(R.string.event_list_event_time, value) }
+
+    val eventTypeLabel: (String) -> String
+        @Composable get() = { value -> stringResource(R.string.event_list_event_type, value) }
+
+    val entityIdLabel: (String) -> String
+        @Composable get() = { value -> stringResource(R.string.event_list_entity_id, value) }
+
+    val tagsLabel: (String) -> String
+        @Composable get() = { value -> stringResource(R.string.event_list_tags, value) }
 }
 
 private val TIME_FORMATTER: DateTimeFormatter =
