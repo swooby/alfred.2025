@@ -388,7 +388,9 @@ private fun SearchField(
             cursorColor = fieldContentColor,
             focusedTextColor = fieldContentColor,
             unfocusedTextColor = fieldContentColor,
-            placeholderColor = fieldContentColor.copy(alpha = 0.7f)
+            focusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
+            unfocusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
+            disabledPlaceholderColor = fieldContentColor.copy(alpha = 0.7f)
         )
     )
 }
