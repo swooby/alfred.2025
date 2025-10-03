@@ -79,7 +79,7 @@ class FooAudioFocusController private constructor() {
     /**
      * Acquire a focus handle.
      * @param tag Optional log tag (purely for logs; does not affect ownership).
-     * @return a [FocusHandle] when audio focus is granted, otherwise `null`.
+     * @return a [FocusHandle] when audio focus is granted, otherwise null.
      */
     @Synchronized
     fun acquire(
@@ -118,10 +118,7 @@ class FooAudioFocusController private constructor() {
                 // roll back this acquire since request failed
                 liveHolders -= 1
                 callbacks?.let { listeners.detach(it) }
-                FooLog.w(
-                    TAG,
-                    "${logTag}requestAudioFocus denied: result=$result; returning null handle"
-                )
+                FooLog.w(TAG, "${logTag}requestAudioFocus denied: result=$result; returning null handle")
                 return null
             }
         }
