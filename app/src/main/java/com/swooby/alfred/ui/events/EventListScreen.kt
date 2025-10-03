@@ -357,11 +357,7 @@ private fun EventListHeader(
         colors.fold(0f) { total, color -> total + color.luminance() } / colors.size
     }
     val isHeaderBackgroundLight = headerBackgroundLuminance > 0.5f
-    val headerContentColor = if (isHeaderBackgroundLight) {
-        Color(0xFF1D1B20)
-    } else {
-        colorScheme.onPrimaryContainer
-    }
+    val headerContentColor = Color.White
     val outlineColor = if (isHeaderBackgroundLight) {
         colorScheme.primary.copy(alpha = 0.12f)
     } else {
