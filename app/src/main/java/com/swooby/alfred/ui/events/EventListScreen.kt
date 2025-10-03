@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -298,6 +301,7 @@ private fun EventListScaffold(
         containerColor = Color.Transparent,
         contentColor = colorScheme.onSurface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             AnimatedVisibility(visible = state.selectionMode) {
                 val visibleSelectedCount = state.visibleEvents.count { event ->
@@ -417,15 +421,15 @@ private fun EventListHeader(
     } else {
         Color.White.copy(alpha = 0.18f)
     }
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
     ) {
         Box(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp)
                 .clip(headerShape)
                 .background(headerBrush)
                 .border(width = 1.dp, color = outlineColor, shape = headerShape)
@@ -433,7 +437,12 @@ private fun EventListHeader(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                    .padding(
+                        start = 18.dp,
+                        end = 18.dp,
+                        top = statusBarPadding + 8.dp,
+                        bottom = 16.dp
+                    ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
