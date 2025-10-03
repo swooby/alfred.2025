@@ -1,4 +1,4 @@
-package com.swooby.alfred.tts
+package com.swooby.alfred.util
 
 import android.content.Context
 import android.media.AudioManager
@@ -6,24 +6,18 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import com.swooby.alfred.R
-import com.swooby.alfred.util.FooString
-import com.swooby.alfred.util.FooString.toString
 import kotlin.math.roundToInt
 
 @Suppress("unused")
 object FooAudioUtils {
-    val audioStreamTypes: IntArray
-
-    init {
-        audioStreamTypes = intArrayOf(
-            AudioManager.STREAM_VOICE_CALL,
-            AudioManager.STREAM_SYSTEM,
-            AudioManager.STREAM_RING,
-            AudioManager.STREAM_MUSIC,
-            AudioManager.STREAM_ALARM,
-            AudioManager.STREAM_NOTIFICATION
-        )
-    }
+    val audioStreamTypes: IntArray = intArrayOf(
+        AudioManager.STREAM_VOICE_CALL,
+        AudioManager.STREAM_SYSTEM,
+        AudioManager.STREAM_RING,
+        AudioManager.STREAM_MUSIC,
+        AudioManager.STREAM_ALARM,
+        AudioManager.STREAM_NOTIFICATION
+    )
 
     fun audioStreamTypeToString(audioStreamType: Int): String {
         return audioStreamTypeToString(null, audioStreamType)
@@ -31,24 +25,27 @@ object FooAudioUtils {
 
     fun audioStreamTypeToString(context: Context?, audioStreamType: Int): String {
         val s = when (audioStreamType) {
-            AudioManager.STREAM_VOICE_CALL -> if (context != null) context.getString(R.string.audio_stream_voice_call) else "STREAM_VOICE_CALL"
-            AudioManager.STREAM_SYSTEM -> if (context != null) context.getString(R.string.audio_stream_system) else "STREAM_SYSTEM"
-            AudioManager.STREAM_RING -> if (context != null) context.getString(R.string.audio_stream_ring) else "STREAM_RING"
-            AudioManager.STREAM_MUSIC -> if (context != null) context.getString(R.string.audio_stream_media) else "STREAM_MUSIC"
-            AudioManager.STREAM_ALARM -> if (context != null) context.getString(R.string.audio_stream_alarm) else "STREAM_ALARM"
-            AudioManager.STREAM_NOTIFICATION -> if (context != null) context.getString(R.string.audio_stream_notification) else "STREAM_NOTIFICATION"
-            6 -> if (context != null) context.getString(R.string.audio_stream_bluetooth_sco) else "STREAM_BLUETOOTH_SCO"
-            7 -> if (context != null) context.getString(R.string.audio_stream_system_enforced) else "STREAM_SYSTEM_ENFORCED"
-            AudioManager.STREAM_DTMF -> if (context != null) context.getString(R.string.audio_stream_dtmf) else "STREAM_DTMF"
-            9 -> if (context != null) context.getString(R.string.audio_stream_text_to_speech) else "STREAM_TTS"
-            else -> if (context != null) context.getString(R.string.audio_stream_unknown) else "STREAM_UNKNOWN"
+            AudioManager.STREAM_VOICE_CALL -> context?.getString(R.string.audio_stream_voice_call) ?: "STREAM_VOICE_CALL"
+            AudioManager.STREAM_SYSTEM -> context?.getString(R.string.audio_stream_system) ?: "STREAM_SYSTEM"
+            AudioManager.STREAM_RING -> context?.getString(R.string.audio_stream_ring) ?: "STREAM_RING"
+            AudioManager.STREAM_MUSIC -> context?.getString(R.string.audio_stream_media) ?: "STREAM_MUSIC"
+            AudioManager.STREAM_ALARM -> context?.getString(R.string.audio_stream_alarm) ?: "STREAM_ALARM"
+            AudioManager.STREAM_NOTIFICATION -> context?.getString(R.string.audio_stream_notification) ?: "STREAM_NOTIFICATION"
+            // STREAM_BLUETOOTH_SCO is hidden
+            6 -> context?.getString(R.string.audio_stream_bluetooth_sco) ?: "STREAM_BLUETOOTH_SCO"
+            // STREAM_SYSTEM_ENFORCED is hidden
+            7 -> context?.getString(R.string.audio_stream_system_enforced) ?: "STREAM_SYSTEM_ENFORCED"
+            AudioManager.STREAM_DTMF -> context?.getString(R.string.audio_stream_dtmf) ?: "STREAM_DTMF"
+            // STREAM_TTS is hidden
+            9 -> context?.getString(R.string.audio_stream_text_to_speech) ?: "STREAM_TTS"
+            else -> context?.getString(R.string.audio_stream_unknown) ?: "STREAM_UNKNOWN"
         }
         return if (context != null) s else "$s($audioStreamType)"
     }
 
-    fun audioFocusToString(audioFocus: Int): String {
-        val s = when (audioFocus) {
-            0 -> "AUDIOFOCUS_NONE"
+    fun audioFocusGainLossToString(audioFocusGainLoss: Int): String {
+        val s = when (audioFocusGainLoss) {
+            AudioManager.AUDIOFOCUS_NONE -> "AUDIOFOCUS_NONE"
             AudioManager.AUDIOFOCUS_GAIN -> "AUDIOFOCUS_GAIN"
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT -> "AUDIOFOCUS_GAIN_TRANSIENT"
             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK -> "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK"
@@ -58,17 +55,17 @@ object FooAudioUtils {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK"
             else -> "UNKNOWN"
         }
-        return "$s($audioFocus)"
+        return "$s($audioFocusGainLoss)"
     }
 
-    fun audioFocusRequestToString(audioFocus: Int): String {
-        val s = when (audioFocus) {
+    fun audioFocusRequestToString(audioFocusRequest: Int): String {
+        val s = when (audioFocusRequest) {
             AudioManager.AUDIOFOCUS_REQUEST_FAILED -> "AUDIOFOCUS_REQUEST_FAILED"
             AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> "AUDIOFOCUS_REQUEST_GRANTED"
             AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> "AUDIOFOCUS_REQUEST_DELAYED"
             else -> "UNKNOWN"
         }
-        return "$s($audioFocus)"
+        return "$s($audioFocusRequest)"
     }
 
     fun getVolumePercentFromAbsolute(
@@ -99,10 +96,9 @@ object FooAudioUtils {
     }
 
     fun getRingtone(context: Context?, ringtoneUri: Uri?): Ringtone? {
-        if (FooString.isNullOrEmpty(toString(ringtoneUri))) {
+        if (FooString.isNullOrEmpty(FooString.toString(ringtoneUri))) {
             return null
         }
-
         return RingtoneManager.getRingtone(context, ringtoneUri)
     }
 }

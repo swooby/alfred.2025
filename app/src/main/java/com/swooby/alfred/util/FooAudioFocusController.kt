@@ -1,12 +1,10 @@
-package com.swooby.alfred.tts
+package com.swooby.alfred.util
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioManager.OnAudioFocusChangeListener
-import com.swooby.alfred.util.FooListenerManager
-import com.swooby.alfred.util.FooLog
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -15,10 +13,8 @@ import java.util.concurrent.atomic.AtomicLong
  * Single controller for system AudioFocus with multi-caller safety.
  * - Only the first acquire() requests focus from the system.
  * - Only the final release() abandons focus.
- * - `tag` is **logging-only** and never affects ownership.
  */
 class FooAudioFocusController private constructor() {
-
     companion object {
         private val TAG = FooLog.TAG(FooAudioFocusController::class.java)
         val instance = FooAudioFocusController()
@@ -30,7 +26,8 @@ class FooAudioFocusController private constructor() {
         /** Return true to consume. */
         open fun onFocusGained(
             audioFocusController: FooAudioFocusController,
-            audioFocusRequest: AudioFocusRequest): Boolean = false
+            audioFocusRequest: AudioFocusRequest
+        ): Boolean = false
 
         /** Return true to consume. */
         open fun onFocusLost(

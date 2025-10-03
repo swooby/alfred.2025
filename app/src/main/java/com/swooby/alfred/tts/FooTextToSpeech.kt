@@ -11,10 +11,11 @@ import android.speech.tts.Voice
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPart
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSilence
 import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
+import com.swooby.alfred.util.FooAudioFocusController
+import com.swooby.alfred.util.FooAudioUtils
 import com.swooby.alfred.util.FooListenerManager
 import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.FooString
-import kotlin.jvm.Volatile
 
 /**
  * NOTE: There should be only one TextToSpeech instance per application.
@@ -117,11 +118,6 @@ class FooTextToSpeech {
         return handle
     }
 
-    /*
-    private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
-    */
-
     private var applicationContext: Context? = null
     private var tts: TextToSpeech? = null
     private var nextUtteranceId = 0
@@ -204,33 +200,33 @@ class FooTextToSpeech {
             tts?.setPitch(value)
         }
 
-    var audioStreamType: Int = TextToSpeech.Engine.DEFAULT_STREAM
+    var audioAttributes: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
         get() {
             synchronized(syncLock) { return field }
         }
         private set(value) {
             synchronized(syncLock) {
                 field = value
+                tts?.setAudioAttributes(field)
             }
         }
 
-
-    /*
-    private var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
-    var volumeRelativeToAudioStream: Float
+    var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
         /**
          * @return 0 (silence) to 1 (maximum)
          */
         get() {
-            synchronized(mSyncLock) { return mVolumeRelativeToAudioStream }
+            synchronized(syncLock) { return field }
         }
         /**
          * @param volumeRelativeToAudioStream 0 (silence) to 1 (maximum)
          */
         set(volumeRelativeToAudioStream) {
-            synchronized(mSyncLock) { mVolumeRelativeToAudioStream = volumeRelativeToAudioStream }
+            synchronized(syncLock) { field = volumeRelativeToAudioStream }
         }
-    */
 
     var isStarted: Boolean = false
         get() {
@@ -319,34 +315,6 @@ class FooTextToSpeech {
             } else {
                 isStarted = true
                 tts = TextToSpeech(applicationContext) { status -> onTextToSpeechInitialized(status) }
-                tts!!.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        this@FooTextToSpeech.onUtteranceStart(utteranceId)
-                    }
-
-                    override fun onDone(utteranceId: String?) {
-                        this@FooTextToSpeech.onUtteranceDone(utteranceId)
-                    }
-
-                    @Deprecated(
-                        "Deprecated in Java", ReplaceWith(
-                            "onError(utteranceId, TextToSpeech.ERROR)",
-                            "android.speech.tts.TextToSpeech"
-                        )
-                    )
-                    // Kotlin 2.2.20 bug falsely warns:
-                    // "This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic."
-                    // https://youtrack.jetbrains.com/issue/KT-80399/Anonymous-Kotlin-class-incorrectly-warns-about-deprecated-java-override-despite-Deprecated-annotation
-                    // Available in: 2.3.0-Beta1, State: Fixed, Fix in builds: 2.3.0-dev-5366
-                    @SuppressWarnings("Deprecated")
-                    override fun onError(utteranceId: String?) {
-                        onError(utteranceId, TextToSpeech.ERROR)
-                    }
-
-                    override fun onError(utteranceId: String?, errorCode: Int) {
-                        this@FooTextToSpeech.onUtteranceError(utteranceId, errorCode)
-                    }
-                })
             }
             return this
         }
@@ -363,19 +331,42 @@ class FooTextToSpeech {
                 if (!success) {
                     FooLog.w(TAG, "onTextToSpeechInitialized: TextToSpeech failed to initialize: status == ${statusToString(status)}")
                 } else {
+                    tts?.let {
+                        //it.language = Locale.getDefault()
+                        it.setAudioAttributes(audioAttributes)
+                        it.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                            override fun onStart(utteranceId: String?) {
+                                this@FooTextToSpeech.onUtteranceStart(utteranceId)
+                            }
+
+                            override fun onDone(utteranceId: String?) {
+                                this@FooTextToSpeech.onUtteranceDone(utteranceId)
+                            }
+
+                            @Deprecated(
+                                "Deprecated in Java", ReplaceWith(
+                                    "onError(utteranceId, TextToSpeech.ERROR)",
+                                    "android.speech.tts.TextToSpeech"
+                                )
+                            )
+                            // Kotlin 2.2.20 bug falsely warns:
+                            // "This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic."
+                            // https://youtrack.jetbrains.com/issue/KT-80399/Anonymous-Kotlin-class-incorrectly-warns-about-deprecated-java-override-despite-Deprecated-annotation
+                            // Available in: 2.3.0-Beta1, State: Fixed, Fix in builds: 2.3.0-dev-5366
+                            @SuppressWarnings("Deprecated")
+                            override fun onError(utteranceId: String?) {
+                                onError(utteranceId, TextToSpeech.ERROR)
+                            }
+
+                            override fun onError(utteranceId: String?, errorCode: Int) {
+                                this@FooTextToSpeech.onUtteranceError(utteranceId, errorCode)
+                            }
+                        })
+                    }
+
                     setVoiceName(voiceName)
                     voiceSpeed = voiceSpeed
                     voicePitch = voicePitch
-
-                    /*
-                    tts.language = Locale.getDefault()
-                    tts.setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build()
-                    )
-                    */
 
                     isInitialized = true
                 }
@@ -406,11 +397,6 @@ class FooTextToSpeech {
             FooLog.v(TAG, "+onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
 
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANT)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-            .setLegacyStreamType(audioStreamType)
-            .build()
         acquireAudioFocusIfNecessary(audioAttributes)
 
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
@@ -422,15 +408,6 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "+onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
         }
-        /*
-        utteranceId?.let { id ->
-            synchronized(syncLock) {
-                audioFocusRequests.remove(id)?.let { afr ->
-                    am.abandonAudioFocusRequest(afr)
-                }
-            }
-        }
-        */
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -449,15 +426,6 @@ class FooTextToSpeech {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.w(TAG, "+onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
         }
-        /*
-        utteranceId?.let { id ->
-            synchronized(syncLock) {
-                audioFocusRequests.remove(id)?.let { afr ->
-                    am.abandonAudioFocusRequest(afr)
-                }
-            }
-        }
-        */
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -496,13 +464,6 @@ class FooTextToSpeech {
         val handleToRelease = synchronized(syncLock) {
             speechQueue.clear()
 
-            /*
-            audioFocusRequests.values.forEach { afr ->
-                am.abandonAudioFocusRequest(afr)
-            }
-            audioFocusRequests.clear()
-            */
-
             if (isInitialized) {
                 tts!!.stop()
             }
@@ -528,7 +489,7 @@ class FooTextToSpeech {
         focusChange: Int
     ): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusRequest, focusChange=${FooAudioUtils.audioFocusToString(focusChange)})")
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusRequest, focusChange=${FooAudioUtils.audioFocusGainLossToString(focusChange)})")
         }
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
@@ -636,10 +597,7 @@ class FooTextToSpeech {
                     val utteranceId = "text_$nextUtteranceId"
                     val params = Bundle()
 
-                    /*
-                    params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, audioStreamType)
                     params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
-                    */
 
                     if (VERBOSE_LOG_UTTERANCE_IDS) {
                         FooLog.v(TAG, "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
