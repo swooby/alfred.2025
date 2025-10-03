@@ -6,7 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,11 +32,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
@@ -48,8 +44,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -112,18 +106,14 @@ fun EventListScreen(
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
     onSelectAll: () -> Unit,
-    onClearSelection: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
-    onDeleteEvent: (String) -> Unit,
-    onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var pendingEventDelete by remember { mutableStateOf<EventEntity?>(null) }
     var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
-    var showClearAllDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.errorMessage) {
         val message = state.errorMessage
@@ -199,47 +189,27 @@ fun EventListScreen(
                 },
                 onSelectionModeChange = onSelectionModeChange,
                 onSelectAll = onSelectAll,
-                onClearSelection = onClearSelection,
+                onUnselectAll = onUnselectAll,
                 onDeleteSelected = {
                     if (!state.isPerformingAction && state.selectedEventIds.isNotEmpty()) {
                         showDeleteSelectedDialog = true
                     }
                 },
-                onClearAll = {
-                    if (!state.isPerformingAction && state.allEvents.isNotEmpty()) {
-                        showClearAllDialog = true
-                    }
-                },
                 onEventSelectionChange = { event, isSelected ->
                     onEventSelectionChange(event.eventId, isSelected)
                 },
-                onEventDelete = { event ->
+                onEventLongPress = { event ->
                     if (!state.isPerformingAction) {
-                        pendingEventDelete = event
+                        if (!state.selectionMode) {
+                            onSelectionModeChange(true)
+                        }
+                        if (!state.selectedEventIds.contains(event.eventId)) {
+                            onEventSelectionChange(event.eventId, true)
+                        }
                     }
                 }
             )
         }
-    }
-
-    val dismissDialogs: () -> Unit = {
-        showDeleteSelectedDialog = false
-        showClearAllDialog = false
-    }
-
-    pendingEventDelete?.let { event ->
-        ActionConfirmDialog(
-            title = LocalizedStrings.deleteEventDialogTitle,
-            message = LocalizedStrings.deleteEventDialogMessage(event.subjectEntity),
-            confirmLabel = LocalizedStrings.dialogDelete,
-            dismissLabel = LocalizedStrings.dialogCancel,
-            onDismiss = { pendingEventDelete = null },
-            onConfirm = {
-                onDeleteEvent(event.eventId)
-                pendingEventDelete = null
-            },
-            inProgress = state.isPerformingAction
-        )
     }
 
     if (showDeleteSelectedDialog) {
@@ -248,25 +218,10 @@ fun EventListScreen(
             message = LocalizedStrings.deleteSelectedDialogMessage(state.selectedEventIds.size),
             confirmLabel = LocalizedStrings.dialogDelete,
             dismissLabel = LocalizedStrings.dialogCancel,
-            onDismiss = dismissDialogs,
+            onDismiss = { showDeleteSelectedDialog = false },
             onConfirm = {
                 onDeleteSelected()
-                dismissDialogs()
-            },
-            inProgress = state.isPerformingAction
-        )
-    }
-
-    if (showClearAllDialog) {
-        ActionConfirmDialog(
-            title = LocalizedStrings.clearAllDialogTitle,
-            message = LocalizedStrings.clearAllDialogMessage,
-            confirmLabel = LocalizedStrings.dialogClear,
-            dismissLabel = LocalizedStrings.dialogCancel,
-            onDismiss = dismissDialogs,
-            onConfirm = {
-                onClearAll()
-                dismissDialogs()
+                showDeleteSelectedDialog = false
             },
             inProgress = state.isPerformingAction
         )
@@ -284,11 +239,10 @@ private fun EventListScaffold(
     onAvatarClick: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onSelectAll: () -> Unit,
-    onClearSelection: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
-    onClearAll: () -> Unit,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
-    onEventDelete: (EventEntity) -> Unit,
+    onEventLongPress: (EventEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -311,7 +265,7 @@ private fun EventListScaffold(
                     visibleCount = state.visibleEvents.size,
                     visibleSelectedCount = visibleSelectedCount,
                     onSelectAll = onSelectAll,
-                    onClearSelection = onClearSelection,
+                    onUnselectAll = onUnselectAll,
                     onDeleteSelected = onDeleteSelected,
                     onExitSelection = { onSelectionModeChange(false) },
                     actionsEnabled = actionsEnabled
@@ -332,13 +286,10 @@ private fun EventListScaffold(
                 onQueryChange = onQueryChange,
                 onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
-                onAvatarClick = onAvatarClick,
-                selectionMode = state.selectionMode,
-                hasEvents = state.allEvents.isNotEmpty(),
-                actionsEnabled = actionsEnabled,
-                onSelectionModeChange = onSelectionModeChange,
-                onClearAll = onClearAll
+                onAvatarClick = onAvatarClick
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
@@ -357,7 +308,7 @@ private fun EventListScaffold(
                 selectionMode = state.selectionMode,
                 actionsEnabled = actionsEnabled,
                 onEventSelectionChange = onEventSelectionChange,
-                onEventDelete = onEventDelete,
+                onEventLongPress = onEventLongPress,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f, fill = true)
@@ -376,11 +327,6 @@ private fun EventListHeader(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
-    selectionMode: Boolean,
-    hasEvents: Boolean,
-    actionsEnabled: Boolean,
-    onSelectionModeChange: (Boolean) -> Unit,
-    onClearAll: () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val headerShape = RoundedCornerShape(28.dp)
@@ -412,11 +358,6 @@ private fun EventListHeader(
         Color.White.copy(alpha = 0.92f)
     } else {
         Color.White.copy(alpha = 0.16f)
-    }
-    val chipContainerColor = if (isHeaderLight) {
-        Color.White.copy(alpha = 0.7f)
-    } else {
-        Color.White.copy(alpha = 0.18f)
     }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -486,71 +427,14 @@ private fun EventListHeader(
                     contentColor = headerContentColor
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val selectionLabel = if (selectionMode) {
-                        LocalizedStrings.selectionToggleOn
-                    } else {
-                        LocalizedStrings.selectionToggleOff
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilterChip(
-                            selected = selectionMode,
-                            onClick = { onSelectionModeChange(!selectionMode) },
-                            label = { Text(text = selectionLabel) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.CheckCircle,
-                                    contentDescription = null
-                                )
-                            },
-                            enabled = actionsEnabled,
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = chipContainerColor,
-                                labelColor = headerContentColor,
-                                iconColor = headerContentColor,
-                                selectedContainerColor = colorScheme.primary.copy(alpha = if (isHeaderLight) 0.25f else 0.5f),
-                                selectedLabelColor = headerContentColor,
-                                selectedLeadingIconColor = headerContentColor
-                            )
-                        )
-
-                        SuggestionChip(
-                            onClick = onClearAll,
-                            label = { Text(text = LocalizedStrings.clearAllLabel) },
-                            enabled = actionsEnabled && hasEvents,
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.DeleteSweep,
-                                    contentDescription = null
-                                )
-                            },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = chipContainerColor,
-                                labelColor = headerContentColor,
-                                iconContentColor = headerContentColor,
-                                disabledContainerColor = chipContainerColor.copy(alpha = 0.5f),
-                                disabledLabelColor = headerContentColor.copy(alpha = 0.4f),
-                                disabledIconContentColor = headerContentColor.copy(alpha = 0.4f)
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    lastUpdated?.let { instant ->
-                        Text(
-                            text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = headerContentColor.copy(alpha = 0.7f),
-                            textAlign = TextAlign.End
-                        )
-                    }
+                lastUpdated?.let { instant ->
+                    Text(
+                        text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = headerContentColor.copy(alpha = 0.7f),
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -658,7 +542,7 @@ private fun EventListContent(
     selectionMode: Boolean,
     actionsEnabled: Boolean,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
-    onEventDelete: (EventEntity) -> Unit,
+    onEventLongPress: (EventEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (state.visibleEvents.isEmpty()) {
@@ -671,7 +555,7 @@ private fun EventListContent(
             .fillMaxSize()
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
     ) {
         item {
             Text(
@@ -694,7 +578,7 @@ private fun EventListContent(
                 onSelectionChange = { checked ->
                     onEventSelectionChange(event, checked)
                 },
-                onDelete = { onEventDelete(event) },
+                onLongPress = { onEventLongPress(event) },
                 actionsEnabled = actionsEnabled
             )
         }
@@ -759,7 +643,7 @@ private fun TimelineEventRow(
     selectionMode: Boolean,
     isSelected: Boolean,
     onSelectionChange: (Boolean) -> Unit,
-    onDelete: () -> Unit,
+    onLongPress: () -> Unit,
     actionsEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -795,15 +679,20 @@ private fun TimelineEventRow(
             EventCard(
                 event = event,
                 isSelected = isSelected,
-                showDelete = !selectionMode,
                 actionsEnabled = actionsEnabled,
-                onDelete = onDelete,
                 onClick = if (selectionMode) {
                     { onSelectionChange(!isSelected) }
                 } else {
                     null
                 },
-                modifier = Modifier.weight(1f)
+                onLongPress = if (selectionMode) {
+                    null
+                } else {
+                    { onLongPress() }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 4.dp)
             )
         }
     }
@@ -857,7 +746,7 @@ private fun SelectionBottomBar(
     visibleCount: Int,
     visibleSelectedCount: Int,
     onSelectAll: () -> Unit,
-    onClearSelection: () -> Unit,
+    onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onExitSelection: () -> Unit,
     actionsEnabled: Boolean,
@@ -868,6 +757,8 @@ private fun SelectionBottomBar(
         color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
         tonalElevation = 6.dp
     ) {
+        val hasVisibleEvents = visibleCount > 0
+        val allVisibleSelected = hasVisibleEvents && visibleSelectedCount == visibleCount
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -889,40 +780,45 @@ private fun SelectionBottomBar(
                 text = LocalizedStrings.selectionCountLabel(selectedCount),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             TextButton(
-                onClick = onSelectAll,
-                enabled = actionsEnabled && visibleCount > 0 && visibleSelectedCount < visibleCount
+                onClick = if (allVisibleSelected) onUnselectAll else onSelectAll,
+                enabled = actionsEnabled && hasVisibleEvents,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.SelectAll,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = LocalizedStrings.selectAllLabel)
-            }
-            TextButton(
-                onClick = onClearSelection,
-                enabled = actionsEnabled && selectedCount > 0
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Clear,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = LocalizedStrings.clearSelectionLabel)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.SelectAll,
+                        contentDescription = null
+                    )
+                    val label = if (allVisibleSelected) {
+                        LocalizedStrings.unselectAllLabel
+                    } else {
+                        LocalizedStrings.selectAllLabel
+                    }
+                    Text(
+                        text = label,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
             }
             FilledTonalButton(
                 onClick = onDeleteSelected,
-                enabled = actionsEnabled && selectedCount > 0
+                enabled = actionsEnabled && selectedCount > 0,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = LocalizedStrings.deleteSelectedContentDescription
+                Text(
+                    text = LocalizedStrings.deleteSelectedLabel,
+                    maxLines = 1,
+                    softWrap = false
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = LocalizedStrings.deleteSelectedLabel)
             }
         }
     }
@@ -969,10 +865,9 @@ private fun ActionConfirmDialog(
 private fun EventCard(
     event: EventEntity,
     isSelected: Boolean,
-    showDelete: Boolean,
     actionsEnabled: Boolean,
-    onDelete: () -> Unit,
     onClick: (() -> Unit)?,
+    onLongPress: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -1001,13 +896,15 @@ private fun EventCard(
             colorScheme.primary.copy(alpha = 0.12f)
         }
     }
-    val clickableModifier = if (onClick != null) {
+    val clickableModifier = if (onClick != null || onLongPress != null) {
         val interactionSource = remember { MutableInteractionSource() }
-        Modifier.clickable(
+        Modifier.combinedClickable(
             enabled = actionsEnabled,
             interactionSource = interactionSource,
-            indication = ripple(bounded = true)
-        ) { onClick() }
+            indication = ripple(bounded = true),
+            onClick = { onClick?.invoke() },
+            onLongClick = onLongPress
+        )
     } else {
         Modifier
     }
@@ -1052,22 +949,6 @@ private fun EventCard(
                             color = colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                if (showDelete) {
-                    IconButton(
-                        onClick = onDelete,
-                        enabled = actionsEnabled
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = LocalizedStrings.deleteEventContentDescription,
-                            tint = if (actionsEnabled) {
-                                colorScheme.primary
-                            } else {
-                                colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            }
                         )
                     }
                 }
@@ -1150,15 +1031,6 @@ private object LocalizedStrings {
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
 
-    val selectionToggleOff: String
-        @Composable get() = stringResource(R.string.event_list_selection_toggle_off)
-
-    val selectionToggleOn: String
-        @Composable get() = stringResource(R.string.event_list_selection_toggle_on)
-
-    val clearAllLabel: String
-        @Composable get() = stringResource(R.string.event_list_clear_all)
-
     val timelineTitle: String
         @Composable get() = stringResource(R.string.event_list_timeline_title)
 
@@ -1168,26 +1040,14 @@ private object LocalizedStrings {
     val selectAllLabel: String
         @Composable get() = stringResource(R.string.event_list_select_all)
 
-    val clearSelectionLabel: String
-        @Composable get() = stringResource(R.string.event_list_clear_selection)
+    val unselectAllLabel: String
+        @Composable get() = stringResource(R.string.event_list_unselect_all)
 
     val deleteSelectedLabel: String
         @Composable get() = stringResource(R.string.event_list_delete_selected)
 
-    val deleteSelectedContentDescription: String
-        @Composable get() = stringResource(R.string.event_list_delete_selected_cd)
-
     val exitSelectionLabel: String
         @Composable get() = stringResource(R.string.event_list_exit_selection)
-
-    val deleteEventContentDescription: String
-        @Composable get() = stringResource(R.string.event_list_delete_event_cd)
-
-    val deleteEventDialogTitle: String
-        @Composable get() = stringResource(R.string.event_list_delete_event_title)
-
-    @Composable
-    fun deleteEventDialogMessage(subject: String) = stringResource(R.string.event_list_delete_event_message, subject)
 
     val deleteSelectedDialogTitle: String
         @Composable get() = stringResource(R.string.event_list_delete_selected_title)
@@ -1195,20 +1055,11 @@ private object LocalizedStrings {
     @Composable
     fun deleteSelectedDialogMessage(count: Int) = stringResource(R.string.event_list_delete_selected_message, count)
 
-    val clearAllDialogTitle: String
-        @Composable get() = stringResource(R.string.event_list_clear_all_title)
-
-    val clearAllDialogMessage: String
-        @Composable get() = stringResource(R.string.event_list_clear_all_message)
-
     val dialogCancel: String
         @Composable get() = stringResource(R.string.event_list_dialog_cancel)
 
     val dialogDelete: String
         @Composable get() = stringResource(R.string.event_list_dialog_delete)
-
-    val dialogClear: String
-        @Composable get() = stringResource(R.string.event_list_dialog_clear)
 
     val emptyTitle: String
         @Composable get() = stringResource(R.string.event_list_empty_title)
@@ -1286,9 +1137,7 @@ private fun EventListPreview() {
         onSelectionModeChange = {},
         onEventSelectionChange = { _, _ -> },
         onSelectAll = {},
-        onClearSelection = {},
-        onDeleteSelected = {},
-        onDeleteEvent = {},
-        onClearAll = {}
+        onUnselectAll = {},
+        onDeleteSelected = {}
     )
 }
