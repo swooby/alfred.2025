@@ -299,11 +299,13 @@ private fun EventListTopBar(
 
 @Composable
 private fun Avatar(initials: String, onClick: () -> Unit) {
+    val avatarContentDescription = LocalizedStrings.avatarContentDescription
+
     Surface(
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            .semantics { contentDescription = LocalizedStrings.avatarContentDescription },
+            .semantics { contentDescription = avatarContentDescription },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.primaryContainer,
         onClick = onClick,
