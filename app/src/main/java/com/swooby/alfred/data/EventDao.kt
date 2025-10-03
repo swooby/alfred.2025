@@ -11,6 +11,22 @@ interface EventDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(events: List<EventEntity>)
 
+    @Query(
+        """
+        DELETE FROM events
+        WHERE userId = :userId AND eventId IN (:eventIds)
+        """
+    )
+    suspend fun deleteByIds(userId: String, eventIds: List<String>)
+
+    @Query(
+        """
+        DELETE FROM events
+        WHERE userId = :userId
+        """
+    )
+    suspend fun clearAllForUser(userId: String)
+
     @Query("""
         SELECT * FROM events
         WHERE userId = :userId AND tsStart BETWEEN :fromTs AND :toTs

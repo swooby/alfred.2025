@@ -49,7 +49,14 @@ class EventListActivity : ComponentActivity() {
                     onRefresh = viewModel::refresh,
                     onNavigateToSettings = {
                         startActivity(Intent(this, MainActivity::class.java))
-                    }
+                    },
+                    onSelectionModeChange = viewModel::setSelectionMode,
+                    onEventSelectionChange = viewModel::setEventSelection,
+                    onSelectAll = viewModel::selectAllVisible,
+                    onClearSelection = viewModel::clearSelection,
+                    onDeleteSelected = viewModel::deleteSelected,
+                    onDeleteEvent = viewModel::deleteEvent,
+                    onClearAll = viewModel::clearAllEvents
                 )
             }
         }

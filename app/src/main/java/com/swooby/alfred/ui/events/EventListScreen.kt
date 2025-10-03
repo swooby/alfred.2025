@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,13 +29,23 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -51,12 +63,18 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,11 +106,21 @@ fun EventListScreen(
     onQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onSelectionModeChange: (Boolean) -> Unit,
+    onEventSelectionChange: (String, Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onDeleteEvent: (String) -> Unit,
+    onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    var pendingEventDelete by remember { mutableStateOf<EventEntity?>(null) }
+    var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
+    var showClearAllDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.errorMessage) {
         val message = state.errorMessage
@@ -161,9 +189,80 @@ fun EventListScreen(
                 },
                 onAvatarClick = {
                     coroutineScope.launch { drawerState.open() }
+                },
+                onSelectionModeChange = onSelectionModeChange,
+                onSelectAll = onSelectAll,
+                onClearSelection = onClearSelection,
+                onDeleteSelected = {
+                    if (!state.isPerformingAction && state.selectedEventIds.isNotEmpty()) {
+                        showDeleteSelectedDialog = true
+                    }
+                },
+                onClearAll = {
+                    if (!state.isPerformingAction && state.allEvents.isNotEmpty()) {
+                        showClearAllDialog = true
+                    }
+                },
+                onEventSelectionChange = { event, isSelected ->
+                    onEventSelectionChange(event.eventId, isSelected)
+                },
+                onEventDelete = { event ->
+                    if (!state.isPerformingAction) {
+                        pendingEventDelete = event
+                    }
                 }
             )
         }
+    }
+
+    val dismissDialogs: () -> Unit = {
+        showDeleteSelectedDialog = false
+        showClearAllDialog = false
+    }
+
+    pendingEventDelete?.let { event ->
+        ActionConfirmDialog(
+            title = LocalizedStrings.deleteEventDialogTitle,
+            message = LocalizedStrings.deleteEventDialogMessage(event.subjectEntity),
+            confirmLabel = LocalizedStrings.dialogDelete,
+            dismissLabel = LocalizedStrings.dialogCancel,
+            onDismiss = { pendingEventDelete = null },
+            onConfirm = {
+                onDeleteEvent(event.eventId)
+                pendingEventDelete = null
+            },
+            inProgress = state.isPerformingAction
+        )
+    }
+
+    if (showDeleteSelectedDialog) {
+        ActionConfirmDialog(
+            title = LocalizedStrings.deleteSelectedDialogTitle,
+            message = LocalizedStrings.deleteSelectedDialogMessage(state.selectedEventIds.size),
+            confirmLabel = LocalizedStrings.dialogDelete,
+            dismissLabel = LocalizedStrings.dialogCancel,
+            onDismiss = dismissDialogs,
+            onConfirm = {
+                onDeleteSelected()
+                dismissDialogs()
+            },
+            inProgress = state.isPerformingAction
+        )
+    }
+
+    if (showClearAllDialog) {
+        ActionConfirmDialog(
+            title = LocalizedStrings.clearAllDialogTitle,
+            message = LocalizedStrings.clearAllDialogMessage,
+            confirmLabel = LocalizedStrings.dialogClear,
+            dismissLabel = LocalizedStrings.dialogCancel,
+            onDismiss = dismissDialogs,
+            onConfirm = {
+                onClearAll()
+                dismissDialogs()
+            },
+            inProgress = state.isPerformingAction
+        )
     }
 }
 
@@ -176,9 +275,17 @@ private fun EventListScaffold(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
+    onSelectionModeChange: (Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onClearAll: () -> Unit,
+    onEventSelectionChange: (EventEntity, Boolean) -> Unit,
+    onEventDelete: (EventEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val actionsEnabled = !state.isPerformingAction
 
     Scaffold(
         modifier = modifier
@@ -186,6 +293,23 @@ private fun EventListScaffold(
         containerColor = Color.Transparent,
         contentColor = colorScheme.onSurface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            AnimatedVisibility(visible = state.selectionMode) {
+                val visibleSelectedCount = state.visibleEvents.count { event ->
+                    state.selectedEventIds.contains(event.eventId)
+                }
+                SelectionBottomBar(
+                    selectedCount = state.selectedEventIds.size,
+                    visibleCount = state.visibleEvents.size,
+                    visibleSelectedCount = visibleSelectedCount,
+                    onSelectAll = onSelectAll,
+                    onClearSelection = onClearSelection,
+                    onDeleteSelected = onDeleteSelected,
+                    onExitSelection = { onSelectionModeChange(false) },
+                    actionsEnabled = actionsEnabled
+                )
+            }
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -200,13 +324,18 @@ private fun EventListScaffold(
                 onQueryChange = onQueryChange,
                 onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
-                onAvatarClick = onAvatarClick
+                onAvatarClick = onAvatarClick,
+                selectionMode = state.selectionMode,
+                hasEvents = state.allEvents.isNotEmpty(),
+                actionsEnabled = actionsEnabled,
+                onSelectionModeChange = onSelectionModeChange,
+                onClearAll = onClearAll
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             AnimatedVisibility(
-                visible = state.isLoading,
+                visible = state.isLoading || state.isPerformingAction,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -219,6 +348,10 @@ private fun EventListScaffold(
 
             EventListContent(
                 state = state,
+                selectionMode = state.selectionMode,
+                actionsEnabled = actionsEnabled,
+                onEventSelectionChange = onEventSelectionChange,
+                onEventDelete = onEventDelete,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f, fill = true)
@@ -237,6 +370,11 @@ private fun EventListHeader(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
+    selectionMode: Boolean,
+    hasEvents: Boolean,
+    actionsEnabled: Boolean,
+    onSelectionModeChange: (Boolean) -> Unit,
+    onClearAll: () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val headerShape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
@@ -317,6 +455,42 @@ private fun EventListHeader(
                 containerColor = searchContainerColor,
                 contentColor = headerContentColor
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val selectionLabel = if (selectionMode) {
+                    LocalizedStrings.selectionToggleOn
+                } else {
+                    LocalizedStrings.selectionToggleOff
+                }
+                FilterChip(
+                    selected = selectionMode,
+                    onClick = { onSelectionModeChange(!selectionMode) },
+                    label = { Text(text = selectionLabel) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null
+                        )
+                    },
+                    enabled = actionsEnabled
+                )
+
+                SuggestionChip(
+                    onClick = onClearAll,
+                    label = { Text(text = LocalizedStrings.clearAllLabel) },
+                    enabled = actionsEnabled && hasEvents,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.DeleteSweep,
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
 
             lastUpdated?.let { instant ->
                 Text(
@@ -425,7 +599,14 @@ private fun Avatar(
 }
 
 @Composable
-private fun EventListContent(state: EventListUiState, modifier: Modifier = Modifier) {
+private fun EventListContent(
+    state: EventListUiState,
+    selectionMode: Boolean,
+    actionsEnabled: Boolean,
+    onEventSelectionChange: (EventEntity, Boolean) -> Unit,
+    onEventDelete: (EventEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
     if (state.visibleEvents.isEmpty()) {
         EmptyState(modifier = modifier.fillMaxSize())
         return
@@ -449,10 +630,18 @@ private fun EventListContent(state: EventListUiState, modifier: Modifier = Modif
         }
 
         itemsIndexed(state.visibleEvents) { index, event ->
+            val isSelected = state.selectedEventIds.contains(event.eventId)
             TimelineEventRow(
                 event = event,
                 isFirst = index == 0,
-                isLast = index == state.visibleEvents.lastIndex
+                isLast = index == state.visibleEvents.lastIndex,
+                selectionMode = selectionMode,
+                isSelected = isSelected,
+                onSelectionChange = { checked ->
+                    onEventSelectionChange(event, checked)
+                },
+                onDelete = { onEventDelete(event) },
+                actionsEnabled = actionsEnabled
             )
         }
 
@@ -513,6 +702,11 @@ private fun TimelineEventRow(
     event: EventEntity,
     isFirst: Boolean,
     isLast: Boolean,
+    selectionMode: Boolean,
+    isSelected: Boolean,
+    onSelectionChange: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    actionsEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -529,7 +723,35 @@ private fun TimelineEventRow(
                 .width(24.dp)
                 .fillMaxHeight()
         )
-        EventCard(event = event, modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            if (selectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = onSelectionChange,
+                    enabled = actionsEnabled,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+            EventCard(
+                event = event,
+                isSelected = isSelected,
+                showDelete = !selectionMode,
+                actionsEnabled = actionsEnabled,
+                onDelete = onDelete,
+                onClick = if (selectionMode) {
+                    { onSelectionChange(!isSelected) }
+                } else {
+                    null
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -576,25 +798,174 @@ private fun TimelineIndicator(
 }
 
 @Composable
-private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
+private fun SelectionBottomBar(
+    selectedCount: Int,
+    visibleCount: Int,
+    visibleSelectedCount: Int,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onExitSelection: () -> Unit,
+    actionsEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+        tonalElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            IconButton(
+                onClick = onExitSelection,
+                enabled = actionsEnabled
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = LocalizedStrings.exitSelectionLabel
+                )
+            }
+            Text(
+                text = LocalizedStrings.selectionCountLabel(selectedCount),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            TextButton(
+                onClick = onSelectAll,
+                enabled = actionsEnabled && visibleCount > 0 && visibleSelectedCount < visibleCount
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.SelectAll,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = LocalizedStrings.selectAllLabel)
+            }
+            TextButton(
+                onClick = onClearSelection,
+                enabled = actionsEnabled && selectedCount > 0
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Clear,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = LocalizedStrings.clearSelectionLabel)
+            }
+            FilledTonalButton(
+                onClick = onDeleteSelected,
+                enabled = actionsEnabled && selectedCount > 0
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = LocalizedStrings.deleteSelectedContentDescription
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = LocalizedStrings.deleteSelectedLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionConfirmDialog(
+    title: String,
+    message: String,
+    confirmLabel: String,
+    dismissLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    inProgress: Boolean
+) {
+    AlertDialog(
+        onDismissRequest = {
+            if (!inProgress) {
+                onDismiss()
+            }
+        },
+        title = { Text(text = title) },
+        text = { Text(text = message) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !inProgress
+            ) {
+                Text(text = confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !inProgress
+            ) {
+                Text(text = dismissLabel)
+            }
+        }
+    )
+}
+
+@Composable
+private fun EventCard(
+    event: EventEntity,
+    isSelected: Boolean,
+    showDelete: Boolean,
+    actionsEnabled: Boolean,
+    onDelete: () -> Unit,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
     val colorScheme = MaterialTheme.colorScheme
     val cardShape = RoundedCornerShape(24.dp)
-    val cardBrush = remember(colorScheme.surface, colorScheme.secondaryContainer) {
+    val cardBrush = remember(
+        colorScheme.surface,
+        colorScheme.secondaryContainer,
+        colorScheme.primaryContainer,
+        isSelected
+    ) {
         Brush.verticalGradient(
             colors = listOf(
                 colorScheme.surfaceColorAtElevation(4.dp),
-                colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                if (isSelected) {
+                    colorScheme.primaryContainer.copy(alpha = 0.75f)
+                } else {
+                    colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                }
             )
         )
+    }
+    val borderColor = remember(colorScheme.primary, isSelected) {
+        if (isSelected) {
+            colorScheme.primary.copy(alpha = 0.4f)
+        } else {
+            colorScheme.primary.copy(alpha = 0.12f)
+        }
+    }
+    val clickableModifier = if (onClick != null) {
+        val interactionSource = remember { MutableInteractionSource() }
+        Modifier.clickable(
+            enabled = actionsEnabled,
+            interactionSource = interactionSource,
+            indication = rememberRipple(bounded = true)
+        ) { onClick() }
+    } else {
+        Modifier
     }
 
     Box(
         modifier = modifier
+            .then(clickableModifier)
             .clip(cardShape)
             .background(cardBrush)
             .border(
                 width = 1.dp,
-                color = colorScheme.primary.copy(alpha = 0.12f),
+                color = borderColor,
                 shape = cardShape
             )
     ) {
@@ -604,22 +975,47 @@ private fun EventCard(event: EventEntity, modifier: Modifier = Modifier) {
                 .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = event.subjectEntity,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (event.eventAction.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        text = event.eventAction,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 2,
+                        text = event.subjectEntity,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (event.eventAction.isNotBlank()) {
+                        Text(
+                            text = event.eventAction,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (showDelete) {
+                    IconButton(
+                        onClick = onDelete,
+                        enabled = actionsEnabled
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = LocalizedStrings.deleteEventContentDescription,
+                            tint = if (actionsEnabled) {
+                                colorScheme.primary
+                            } else {
+                                colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -700,8 +1096,69 @@ private object LocalizedStrings {
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
 
+    val selectionToggleOff: String
+        @Composable get() = stringResource(R.string.event_list_selection_toggle_off)
+
+    val selectionToggleOn: String
+        @Composable get() = stringResource(R.string.event_list_selection_toggle_on)
+
+    val clearAllLabel: String
+        @Composable get() = stringResource(R.string.event_list_clear_all)
+
     val timelineTitle: String
         @Composable get() = stringResource(R.string.event_list_timeline_title)
+
+    val selectionCountLabel: (Int) -> String
+        @Composable get() = { count -> stringResource(R.string.event_list_selection_count, count) }
+
+    val selectAllLabel: String
+        @Composable get() = stringResource(R.string.event_list_select_all)
+
+    val clearSelectionLabel: String
+        @Composable get() = stringResource(R.string.event_list_clear_selection)
+
+    val deleteSelectedLabel: String
+        @Composable get() = stringResource(R.string.event_list_delete_selected)
+
+    val deleteSelectedContentDescription: String
+        @Composable get() = stringResource(R.string.event_list_delete_selected_cd)
+
+    val exitSelectionLabel: String
+        @Composable get() = stringResource(R.string.event_list_exit_selection)
+
+    val deleteEventContentDescription: String
+        @Composable get() = stringResource(R.string.event_list_delete_event_cd)
+
+    val deleteEventDialogTitle: String
+        @Composable get() = stringResource(R.string.event_list_delete_event_title)
+
+    val deleteEventDialogMessage: (String) -> String
+        @Composable get() = { subject ->
+            stringResource(R.string.event_list_delete_event_message, subject)
+        }
+
+    val deleteSelectedDialogTitle: String
+        @Composable get() = stringResource(R.string.event_list_delete_selected_title)
+
+    val deleteSelectedDialogMessage: (Int) -> String
+        @Composable get() = { count ->
+            stringResource(R.string.event_list_delete_selected_message, count)
+        }
+
+    val clearAllDialogTitle: String
+        @Composable get() = stringResource(R.string.event_list_clear_all_title)
+
+    val clearAllDialogMessage: String
+        @Composable get() = stringResource(R.string.event_list_clear_all_message)
+
+    val dialogCancel: String
+        @Composable get() = stringResource(R.string.event_list_dialog_cancel)
+
+    val dialogDelete: String
+        @Composable get() = stringResource(R.string.event_list_dialog_delete)
+
+    val dialogClear: String
+        @Composable get() = stringResource(R.string.event_list_dialog_clear)
 
     val emptyTitle: String
         @Composable get() = stringResource(R.string.event_list_empty_title)
@@ -775,6 +1232,13 @@ private fun EventListPreview() {
         userInitials = "A",
         onQueryChange = {},
         onRefresh = {},
-        onNavigateToSettings = {}
+        onNavigateToSettings = {},
+        onSelectionModeChange = {},
+        onEventSelectionChange = { _, _ -> },
+        onSelectAll = {},
+        onClearSelection = {},
+        onDeleteSelected = {},
+        onDeleteEvent = {},
+        onClearAll = {}
     )
 }
