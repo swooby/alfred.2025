@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,13 +42,14 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material3.ripple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -60,16 +61,15 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,7 +82,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -97,11 +96,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.time.Instant
-import kotlinx.coroutines.launch
 
 @Composable
 fun EventListScreen(
@@ -341,8 +340,6 @@ private fun EventListScaffold(
                 onClearAll = onClearAll
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
                 enter = fadeIn(),
@@ -429,7 +426,7 @@ private fun EventListHeader(
     ) {
         Box(
             modifier = Modifier
-                .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp)
+                .padding(start = 8.dp, end = 8.dp, top = statusBarPadding + 8.dp, bottom = 8.dp)
                 .clip(headerShape)
                 .background(headerBrush)
                 .border(width = 1.dp, color = outlineColor, shape = headerShape)
@@ -438,10 +435,8 @@ private fun EventListHeader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
-                        start = 18.dp,
-                        end = 18.dp,
-                        top = statusBarPadding + 8.dp,
-                        bottom = 16.dp
+                        horizontal = 16.dp,
+                        vertical = 16.dp,
                     ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -675,8 +670,8 @@ private fun EventListContent(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp)
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
     ) {
         item {
             Text(
@@ -1167,8 +1162,8 @@ private object LocalizedStrings {
     val timelineTitle: String
         @Composable get() = stringResource(R.string.event_list_timeline_title)
 
-    val selectionCountLabel: (Int) -> String
-        @Composable get() = { count -> stringResource(R.string.event_list_selection_count, count) }
+    @Composable
+    fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)
 
     val selectAllLabel: String
         @Composable get() = stringResource(R.string.event_list_select_all)
@@ -1191,18 +1186,14 @@ private object LocalizedStrings {
     val deleteEventDialogTitle: String
         @Composable get() = stringResource(R.string.event_list_delete_event_title)
 
-    val deleteEventDialogMessage: (String) -> String
-        @Composable get() = { subject ->
-            stringResource(R.string.event_list_delete_event_message, subject)
-        }
+    @Composable
+    fun deleteEventDialogMessage(subject: String) = stringResource(R.string.event_list_delete_event_message, subject)
 
     val deleteSelectedDialogTitle: String
         @Composable get() = stringResource(R.string.event_list_delete_selected_title)
 
-    val deleteSelectedDialogMessage: (Int) -> String
-        @Composable get() = { count ->
-            stringResource(R.string.event_list_delete_selected_message, count)
-        }
+    @Composable
+    fun deleteSelectedDialogMessage(count: Int) = stringResource(R.string.event_list_delete_selected_message, count)
 
     val clearAllDialogTitle: String
         @Composable get() = stringResource(R.string.event_list_clear_all_title)
@@ -1228,20 +1219,20 @@ private object LocalizedStrings {
     val emptyCta: String
         @Composable get() = stringResource(R.string.event_list_empty_hint)
 
-    val lastUpdatedLabel: (String) -> String
-        @Composable get() = { value -> stringResource(R.string.event_list_last_updated, value) }
+    @Composable
+    fun lastUpdatedLabel(value: String) = stringResource(R.string.event_list_last_updated, value)
 
-    val eventTimestampLabel: (String) -> String
-        @Composable get() = { value -> stringResource(R.string.event_list_event_time, value) }
+    @Composable
+    fun eventTimestampLabel(value: String) = stringResource(R.string.event_list_event_time, value)
 
-    val eventTypeLabel: (String) -> String
-        @Composable get() = { value -> stringResource(R.string.event_list_event_type, value) }
+    @Composable
+    fun eventTypeLabel(value: String) = stringResource(R.string.event_list_event_type, value)
 
-    val entityIdLabel: (String) -> String
-        @Composable get() = { value -> stringResource(R.string.event_list_entity_id, value) }
+    @Composable
+    fun entityIdLabel(value: String) = stringResource(R.string.event_list_entity_id, value)
 
-    val tagsLabel: (String) -> String
-        @Composable get() = { value -> stringResource(R.string.event_list_tags, value) }
+    @Composable
+    fun tagsLabel(value: String) = stringResource(R.string.event_list_tags, value)
 }
 
 private val TIME_FORMATTER: DateTimeFormatter =
