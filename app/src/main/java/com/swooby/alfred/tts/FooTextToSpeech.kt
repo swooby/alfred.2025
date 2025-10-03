@@ -18,6 +18,10 @@ import com.swooby.alfred.util.FooString
  * Then call instance.start(context, callbacks) to initialize the instance.
  * This call instance.stop() when done.
  * Optionally call instance.shutdown() when done.
+ *
+ * References:
+ *  * https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/speech/tts/
+ *  * https://cs.android.com/android/platform/superproject/main/+/main:packages/apps/Settings/src/com/android/settings/tts/
  */
 class FooTextToSpeech {
     companion object {
@@ -66,8 +70,15 @@ class FooTextToSpeech {
     private val speechQueue = mutableListOf<UtteranceInfo>()
     private val utteranceCallbacks = mutableMapOf<String, Runnable>()
     private val runAfterSpeak = Runnable { onRunAfterSpeak() }
-    //private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    //private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
+
+    /*
+    private val audioFocusListener: FooAudioFocusListener
+    private val audioFocusListenerCallbacks: FooAudioFocusListenerCallbacks
+    private val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val audioFocusRequests = mutableMapOf<String, AudioFocusRequest>()
+    private var audioStreamType: Int = TextToSpeech.Engine.DEFAULT_STREAM
+    private var volumeRelativeToAudioStream: Float = DEFAULT_VOICE_VOLUME
+    */
 
     private var applicationContext: Context? = null
     private var tts: TextToSpeech? = null
@@ -167,6 +178,29 @@ class FooTextToSpeech {
             tts?.setPitch(value)
         }
 
+    /*
+    @Suppress("MemberVisibilityCanBePrivate")
+    var audioStreamType: Int
+        get() = mAudioStreamType
+        set(audioStreamType) {
+            synchronized(mSyncLock) { mAudioStreamType = audioStreamType }
+        }
+
+    var volumeRelativeToAudioStream: Float
+        /**
+         * @return 0 (silence) to 1 (maximum)
+         */
+        get() {
+            synchronized(mSyncLock) { return mVolumeRelativeToAudioStream }
+        }
+        /**
+         * @param volumeRelativeToAudioStream 0 (silence) to 1 (maximum)
+         */
+        set(volumeRelativeToAudioStream) {
+            synchronized(mSyncLock) { mVolumeRelativeToAudioStream = volumeRelativeToAudioStream }
+        }
+    */
+
     var isStarted: Boolean = false
         get() {
             synchronized(syncLock) { return field }
@@ -200,6 +234,7 @@ class FooTextToSpeech {
         }
     }
 
+    @JvmOverloads
     fun start(
         context: Context,
         callbacks: FooTextToSpeechCallbacks? = null
@@ -318,6 +353,9 @@ class FooTextToSpeech {
     }
 
     private fun onUtteranceDone(utteranceId: String?) {
+        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
+            FooLog.v(TAG, "+onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
+        }
         /*
         utteranceId?.let { id ->
             synchronized(syncLock) {
@@ -327,9 +365,6 @@ class FooTextToSpeech {
             }
         }
         */
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "+onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
-        }
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -338,15 +373,16 @@ class FooTextToSpeech {
             }
         }
         //FooLog.v(TAG, "onUtteranceDone: runAfter=$runAfter");
-        if (runAfter != null) {
-            runAfter!!.run()
-        }
+        runAfter?.run()
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "-onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
         }
     }
 
     private fun onUtteranceError(utteranceId: String?, errorCode: Int) {
+        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
+            FooLog.w(TAG, "+onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
+        }
         /*
         utteranceId?.let { id ->
             synchronized(syncLock) {
@@ -356,9 +392,6 @@ class FooTextToSpeech {
             }
         }
         */
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.w(TAG, "+onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
-        }
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
@@ -367,9 +400,7 @@ class FooTextToSpeech {
             }
         }
         //FooLog.w(TAG, "onUtteranceError: runAfter=$runAfter");
-        if (runAfter != null) {
-            runAfter!!.run()
-        }
+        runAfter?.run()
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.w(TAG, "-onUtteranceError(utteranceId=${FooString.quote(utteranceId)}), errorCode=$errorCode)")
         }
@@ -382,7 +413,9 @@ class FooTextToSpeech {
             if (size == 0) {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
 
-                //mAudioFocusListener.audioFocusStop(mAudioFocusListenerCallbacks)
+                /*
+                mAudioFocusListener.audioFocusStop(mAudioFocusListenerCallbacks)
+                */
 
             } else {
                 FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
@@ -410,6 +443,39 @@ class FooTextToSpeech {
         }
         FooLog.d(TAG, "-clear()")
     }
+
+    /*
+    private fun onAudioFocusGained(audioFocusStreamType: Int, audioFocusDurationHint: Int) {
+        if (VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained(audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)})")
+        }
+    }
+
+    private fun onAudioFocusLost(
+        audioFocusListener: FooAudioFocusListener,
+        audioFocusStreamType: Int,
+        audioFocusDurationHint: Int,
+        focusChange: Int
+    ): Boolean {
+        if (VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(…, audioFocusStreamType=${FooAudioUtils.audioStreamTypeToString(audioFocusStreamType)}, audioFocusDurationHint=${FooAudioUtils.audioFocusToString(audioFocusDurationHint)}, focusChange=${FooAudioUtils.audioFocusToString(focusChange)})")
+        }
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                //...
+            }
+        }
+        return false
+    }
+
+    private fun onAudioFocusStop() {
+        if (VERBOSE_LOG_AUDIO_FOCUS) {
+            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusStop()")
+        }
+    }
+    */
 
     fun speak(text: String): Boolean {
         return speak(false, text)
@@ -500,8 +566,12 @@ class FooTextToSpeech {
                 if (isInitialized) {
                     val utteranceId = "text_$nextUtteranceId"
                     val params = Bundle()
-                    //params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, audioStreamType)
-                    //params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
+
+                    /*
+                    params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, audioStreamType)
+                    params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
+                    */
+
                     if (VERBOSE_LOG_UTTERANCE_IDS) {
                         FooLog.v(TAG, "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
                     }
