@@ -65,6 +65,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
@@ -130,12 +131,16 @@ fun EventListScreen(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(colorScheme.primary, colorScheme.tertiary, colorScheme.surface) {
+    val backgroundBrush = remember(
+        colorScheme.surface,
+        colorScheme.primaryContainer,
+        colorScheme.background
+    ) {
         Brush.verticalGradient(
             colors = listOf(
-                colorScheme.primary.copy(alpha = 0.3f),
-                colorScheme.tertiary.copy(alpha = 0.22f),
-                colorScheme.surface
+                colorScheme.surface,
+                colorScheme.primaryContainer.copy(alpha = 0.35f),
+                colorScheme.background
             )
         )
     }
@@ -332,7 +337,7 @@ private fun EventListScaffold(
                 onClearAll = onClearAll
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
@@ -377,127 +382,172 @@ private fun EventListHeader(
     onClearAll: () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val headerShape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-    val headerBrush = remember(colorScheme.primary, colorScheme.secondary, colorScheme.tertiary) {
-        Brush.verticalGradient(
+    val headerShape = RoundedCornerShape(28.dp)
+    val headerBrush = remember(
+        colorScheme.primaryContainer,
+        colorScheme.secondaryContainer,
+        colorScheme.tertiaryContainer
+    ) {
+        Brush.linearGradient(
             colors = listOf(
-                colorScheme.primary,
-                colorScheme.secondary,
-                colorScheme.tertiary
+                colorScheme.primaryContainer.copy(alpha = 0.9f),
+                colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                colorScheme.tertiaryContainer.copy(alpha = 0.9f)
             )
         )
     }
-    val headerContentColor = colorScheme.onPrimary
-    val searchContainerColor = remember(headerContentColor) {
-        if (headerContentColor.luminance() > 0.5f) {
-            Color.Black.copy(alpha = 0.2f)
-        } else {
-            Color.White.copy(alpha = 0.2f)
-        }
+    val isHeaderLight = colorScheme.primaryContainer.luminance() > 0.5f
+    val headerContentColor = if (isHeaderLight) {
+        Color(0xFF1D1B20)
+    } else {
+        Color.White
+    }
+    val outlineColor = if (isHeaderLight) {
+        headerContentColor.copy(alpha = 0.12f)
+    } else {
+        Color.White.copy(alpha = 0.2f)
+    }
+    val searchContainerColor = if (isHeaderLight) {
+        Color.White.copy(alpha = 0.92f)
+    } else {
+        Color.White.copy(alpha = 0.16f)
+    }
+    val chipContainerColor = if (isHeaderLight) {
+        Color.White.copy(alpha = 0.7f)
+    } else {
+        Color.White.copy(alpha = 0.18f)
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .shadow(elevation = 10.dp, shape = headerShape, clip = false)
-            .clip(headerShape)
-            .background(headerBrush)
+            .statusBarsPadding()
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(headerShape)
+                .background(headerBrush)
+                .border(width = 1.dp, color = outlineColor, shape = headerShape)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                IconButton(onClick = onMenuClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Menu,
-                        contentDescription = LocalizedStrings.menuContentDescription,
-                        tint = headerContentColor
-                    )
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = LocalizedStrings.headerSubtitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = headerContentColor.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = LocalizedStrings.headerTitle,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = headerContentColor
-                    )
-                }
-                Avatar(
-                    initials = userInitials,
-                    onClick = onAvatarClick,
-                    backgroundColor = headerContentColor.copy(alpha = 0.24f),
-                    contentColor = headerContentColor
-                )
-            }
-
-            SearchField(
-                query = query,
-                isRefreshing = isRefreshing,
-                onQueryChange = onQueryChange,
-                onRefresh = onRefresh,
-                containerColor = searchContainerColor,
-                contentColor = headerContentColor
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val selectionLabel = if (selectionMode) {
-                    LocalizedStrings.selectionToggleOn
-                } else {
-                    LocalizedStrings.selectionToggleOff
-                }
-                FilterChip(
-                    selected = selectionMode,
-                    onClick = { onSelectionModeChange(!selectionMode) },
-                    label = { Text(text = selectionLabel) },
-                    leadingIcon = {
+                    IconButton(onClick = onMenuClick) {
                         Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = null
-                        )
-                    },
-                    enabled = actionsEnabled
-                )
-
-                SuggestionChip(
-                    onClick = onClearAll,
-                    label = { Text(text = LocalizedStrings.clearAllLabel) },
-                    enabled = actionsEnabled && hasEvents,
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Outlined.DeleteSweep,
-                            contentDescription = null
+                            imageVector = Icons.Outlined.Menu,
+                            contentDescription = LocalizedStrings.menuContentDescription,
+                            tint = headerContentColor
                         )
                     }
-                )
-            }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = LocalizedStrings.headerSubtitle,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = headerContentColor.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = LocalizedStrings.headerTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = headerContentColor
+                        )
+                    }
+                    Avatar(
+                        initials = userInitials,
+                        onClick = onAvatarClick,
+                        backgroundColor = Color.White.copy(alpha = if (isHeaderLight) 0.65f else 0.22f),
+                        contentColor = headerContentColor
+                    )
+                }
 
-            lastUpdated?.let { instant ->
-                Text(
-                    text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = headerContentColor.copy(alpha = 0.8f)
+                SearchField(
+                    query = query,
+                    isRefreshing = isRefreshing,
+                    onQueryChange = onQueryChange,
+                    onRefresh = onRefresh,
+                    containerColor = searchContainerColor,
+                    contentColor = headerContentColor
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val selectionLabel = if (selectionMode) {
+                        LocalizedStrings.selectionToggleOn
+                    } else {
+                        LocalizedStrings.selectionToggleOff
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = selectionMode,
+                            onClick = { onSelectionModeChange(!selectionMode) },
+                            label = { Text(text = selectionLabel) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = null
+                                )
+                            },
+                            enabled = actionsEnabled,
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = chipContainerColor,
+                                labelColor = headerContentColor,
+                                leadingIconColor = headerContentColor,
+                                selectedContainerColor = colorScheme.primary.copy(alpha = if (isHeaderLight) 0.25f else 0.5f),
+                                selectedLabelColor = headerContentColor,
+                                selectedLeadingIconColor = headerContentColor
+                            )
+                        )
+
+                        SuggestionChip(
+                            onClick = onClearAll,
+                            label = { Text(text = LocalizedStrings.clearAllLabel) },
+                            enabled = actionsEnabled && hasEvents,
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteSweep,
+                                    contentDescription = null
+                                )
+                            },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = chipContainerColor,
+                                labelColor = headerContentColor,
+                                iconContentColor = headerContentColor,
+                                disabledContainerColor = chipContainerColor.copy(alpha = 0.5f),
+                                disabledLabelColor = headerContentColor.copy(alpha = 0.4f),
+                                disabledLeadingIconColor = headerContentColor.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    lastUpdated?.let { instant ->
+                        Text(
+                            text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = headerContentColor.copy(alpha = 0.7f),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
             }
         }
     }
