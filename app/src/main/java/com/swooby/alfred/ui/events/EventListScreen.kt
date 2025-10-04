@@ -1,5 +1,6 @@
 package com.swooby.alfred.ui.events
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +54,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
@@ -90,6 +94,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.settings.ThemeMode
 import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -101,6 +106,7 @@ import kotlin.time.Instant
 fun EventListScreen(
     state: EventListUiState,
     userInitials: String,
+    themeMode: ThemeMode,
     onQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -109,6 +115,7 @@ fun EventListScreen(
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -138,6 +145,10 @@ fun EventListScreen(
         )
     }
 
+    BackHandler(enabled = drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -153,6 +164,10 @@ fun EventListScreen(
                         text = LocalizedStrings.drawerTitle,
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                    DrawerThemeModeSection(
+                        selectedMode = themeMode,
+                        onThemeModeChange = onThemeModeChange
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerSettings) },
@@ -227,6 +242,56 @@ fun EventListScreen(
             inProgress = state.isPerformingAction
         )
     }
+}
+
+@Composable
+private fun DrawerThemeModeSection(
+    selectedMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+) {
+    Spacer(modifier = Modifier.height(12.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = LocalizedStrings.drawerThemeModeTitle,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        val options = remember {
+            listOf(
+                ThemeMode.DARK,
+                ThemeMode.LIGHT,
+                ThemeMode.SYSTEM,
+            )
+        }
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+            options.forEachIndexed { index, mode ->
+                val label = when (mode) {
+                    ThemeMode.DARK -> LocalizedStrings.themeModeDark
+                    ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
+                    ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
+                }
+                SegmentedButton(
+                    selected = selectedMode == mode,
+                    onClick = {
+                        if (mode != selectedMode) {
+                            onThemeModeChange(mode)
+                        }
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                ) {
+                    Text(text = label)
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -1022,6 +1087,18 @@ private object LocalizedStrings {
     val drawerSettings: String
         @Composable get() = stringResource(R.string.event_list_drawer_settings)
 
+    val drawerThemeModeTitle: String
+        @Composable get() = stringResource(R.string.event_list_drawer_theme_mode_title)
+
+    val themeModeDark: String
+        @Composable get() = stringResource(R.string.event_list_theme_mode_dark)
+
+    val themeModeLight: String
+        @Composable get() = stringResource(R.string.event_list_theme_mode_light)
+
+    val themeModeSystem: String
+        @Composable get() = stringResource(R.string.event_list_theme_mode_system)
+
     val menuContentDescription: String
         @Composable get() = stringResource(R.string.event_list_menu_cd)
 
@@ -1141,6 +1218,7 @@ private fun EventListPreview() {
                 visibleEvents = sampleEvents
             ),
             userInitials = "A",
+            themeMode = ThemeMode.SYSTEM,
             onQueryChange = {},
             onRefresh = {},
             onNavigateToSettings = {},
@@ -1148,7 +1226,8 @@ private fun EventListPreview() {
             onEventSelectionChange = { _, _ -> },
             onSelectAll = {},
             onUnselectAll = {},
-            onDeleteSelected = {}
+            onDeleteSelected = {},
+            onThemeModeChange = {}
         )
     }
 }

@@ -3,6 +3,7 @@ package com.swooby.alfred.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -13,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
@@ -21,6 +24,7 @@ import androidx.core.view.WindowCompat
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
 import com.swooby.alfred.settings.SettingsScreen
+import com.swooby.alfred.settings.ThemeMode
 import com.swooby.alfred.ui.theme.AlfredTheme
 
 class MainActivity : ComponentActivity() {
@@ -30,7 +34,14 @@ class MainActivity : ComponentActivity() {
         val app = application as AlfredApp
 
         setContent {
-            AlfredTheme {
+            val themeMode by app.settings.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
+            }
+
+            AlfredTheme(darkTheme = darkTheme) {
                 val colorScheme = MaterialTheme.colorScheme
                 val useLightStatusIcons = colorScheme.primary.luminance() > 0.5f
 
