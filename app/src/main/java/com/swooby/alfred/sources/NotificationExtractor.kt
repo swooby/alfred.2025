@@ -391,7 +391,7 @@ object NotificationExtractor {
         return mutableMapOf<String, Any?>().apply {
             putMeaningful("desiredHeight", bubble.desiredHeight.takeIf { it > 0 })
             bubble.autoExpandBubble.takeIfTrue()?.let { this["autoExpand"] = true }
-            bubble.isBubbleIntentSuppressed.takeIfTrue()?.let { this["suppressNotif"] = true }
+            bubble.isNotificationSuppressed.takeIfTrue()?.let { this["suppressNotif"] = true }
         }.takeIf { it.isNotEmpty() }
     }
 
