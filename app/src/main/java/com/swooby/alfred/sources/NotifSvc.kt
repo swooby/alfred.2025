@@ -26,7 +26,6 @@ import kotlin.time.Instant
 class NotifSvc : NotificationListenerService() {
     companion object {
         private val TAG = FooLog.TAG(NotifSvc::class.java)
-        private val VERBOSE_LOG_NOTIFICATION = false && BuildConfig.DEBUG
     }
 
     private val app get() = application as AlfredApp
@@ -54,9 +53,6 @@ class NotifSvc : NotificationListenerService() {
         rankingMap: RankingMap?
     ) {
         val envelope = NotificationExtractor.extract(this, sbn, rankingMap)
-        if (VERBOSE_LOG_NOTIFICATION) {
-            FooLog.v(TAG, "envelope=${envelope}")
-        }
         val actorPkg = (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
             ?: sbn.packageName
         val appLabel = (envelope.actor["appLabel"] as? String)?.takeIf { it.isNotBlank() }

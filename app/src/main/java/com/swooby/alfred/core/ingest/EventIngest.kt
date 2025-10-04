@@ -1,6 +1,8 @@
 package com.swooby.alfred.core.ingest
 
+import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.util.FooLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -17,7 +19,7 @@ data class RawEvent(
 
 interface EventIngest {
     val out: SharedFlow<EventEntity>
-    fun submit(raw: RawEvent)
+    fun submit(rawEvent: RawEvent)
 }
 
 class EventIngestImpl(
@@ -25,6 +27,11 @@ class EventIngestImpl(
     private val debounceWindow: Duration = 200.milliseconds,
     private val dedupeWindow: Duration = 2_000.milliseconds
 ) : EventIngest {
+    companion object {
+        private val TAG = FooLog.TAG(EventIngestImpl::class.java)
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+        private  val VERBOSE_LOG_SUBMIT = false && BuildConfig.DEBUG
+    }
 
     private val _in = MutableSharedFlow<RawEvent>(extraBufferCapacity = 1024)
     private val _out = MutableSharedFlow<EventEntity>(replay = 0, extraBufferCapacity = 256)
@@ -75,7 +82,12 @@ class EventIngestImpl(
         _out.emit(normalized)
     }
 
-    override fun submit(raw: RawEvent) { _in.tryEmit(raw) }
+    override fun submit(rawEvent: RawEvent) {
+        if (VERBOSE_LOG_SUBMIT) {
+            FooLog.i(TAG, "submit: UNDEDUPED rawEvent=$rawEvent")
+        }
+        _in.tryEmit(rawEvent)
+    }
 
     private fun tickerFlow(period: Duration) = flow {
         while (true) { kotlinx.coroutines.delay(period); emit(Unit) }
