@@ -70,7 +70,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
-import androidx.compose.material3.menuAnchor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -279,7 +278,6 @@ private fun DrawerThemeModeSection(
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
-                    .menuAnchor()
                     .fillMaxWidth(),
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
                 singleLine = true
