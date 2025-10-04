@@ -3,6 +3,7 @@ package com.swooby.alfred.core.ingest
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.util.FooLog
+import com.swooby.alfred.util.FooString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -30,7 +31,9 @@ class EventIngestImpl(
     companion object {
         private val TAG = FooLog.TAG(EventIngestImpl::class.java)
         @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
-        private  val VERBOSE_LOG_SUBMIT = false && BuildConfig.DEBUG
+        private  val LOG_SUBMIT = false && BuildConfig.DEBUG
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+        private val LOG_FILTER = false && BuildConfig.DEBUG
     }
 
     private val _in = MutableSharedFlow<RawEvent>(extraBufferCapacity = 1024)
@@ -46,7 +49,12 @@ class EventIngestImpl(
                 .onEach { raw ->
                     val now = Clock.System.now().toEpochMilliseconds()
                     if (raw.coalesceKey != null) {
-                        recentCoalesce[raw.coalesceKey] = raw
+                        val previous = recentCoalesce.put(raw.coalesceKey, raw)
+                        if (LOG_FILTER) {
+                            if (previous != null) {
+                                FooLog.d(TAG, "#EVENT_FILTER debounce: drop coalesceKey=${FooString.quote(previous.coalesceKey)}")
+                            }
+                        }
                         return@onEach
                     }
                     emitIfNotDuplicate(raw, now)
@@ -63,13 +71,18 @@ class EventIngestImpl(
     }
 
     private suspend fun emitIfNotDuplicate(raw: RawEvent, nowMs: Long) {
-        raw.fingerprint?.let { f ->
+        raw.fingerprint?.let { fingerprint ->
             while (recentFingerprints.isNotEmpty() &&
                    nowMs - recentFingerprints.first().first > dedupeWindow.inWholeMilliseconds) {
                 recentFingerprints.removeFirst()
             }
-            if (recentFingerprints.any { it.second == f }) return
-            recentFingerprints.addLast(nowMs to f)
+            if (recentFingerprints.any { it.second == fingerprint }) {
+                if (LOG_FILTER) {
+                    FooLog.d(TAG, "#EVENT_FILTER dedupe: skip fingerprint=${FooString.quote(fingerprint)}")
+                }
+                return
+            }
+            recentFingerprints.addLast(nowMs to fingerprint)
         }
 
         val e = raw.event
@@ -79,12 +92,15 @@ class EventIngestImpl(
                 end.toEpochMilliseconds() - e.tsStart.toEpochMilliseconds()
             }
         )
+        if (LOG_FILTER) {
+            FooLog.d(TAG, "#EVENT_FILTER emit: fingerprint=${FooString.quote(raw.fingerprint)} coalesceKey=${FooString.quote(raw.coalesceKey)} event=$normalized")
+        }
         _out.emit(normalized)
     }
 
     override fun submit(rawEvent: RawEvent) {
-        if (VERBOSE_LOG_SUBMIT) {
-            FooLog.i(TAG, "submit: UNDEDUPED rawEvent=$rawEvent")
+        if (LOG_SUBMIT) {
+            FooLog.i(TAG, "#EVENT_SUBMIT submit: rawEvent=$rawEvent")
         }
         _in.tryEmit(rawEvent)
     }
