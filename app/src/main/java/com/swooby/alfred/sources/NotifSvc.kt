@@ -4,11 +4,13 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import com.swooby.alfred.AlfredApp
+import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.AttachmentRef
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
 import com.swooby.alfred.sources.NotificationExtractor
+import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -22,6 +24,11 @@ import kotlinx.serialization.json.put
 import kotlin.time.Instant
 
 class NotifSvc : NotificationListenerService() {
+    companion object {
+        private val TAG = FooLog.TAG(NotifSvc::class.java)
+        private val VERBOSE_LOG_NOTIFICATION = false && BuildConfig.DEBUG
+    }
+
     private val app get() = application as AlfredApp
 
     override fun onListenerConnected() {
@@ -47,6 +54,9 @@ class NotifSvc : NotificationListenerService() {
         rankingMap: RankingMap?
     ) {
         val envelope = NotificationExtractor.extract(this, sbn, rankingMap)
+        if (VERBOSE_LOG_NOTIFICATION) {
+            FooLog.v(TAG, "envelope=${envelope}")
+        }
         val actorPkg = (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
             ?: sbn.packageName
         val appLabel = (envelope.actor["appLabel"] as? String)?.takeIf { it.isNotBlank() }
