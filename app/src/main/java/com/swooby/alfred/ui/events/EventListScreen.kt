@@ -43,6 +43,11 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -237,30 +242,68 @@ fun EventListScreen(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun DrawerThemeModeSection(
     selectedMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
 ) {
     Spacer(modifier = Modifier.height(12.dp))
-    Text(
-        text = LocalizedStrings.drawerThemeModeTitle,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 24.dp)
-    )
-    Spacer(modifier = Modifier.height(4.dp))
-    ThemeMode.values().forEach { mode ->
-        val label = when (mode) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = LocalizedStrings.drawerThemeModeTitle,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        var expanded by remember { mutableStateOf(false) }
+        val selectedLabel = when (selectedMode) {
             ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
             ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
             ThemeMode.DARK -> LocalizedStrings.themeModeDark
         }
-        NavigationDrawerItem(
-            label = { Text(text = label) },
-            selected = selectedMode == mode,
-            onClick = { onThemeModeChange(mode) },
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.weight(1f)
+        ) {
+            TextField(
+                value = selectedLabel,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                singleLine = true
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                ThemeMode.values().forEach { mode ->
+                    val label = when (mode) {
+                        ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
+                        ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
+                        ThemeMode.DARK -> LocalizedStrings.themeModeDark
+                    }
+                    DropdownMenuItem(
+                        text = { Text(text = label) },
+                        onClick = {
+                            expanded = false
+                            onThemeModeChange(mode)
+                        }
+                    )
+                }
+            }
+        }
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
