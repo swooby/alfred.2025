@@ -21,6 +21,7 @@ class SettingsRepository(private val app: Context) {
         val QUIET_END   = stringPreferencesKey("quiet_end")
         val DISABLED_APPS = stringPreferencesKey("disabled_apps_csv")
         val ENABLED_TYPES = stringPreferencesKey("enabled_types_csv")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
     private val defaultEnabled = setOf("media.start","media.stop","notif.post","display.on","display.off","network.wifi.connect","network.wifi.disconnect")
     val rulesConfigFlow: Flow<RulesConfig> =
@@ -33,10 +34,19 @@ class SettingsRepository(private val app: Context) {
             val enabledTypes = (p[K.ENABLED_TYPES] ?: defaultEnabled.joinToString(",")).split(',').mapNotNull { it.trim().ifEmpty { null } }.toSet()
             RulesConfig(enabledTypes, disabledApps, quiet, speakOff, listOf(RateLimit("media.start",30,4), RateLimit("notif.post",10,6)))
         }
+
+    val themeModeFlow: Flow<ThemeMode> =
+        app.settingsDataStore.data.map { preferences ->
+            ThemeMode.fromPreference(preferences[K.THEME_MODE])
+        }
+
     suspend fun setQuietHours(startHHmm: String?, endHHmm: String?) {
         app.settingsDataStore.edit { e -> e[K.QUIET_START] = startHHmm ?: ""; e[K.QUIET_END] = endHHmm ?: "" }
     }
     suspend fun setSpeakWhenScreenOffOnly(enabled: Boolean) { app.settingsDataStore.edit { it[K.SPEAK_SCREEN_OFF_ONLY] = enabled } }
     suspend fun setDisabledAppsCsv(csv: String) { app.settingsDataStore.edit { it[K.DISABLED_APPS] = csv } }
     suspend fun setEnabledTypesCsv(csv: String) { app.settingsDataStore.edit { it[K.ENABLED_TYPES] = csv } }
+    suspend fun setThemeMode(themeMode: ThemeMode) {
+        app.settingsDataStore.edit { it[K.THEME_MODE] = themeMode.asPreferenceString() }
+    }
 }
