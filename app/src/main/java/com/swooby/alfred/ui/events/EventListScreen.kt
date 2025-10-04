@@ -104,6 +104,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -988,142 +989,110 @@ private fun EventCard(
     val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart))
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
 
-    val chips = remember(category, template, importance, rank, conversationTitle) {
-        buildList {
-            category?.let { add("${LocalizedStrings.labelCategory}: $it") }
-            template?.let { add("${LocalizedStrings.labelTemplate}: $it") }
-            importance?.let { add("${LocalizedStrings.labelImportance}: $it") }
-            rank?.let { add("${LocalizedStrings.labelRank}: $it") }
-            conversationTitle?.let { add("${LocalizedStrings.labelConversation}: $it") }
-        }
+    val chips = buildList {
+        category?.let { add("${LocalizedStrings.labelCategory}: $it") }
+        template?.let { add("${LocalizedStrings.labelTemplate}: $it") }
+        importance?.let { add("${LocalizedStrings.labelImportance}: $it") }
+        rank?.let { add("${LocalizedStrings.labelRank}: $it") }
+        conversationTitle?.let { add("${LocalizedStrings.labelConversation}: $it") }
     }
 
-    val identityItems = remember(appLabel, packageName, shortcutId, locusId) {
-        buildList {
-            appLabel?.let { add(InfoItem(LocalizedStrings.labelApp, it)) }
-            packageName?.let { add(InfoItem(LocalizedStrings.labelPackage, it)) }
-            shortcutId?.let { add(InfoItem(LocalizedStrings.labelShortcut, it)) }
-            locusId?.let { add(InfoItem(LocalizedStrings.labelLocus, it)) }
-        }
+    val identityItems = buildList {
+        appLabel?.let { add(InfoItem(LocalizedStrings.labelApp, it)) }
+        packageName?.let { add(InfoItem(LocalizedStrings.labelPackage, it)) }
+        shortcutId?.let { add(InfoItem(LocalizedStrings.labelShortcut, it)) }
+        locusId?.let { add(InfoItem(LocalizedStrings.labelLocus, it)) }
     }
 
-    val contextItems = remember(channelName, channelId, importance, rank, userSentiment, visibility, user, groupKey, timeout, ticker) {
-        buildList {
-            channelName?.let { add(InfoItem(LocalizedStrings.labelChannelName, it)) }
-            channelId?.let { add(InfoItem(LocalizedStrings.labelChannel, it)) }
-            importance?.let { add(InfoItem(LocalizedStrings.labelImportance, it.toString())) }
-            rank?.let { add(InfoItem(LocalizedStrings.labelRank, it.toString())) }
-            userSentiment?.let { add(InfoItem(LocalizedStrings.labelUserSentiment, it.toString())) }
-            visibility?.let { add(InfoItem(LocalizedStrings.labelVisibility, it)) }
-            user?.let { add(InfoItem(LocalizedStrings.labelUser, it)) }
-            groupKey?.let { add(InfoItem(LocalizedStrings.labelGroup, it)) }
-            timeout?.let { add(InfoItem(LocalizedStrings.labelTimeout, it)) }
-            ticker?.let { add(InfoItem(LocalizedStrings.labelTicker, it)) }
-        }
+    val contextItems = buildList {
+        channelName?.let { add(InfoItem(LocalizedStrings.labelChannelName, it)) }
+        channelId?.let { add(InfoItem(LocalizedStrings.labelChannel, it)) }
+        importance?.let { add(InfoItem(LocalizedStrings.labelImportance, it.toString())) }
+        rank?.let { add(InfoItem(LocalizedStrings.labelRank, it.toString())) }
+        userSentiment?.let { add(InfoItem(LocalizedStrings.labelUserSentiment, it.toString())) }
+        visibility?.let { add(InfoItem(LocalizedStrings.labelVisibility, it)) }
+        user?.let { add(InfoItem(LocalizedStrings.labelUser, it)) }
+        groupKey?.let { add(InfoItem(LocalizedStrings.labelGroup, it)) }
+        timeout?.let { add(InfoItem(LocalizedStrings.labelTimeout, it)) }
+        ticker?.let { add(InfoItem(LocalizedStrings.labelTicker, it)) }
     }
 
-    val contextFlags = remember(contextJson) {
-        buildList {
-            if (contextJson?.containsKey("colorized") == true) add(LocalizedStrings.flagColorized)
-            if (contextJson?.containsKey("onlyAlertOnce") == true) add(LocalizedStrings.flagOnlyAlertOnce)
-            if (contextJson?.containsKey("ongoing") == true) add(LocalizedStrings.flagOngoing)
-            if (contextJson?.containsKey("clearable") == true) add(LocalizedStrings.flagClearable)
-            if (contextJson?.containsKey("unclearable") == true) add(LocalizedStrings.flagUnclearable)
-            if (contextJson?.containsKey("isGroupSummary") == true) add(LocalizedStrings.flagGroupSummary)
-            if (contextJson?.containsKey("showWhen") == true) add(LocalizedStrings.flagShowWhen)
-        }
+    val contextFlags = buildList {
+        if (contextJson?.booleanOrNull("colorized") == true) add(LocalizedStrings.flagColorized)
+        if (contextJson?.booleanOrNull("onlyAlertOnce") == true) add(LocalizedStrings.flagOnlyAlertOnce)
+        if (contextJson?.booleanOrNull("ongoing") == true) add(LocalizedStrings.flagOngoing)
+        if (contextJson?.booleanOrNull("clearable") == true) add(LocalizedStrings.flagClearable)
+        if (contextJson?.booleanOrNull("unclearable") == true) add(LocalizedStrings.flagUnclearable)
+        if (contextJson?.booleanOrNull("isGroupSummary") == true) add(LocalizedStrings.flagGroupSummary)
+        if (contextJson?.booleanOrNull("showWhen") == true) add(LocalizedStrings.flagShowWhen)
     }
 
     val rankingInfo = contextJson?.objectOrNull("rankingInfo")
-    val rankingFlags = remember(rankingInfo) {
-        buildList {
-            if (rankingInfo?.containsKey("ambient") == true) add(LocalizedStrings.flagAmbient)
-            if (rankingInfo?.containsKey("suspended") == true) add(LocalizedStrings.flagSuspended)
-            if (rankingInfo?.containsKey("canShowBadge") == true) add(LocalizedStrings.flagBadge)
-            if (rankingInfo?.containsKey("isConversation") == true) add(LocalizedStrings.flagConversation)
+    val rankingFlags = buildList {
+        if (rankingInfo?.booleanOrNull("ambient") == true) add(LocalizedStrings.flagAmbient)
+        if (rankingInfo?.booleanOrNull("suspended") == true) add(LocalizedStrings.flagSuspended)
+        if (rankingInfo?.booleanOrNull("canShowBadge") == true) add(LocalizedStrings.flagBadge)
+        if (rankingInfo?.booleanOrNull("isConversation") == true) add(LocalizedStrings.flagConversation)
+    }
+
+    val bubbleItems = buildList {
+        bubbleObj?.intOrNull("desiredHeight")?.let {
+            add(InfoItem(LocalizedStrings.bubbleHeight, it.toString()))
+        }
+        if (bubbleObj?.booleanOrNull("autoExpand") == true) {
+            add(InfoItem(null, LocalizedStrings.bubbleAutoExpand))
+        }
+        if (bubbleObj?.booleanOrNull("suppressNotif") == true) {
+            add(InfoItem(null, LocalizedStrings.bubbleSuppress))
         }
     }
 
-    val bubbleItems = remember(bubbleObj) {
-        buildList {
-            bubbleObj?.intOrNull("desiredHeight")?.let {
-                add(InfoItem(LocalizedStrings.bubbleHeight, it.toString()))
+    val peopleList = traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
+
+    val actionsList = traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
+
+    val intentsItems = intentsObj?.entries?.mapNotNull { (key, value) ->
+        (value as? JsonObject)?.stringOrNull("creatorPackage")?.let { InfoItem(key, it) }
+    } ?: emptyList()
+
+    val styleItems = styleObj?.entries?.mapNotNull { (key, value) ->
+        value.toDisplayString()?.let { InfoItem(key, it) }
+    } ?: emptyList()
+
+    val attachmentsList = attachmentsJson?.mapNotNull { it.toAttachmentDisplay() } ?: emptyList()
+
+    val metricsItems = event.metrics.entries.mapNotNull { (key, value) ->
+        value.toDisplayString()?.let { InfoItem(key, it) }
+    }
+
+    val refsItems = refsJson?.entries?.mapNotNull { (key, value) ->
+        value.toDisplayString()?.let { InfoItem(key, it) }
+    } ?: emptyList()
+
+    val integrityItems = buildList {
+        integrityJson?.stringOrNull("snapshotHash")?.let {
+            add(InfoItem(LocalizedStrings.labelIntegrityHash, it))
+        }
+        val fields = integrityJson?.arrayOrNull("fieldsPresent")
+        if (fields != null && fields.isNotEmpty()) {
+            val preview = fields.take(6).mapNotNull { it.toDisplayString() }.joinToString(", ")
+            val description = if (preview.isEmpty()) {
+                fields.size.toString()
+            } else {
+                "${fields.size} · $preview"
             }
-            if (bubbleObj?.booleanOrNull("autoExpand") == true) {
-                add(InfoItem(null, LocalizedStrings.bubbleAutoExpand))
-            }
-            if (bubbleObj?.booleanOrNull("suppressNotif") == true) {
-                add(InfoItem(null, LocalizedStrings.bubbleSuppress))
-            }
+            add(InfoItem(LocalizedStrings.labelIntegrityFields, description))
         }
     }
 
-    val peopleList = remember(traits) {
-        traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
+    val eventItems = buildList {
+        add(InfoItem(LocalizedStrings.labelEventType, event.eventType))
+        event.subjectEntityId?.let { add(InfoItem(LocalizedStrings.labelEntityId, it)) }
+        event.subjectParentId?.let { add(InfoItem(LocalizedStrings.labelParentId, it)) }
+        event.rawFingerprint?.let { add(InfoItem(LocalizedStrings.labelFingerprint, it)) }
     }
 
-    val actionsList = remember(traits) {
-        traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
-    }
-
-    val intentsItems = remember(intentsObj) {
-        intentsObj?.entries?.mapNotNull { (key, value) ->
-            (value as? JsonObject)?.stringOrNull("creatorPackage")?.let { InfoItem(key, it) }
-        } ?: emptyList()
-    }
-
-    val styleItems = remember(styleObj) {
-        styleObj?.entries?.mapNotNull { (key, value) ->
-            value.toDisplayString()?.let { InfoItem(key, it) }
-        } ?: emptyList()
-    }
-
-    val attachmentsList = remember(attachmentsJson) {
-        attachmentsJson?.mapNotNull { it.toAttachmentDisplay() } ?: emptyList()
-    }
-
-    val metricsItems = remember(event.metrics) {
-        event.metrics.entries.mapNotNull { (key, value) ->
-            value.toDisplayString()?.let { InfoItem(key, it) }
-        }
-    }
-
-    val refsItems = remember(refsJson) {
-        refsJson?.entries?.mapNotNull { (key, value) ->
-            value.toDisplayString()?.let { InfoItem(key, it) }
-        } ?: emptyList()
-    }
-
-    val integrityItems = remember(integrityJson) {
-        buildList {
-            integrityJson?.stringOrNull("snapshotHash")?.let {
-                add(InfoItem(LocalizedStrings.labelIntegrityHash, it))
-            }
-            val fields = integrityJson?.arrayOrNull("fieldsPresent")
-            if (fields != null && fields.isNotEmpty()) {
-                val preview = fields.take(6).mapNotNull { it.toDisplayString() }.joinToString(", ")
-                val description = if (preview.isEmpty()) {
-                    fields.size.toString()
-                } else {
-                    "${fields.size} · $preview"
-                }
-                add(InfoItem(LocalizedStrings.labelIntegrityFields, description))
-            }
-        }
-    }
-
-    val eventItems = remember(event.eventType, event.subjectEntityId, event.subjectParentId, event.rawFingerprint) {
-        buildList {
-            add(InfoItem(LocalizedStrings.labelEventType, event.eventType))
-            event.subjectEntityId?.let { add(InfoItem(LocalizedStrings.labelEntityId, it)) }
-            event.subjectParentId?.let { add(InfoItem(LocalizedStrings.labelParentId, it)) }
-            event.rawFingerprint?.let { add(InfoItem(LocalizedStrings.labelFingerprint, it)) }
-        }
-    }
-
-    val extrasText = remember(rawExtrasJson) {
-        rawExtrasJson?.let { PrettyJson.encodeToString(JsonObject.serializer(), it) }
-    }
+    val extrasText = rawExtrasJson?.let { PrettyJson.encodeToString(JsonObject.serializer(), it) }
 
     Box(
         modifier = modifier
@@ -1380,6 +1349,12 @@ private fun JsonObject.stringOrNull(key: String): String? {
     return (element as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         ?: element.toDisplayString()?.takeIf { it.isNotBlank() }
 }
+
+private fun JsonObject.intOrNull(key: String): Int? =
+    (this[key] as? JsonPrimitive)?.intOrNull
+
+private fun JsonObject.booleanOrNull(key: String): Boolean? =
+    (this[key] as? JsonPrimitive)?.booleanOrNull
 
 private fun JsonObject.objectOrNull(key: String): JsonObject? = this[key] as? JsonObject
 
