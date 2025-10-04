@@ -1,5 +1,6 @@
 package com.swooby.alfred.ui.events
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -43,11 +44,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -146,6 +145,10 @@ fun EventListScreen(
         )
     }
 
+    BackHandler(enabled = drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -242,7 +245,6 @@ fun EventListScreen(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun DrawerThemeModeSection(
     selectedMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
@@ -262,30 +264,36 @@ private fun DrawerThemeModeSection(
         )
 
         var expanded by remember { mutableStateOf(false) }
+        val interactionSource = remember { MutableInteractionSource() }
         val selectedLabel = when (selectedMode) {
             ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
             ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
             ThemeMode.DARK -> LocalizedStrings.themeModeDark
         }
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.weight(1f)
-        ) {
+
+        Box(modifier = Modifier.weight(1f)) {
             TextField(
                 value = selectedLabel,
                 onValueChange = {},
                 readOnly = true,
+                singleLine = true,
+                interactionSource = interactionSource,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
-                    .fillMaxWidth(),
-                colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                singleLine = true
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = ripple(),
+                        onClick = { expanded = !expanded }
+                    ),
+                colors = ExposedDropdownMenuDefaults.textFieldColors()
             )
 
             DropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.fillMaxWidth()
             ) {
                 ThemeMode.values().forEach { mode ->
                     val label = when (mode) {
@@ -297,7 +305,9 @@ private fun DrawerThemeModeSection(
                         text = { Text(text = label) },
                         onClick = {
                             expanded = false
-                            onThemeModeChange(mode)
+                            if (mode != selectedMode) {
+                                onThemeModeChange(mode)
+                            }
                         }
                     )
                 }
