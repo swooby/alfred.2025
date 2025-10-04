@@ -44,10 +44,11 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,6 +71,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.material3.menuAnchor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -266,36 +268,32 @@ private fun DrawerThemeModeSection(
         )
 
         var expanded by remember { mutableStateOf(false) }
-        val interactionSource = remember { MutableInteractionSource() }
         val selectedLabel = when (selectedMode) {
             ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
             ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
             ThemeMode.DARK -> LocalizedStrings.themeModeDark
         }
 
-        Box(modifier = Modifier.weight(1f)) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.weight(1f)
+        ) {
             TextField(
                 value = selectedLabel,
                 onValueChange = {},
                 readOnly = true,
                 singleLine = true,
-                interactionSource = interactionSource,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .combinedClickable(
-                        interactionSource = interactionSource,
-                        indication = ripple(),
-                        onClick = { expanded = !expanded }
-                    ),
+                    .menuAnchor(),
                 colors = ExposedDropdownMenuDefaults.textFieldColors()
             )
 
-            DropdownMenu(
+            ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.fillMaxWidth()
+                onDismissRequest = { expanded = false }
             ) {
                 ThemeMode.values().forEach { mode ->
                     val label = when (mode) {
