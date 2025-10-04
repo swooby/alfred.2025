@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +33,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
@@ -46,8 +44,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +54,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
@@ -85,8 +84,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -95,7 +92,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntSize
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.settings.ThemeMode
@@ -267,68 +263,30 @@ private fun DrawerThemeModeSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        var expanded by remember { mutableStateOf(false) }
-        val selectedLabel = when (selectedMode) {
-            ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
-            ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
-            ThemeMode.DARK -> LocalizedStrings.themeModeDark
+        val options = remember {
+            listOf(
+                ThemeMode.DARK,
+                ThemeMode.LIGHT,
+                ThemeMode.SYSTEM,
+            )
         }
-
-        val interactionSource = remember { MutableInteractionSource() }
-        var textFieldSize by remember { mutableStateOf(IntSize.Zero) }
-        Box(modifier = Modifier.weight(1f)) {
-            TextField(
-                value = selectedLabel,
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                trailingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.ArrowDropDown,
-                        contentDescription = null
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { coordinates ->
-                        textFieldSize = coordinates.size
-                    }
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Transparent)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null
-                    ) { expanded = !expanded }
-            )
-
-            val dropdownModifier = if (textFieldSize.width > 0) {
-                Modifier.width(with(LocalDensity.current) { textFieldSize.width.toDp() })
-            } else {
-                Modifier
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = dropdownModifier
-            ) {
-                ThemeMode.values().forEach { mode ->
-                    val label = when (mode) {
-                        ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
-                        ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
-                        ThemeMode.DARK -> LocalizedStrings.themeModeDark
-                    }
-                    DropdownMenuItem(
-                        text = { Text(text = label) },
-                        onClick = {
-                            expanded = false
-                            if (mode != selectedMode) {
-                                onThemeModeChange(mode)
-                            }
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+            options.forEachIndexed { index, mode ->
+                val label = when (mode) {
+                    ThemeMode.DARK -> LocalizedStrings.themeModeDark
+                    ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
+                    ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
+                }
+                SegmentedButton(
+                    selected = selectedMode == mode,
+                    onClick = {
+                        if (mode != selectedMode) {
+                            onThemeModeChange(mode)
                         }
-                    )
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                ) {
+                    Text(text = label)
                 }
             }
         }
@@ -1132,14 +1090,14 @@ private object LocalizedStrings {
     val drawerThemeModeTitle: String
         @Composable get() = stringResource(R.string.event_list_drawer_theme_mode_title)
 
-    val themeModeSystem: String
-        @Composable get() = stringResource(R.string.event_list_theme_mode_system)
+    val themeModeDark: String
+        @Composable get() = stringResource(R.string.event_list_theme_mode_dark)
 
     val themeModeLight: String
         @Composable get() = stringResource(R.string.event_list_theme_mode_light)
 
-    val themeModeDark: String
-        @Composable get() = stringResource(R.string.event_list_theme_mode_dark)
+    val themeModeSystem: String
+        @Composable get() = stringResource(R.string.event_list_theme_mode_system)
 
     val menuContentDescription: String
         @Composable get() = stringResource(R.string.event_list_menu_cd)
