@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -85,35 +86,31 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.isString
-import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1409,8 +1406,8 @@ private fun JsonElement.toAttachmentDisplay(): String? {
 private fun JsonElement.toDisplayString(): String? = when (this) {
     is JsonPrimitive -> when {
         booleanOrNull != null -> if (booleanOrNull == true) "true" else null
-        isString -> contentOrNull?.takeIf { it.isNotBlank() }
-        else -> content
+        contentOrNull != null -> contentOrNull?.takeIf { it.isNotBlank() }
+        else -> content.takeIf { it.isNotBlank() }
     }
     is JsonObject -> if (isEmpty()) null else PrettyJson.encodeToString(JsonObject.serializer(), this)
     is JsonArray -> {
