@@ -11,6 +11,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,6 +35,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
@@ -41,6 +45,7 @@ import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
@@ -80,7 +85,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +101,19 @@ import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.isString
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -870,6 +892,7 @@ private fun ActionConfirmDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EventCard(
     event: EventEntity,
@@ -918,6 +941,190 @@ private fun EventCard(
         Modifier
     }
 
+    var expanded by rememberSaveable(event.eventId) { mutableStateOf(false) }
+
+    val attributes = event.attributes
+    val actor = attributes.objectOrNull("actor")
+    val subject = attributes.objectOrNull("subject")
+    val contextJson = attributes.objectOrNull("context")
+    val traits = attributes.objectOrNull("traits")
+    val refsJson = attributes.objectOrNull("refs")
+    val integrityJson = attributes.objectOrNull("integrity")
+    val rawExtrasJson = attributes.objectOrNull("rawExtras")
+    val attachmentsJson = attributes.arrayOrNull("attachments")
+    val subjectLines = attributes.arrayOrNull("subjectLines")?.stringValues().orEmpty()
+
+    val titleText = subject?.stringOrNull("title") ?: event.subjectEntity
+    val bodyText = subject?.stringOrNull("text")
+        ?: subject?.stringOrNull("summaryText")
+        ?: subject?.stringOrNull("subText")
+        ?: subject?.stringOrNull("infoText")
+        ?: event.eventAction.takeIf { it.isNotBlank() }
+
+    val conversationTitle = subject?.stringOrNull("conversationTitle")
+    val appLabel = actor?.stringOrNull("appLabel")
+    val packageName = event.appPkg ?: actor?.stringOrNull("packageName")
+    val category = contextJson?.stringOrNull("category")
+    val template = traits?.stringOrNull("template") ?: subject?.stringOrNull("template")
+    val channelId = refsJson?.stringOrNull("channelId")
+        ?: contextJson?.objectOrNull("rankingChannel")?.stringOrNull("id")
+    val channelName = contextJson?.objectOrNull("rankingChannel")?.stringOrNull("name")
+    val importance = contextJson?.objectOrNull("rankingInfo")?.intOrNull("importance")
+        ?: contextJson?.objectOrNull("rankingChannel")?.intOrNull("importance")
+    val rank = contextJson?.objectOrNull("rankingInfo")?.intOrNull("rank")
+    val userSentiment = contextJson?.objectOrNull("rankingInfo")?.intOrNull("userSentiment")
+    val user = refsJson?.stringOrNull("user")
+    val visibility = contextJson?.stringOrNull("visibility")
+    val timeout = contextJson?.stringOrNull("timeoutAfter")
+        ?: contextJson?.intOrNull("timeoutAfter")?.let { "${it} ms" }
+    val groupKey = contextJson?.stringOrNull("groupKey")
+    val ticker = contextJson?.stringOrNull("ticker")
+    val shortcutId = traits?.stringOrNull("shortcutId")
+    val locusId = traits?.stringOrNull("locusId")
+    val intentsObj = traits?.objectOrNull("intents")
+    val styleObj = traits?.objectOrNull("style")
+    val bubbleObj = traits?.objectOrNull("bubble")
+
+    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart))
+    val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
+
+    val chips = remember(category, template, importance, rank, conversationTitle) {
+        buildList {
+            category?.let { add("${LocalizedStrings.labelCategory}: $it") }
+            template?.let { add("${LocalizedStrings.labelTemplate}: $it") }
+            importance?.let { add("${LocalizedStrings.labelImportance}: $it") }
+            rank?.let { add("${LocalizedStrings.labelRank}: $it") }
+            conversationTitle?.let { add("${LocalizedStrings.labelConversation}: $it") }
+        }
+    }
+
+    val identityItems = remember(appLabel, packageName, shortcutId, locusId) {
+        buildList {
+            appLabel?.let { add(InfoItem(LocalizedStrings.labelApp, it)) }
+            packageName?.let { add(InfoItem(LocalizedStrings.labelPackage, it)) }
+            shortcutId?.let { add(InfoItem(LocalizedStrings.labelShortcut, it)) }
+            locusId?.let { add(InfoItem(LocalizedStrings.labelLocus, it)) }
+        }
+    }
+
+    val contextItems = remember(channelName, channelId, importance, rank, userSentiment, visibility, user, groupKey, timeout, ticker) {
+        buildList {
+            channelName?.let { add(InfoItem(LocalizedStrings.labelChannelName, it)) }
+            channelId?.let { add(InfoItem(LocalizedStrings.labelChannel, it)) }
+            importance?.let { add(InfoItem(LocalizedStrings.labelImportance, it.toString())) }
+            rank?.let { add(InfoItem(LocalizedStrings.labelRank, it.toString())) }
+            userSentiment?.let { add(InfoItem(LocalizedStrings.labelUserSentiment, it.toString())) }
+            visibility?.let { add(InfoItem(LocalizedStrings.labelVisibility, it)) }
+            user?.let { add(InfoItem(LocalizedStrings.labelUser, it)) }
+            groupKey?.let { add(InfoItem(LocalizedStrings.labelGroup, it)) }
+            timeout?.let { add(InfoItem(LocalizedStrings.labelTimeout, it)) }
+            ticker?.let { add(InfoItem(LocalizedStrings.labelTicker, it)) }
+        }
+    }
+
+    val contextFlags = remember(contextJson) {
+        buildList {
+            if (contextJson?.containsKey("colorized") == true) add(LocalizedStrings.flagColorized)
+            if (contextJson?.containsKey("onlyAlertOnce") == true) add(LocalizedStrings.flagOnlyAlertOnce)
+            if (contextJson?.containsKey("ongoing") == true) add(LocalizedStrings.flagOngoing)
+            if (contextJson?.containsKey("clearable") == true) add(LocalizedStrings.flagClearable)
+            if (contextJson?.containsKey("unclearable") == true) add(LocalizedStrings.flagUnclearable)
+            if (contextJson?.containsKey("isGroupSummary") == true) add(LocalizedStrings.flagGroupSummary)
+            if (contextJson?.containsKey("showWhen") == true) add(LocalizedStrings.flagShowWhen)
+        }
+    }
+
+    val rankingInfo = contextJson?.objectOrNull("rankingInfo")
+    val rankingFlags = remember(rankingInfo) {
+        buildList {
+            if (rankingInfo?.containsKey("ambient") == true) add(LocalizedStrings.flagAmbient)
+            if (rankingInfo?.containsKey("suspended") == true) add(LocalizedStrings.flagSuspended)
+            if (rankingInfo?.containsKey("canShowBadge") == true) add(LocalizedStrings.flagBadge)
+            if (rankingInfo?.containsKey("isConversation") == true) add(LocalizedStrings.flagConversation)
+        }
+    }
+
+    val bubbleItems = remember(bubbleObj) {
+        buildList {
+            bubbleObj?.intOrNull("desiredHeight")?.let {
+                add(InfoItem(LocalizedStrings.bubbleHeight, it.toString()))
+            }
+            if (bubbleObj?.booleanOrNull("autoExpand") == true) {
+                add(InfoItem(null, LocalizedStrings.bubbleAutoExpand))
+            }
+            if (bubbleObj?.booleanOrNull("suppressNotif") == true) {
+                add(InfoItem(null, LocalizedStrings.bubbleSuppress))
+            }
+        }
+    }
+
+    val peopleList = remember(traits) {
+        traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
+    }
+
+    val actionsList = remember(traits) {
+        traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
+    }
+
+    val intentsItems = remember(intentsObj) {
+        intentsObj?.entries?.mapNotNull { (key, value) ->
+            (value as? JsonObject)?.stringOrNull("creatorPackage")?.let { InfoItem(key, it) }
+        } ?: emptyList()
+    }
+
+    val styleItems = remember(styleObj) {
+        styleObj?.entries?.mapNotNull { (key, value) ->
+            value.toDisplayString()?.let { InfoItem(key, it) }
+        } ?: emptyList()
+    }
+
+    val attachmentsList = remember(attachmentsJson) {
+        attachmentsJson?.mapNotNull { it.toAttachmentDisplay() } ?: emptyList()
+    }
+
+    val metricsItems = remember(event.metrics) {
+        event.metrics.entries.mapNotNull { (key, value) ->
+            value.toDisplayString()?.let { InfoItem(key, it) }
+        }
+    }
+
+    val refsItems = remember(refsJson) {
+        refsJson?.entries?.mapNotNull { (key, value) ->
+            value.toDisplayString()?.let { InfoItem(key, it) }
+        } ?: emptyList()
+    }
+
+    val integrityItems = remember(integrityJson) {
+        buildList {
+            integrityJson?.stringOrNull("snapshotHash")?.let {
+                add(InfoItem(LocalizedStrings.labelIntegrityHash, it))
+            }
+            val fields = integrityJson?.arrayOrNull("fieldsPresent")
+            if (fields != null && fields.isNotEmpty()) {
+                val preview = fields.take(6).mapNotNull { it.toDisplayString() }.joinToString(", ")
+                val description = if (preview.isEmpty()) {
+                    fields.size.toString()
+                } else {
+                    "${fields.size} · $preview"
+                }
+                add(InfoItem(LocalizedStrings.labelIntegrityFields, description))
+            }
+        }
+    }
+
+    val eventItems = remember(event.eventType, event.subjectEntityId, event.subjectParentId, event.rawFingerprint) {
+        buildList {
+            add(InfoItem(LocalizedStrings.labelEventType, event.eventType))
+            event.subjectEntityId?.let { add(InfoItem(LocalizedStrings.labelEntityId, it)) }
+            event.subjectParentId?.let { add(InfoItem(LocalizedStrings.labelParentId, it)) }
+            event.rawFingerprint?.let { add(InfoItem(LocalizedStrings.labelFingerprint, it)) }
+        }
+    }
+
+    val extrasText = remember(rawExtrasJson) {
+        rawExtrasJson?.let { PrettyJson.encodeToString(JsonObject.serializer(), it) }
+    }
+
     Box(
         modifier = modifier
             .then(clickableModifier)
@@ -933,7 +1140,7 @@ private fun EventCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -945,74 +1152,297 @@ private fun EventCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = event.subjectEntity,
+                        text = titleText,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (event.eventAction.isNotBlank()) {
+                    bodyText?.let {
                         Text(
-                            text = event.eventAction,
+                            text = it,
                             style = MaterialTheme.typography.bodyMedium,
                             color = colorScheme.onSurfaceVariant,
-                            maxLines = 2,
+                            maxLines = if (expanded) 6 else 3,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    conversationTitle?.takeIf { it.isNotBlank() && it != titleText }?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colorScheme.secondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (!expanded && subjectLines.isNotEmpty()) {
+                        Text(
+                            text = subjectLines.first(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    enabled = actionsEnabled
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (expanded) {
+                            LocalizedStrings.hideDetailsLabel
+                        } else {
+                            LocalizedStrings.showDetailsLabel
+                        }
+                    )
+                }
+            }
+
+            if (chips.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    chips.forEach { chip ->
+                        SuggestionChip(
+                            onClick = {},
+                            label = { Text(text = chip) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                labelColor = colorScheme.onSecondaryContainer
+                            )
                         )
                     }
                 }
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SuggestionChip(
-                    onClick = {},
-                    label = { Text(text = event.eventCategory) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = colorScheme.tertiaryContainer,
-                        labelColor = colorScheme.onTertiaryContainer
-                    )
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart)),
+                    text = postedLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = colorScheme.onSurfaceVariant
                 )
-            }
-
-            if (event.tags.isNotEmpty()) {
-                val previewTags = event.tags.take(4)
-                val tagLine = buildString {
-                    append(previewTags.joinToString(separator = ", "))
-                    if (event.tags.size > previewTags.size) {
-                        append(", …")
-                    }
-                }
-                Text(
-                    text = LocalizedStrings.tagsLabel(tagLine),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.secondary
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = LocalizedStrings.eventTypeLabel(event.eventType),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.primary
-                )
-                event.subjectEntityId?.let {
+                tagLine?.let {
                     Text(
-                        text = LocalizedStrings.entityIdLabel(it),
+                        text = LocalizedStrings.tagsLabel(it),
                         style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
+                        color = colorScheme.secondary
                     )
+                }
+            }
+
+            if (expanded) {
+                Divider(color = colorScheme.primary.copy(alpha = 0.12f))
+
+                InfoSection(LocalizedStrings.sectionSummary, identityItems)
+                InfoSection(LocalizedStrings.sectionContext, contextItems)
+
+                val allFlags = (contextFlags + rankingFlags).distinct()
+                if (allFlags.isNotEmpty()) {
+                    InfoSection(
+                        title = LocalizedStrings.labelFlags,
+                        items = allFlags.map { InfoItem(label = null, value = it) }
+                    )
+                }
+
+                if (bubbleItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.sectionBubble, bubbleItems)
+                }
+
+                if (subjectLines.isNotEmpty()) {
+                    InfoSection(
+                        title = LocalizedStrings.labelSubjectLines,
+                        items = subjectLines.map { InfoItem(label = null, value = it) }
+                    )
+                }
+
+                if (peopleList.isNotEmpty()) {
+                    InfoSection(
+                        title = LocalizedStrings.labelPeople,
+                        items = listOf(InfoItem(label = null, value = peopleList.joinToString(separator = "\n")))
+                    )
+                }
+
+                if (actionsList.isNotEmpty()) {
+                    InfoSection(
+                        title = LocalizedStrings.labelActions,
+                        items = listOf(InfoItem(label = null, value = actionsList.joinToString(separator = "\n")))
+                    )
+                }
+
+                if (intentsItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.labelIntents, intentsItems)
+                }
+
+                if (styleItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.labelStyle, styleItems)
+                }
+
+                if (attachmentsList.isNotEmpty()) {
+                    InfoSection(
+                        title = LocalizedStrings.labelAttachments,
+                        items = attachmentsList.map { InfoItem(label = null, value = it) }
+                    )
+                }
+
+                if (metricsItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.labelMetrics, metricsItems)
+                }
+
+                if (refsItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.labelRefs, refsItems)
+                }
+
+                if (integrityItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.labelIntegrity, integrityItems)
+                }
+
+                if (eventItems.isNotEmpty()) {
+                    InfoSection(LocalizedStrings.sectionEvent, eventItems)
+                }
+
+                extrasText?.let { extras ->
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = LocalizedStrings.labelRawExtras,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorScheme.primary
+                        )
+                        SelectionContainer {
+                            Text(
+                                text = extras,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private data class InfoItem(val label: String?, val value: String)
+
+@Composable
+private fun InfoSection(
+    title: String,
+    items: List<InfoItem>,
+    modifier: Modifier = Modifier
+) {
+    if (items.isEmpty()) return
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        items.forEach { InfoLine(it) }
+    }
+}
+
+@Composable
+private fun InfoLine(item: InfoItem) {
+    Text(
+        text = buildAnnotatedString {
+            item.label?.takeIf { it.isNotBlank() }?.let { label ->
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                    append(label)
+                    append(": ")
+                }
+            }
+            append(item.value)
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+private val PrettyJson = Json {
+    prettyPrint = true
+    encodeDefaults = false
+    explicitNulls = false
+}
+
+private fun JsonObject.stringOrNull(key: String): String? {
+    val element = this[key] ?: return null
+    return (element as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        ?: element.toDisplayString()?.takeIf { it.isNotBlank() }
+}
+
+private fun JsonObject.objectOrNull(key: String): JsonObject? = this[key] as? JsonObject
+
+private fun JsonObject.arrayOrNull(key: String): JsonArray? = this[key] as? JsonArray
+
+private fun JsonArray.stringValues(): List<String> = mapNotNull { element ->
+    element.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }
+}
+
+private fun JsonElement.toPersonDisplay(): String? {
+    val obj = this as? JsonObject ?: return null
+    val name = obj.stringOrNull("name")
+    val uri = obj.stringOrNull("uri")
+    val key = obj.stringOrNull("key")
+    return when {
+        !name.isNullOrBlank() && !uri.isNullOrBlank() -> "$name ($uri)"
+        !name.isNullOrBlank() -> name
+        !uri.isNullOrBlank() -> uri
+        !key.isNullOrBlank() -> key
+        else -> null
+    }
+}
+
+private fun JsonElement.toActionDisplay(): String? {
+    val obj = this as? JsonObject ?: return null
+    val title = obj.stringOrNull("title") ?: return null
+    val semantic = obj["semanticAction"]?.toDisplayString()
+    val remoteInputs = obj.arrayOrNull("remoteInputs")
+        ?.mapNotNull { (it as? JsonObject)?.stringOrNull("resultKey") }
+        ?.takeIf { it.isNotEmpty() }
+    return buildString {
+        append(title)
+        semantic?.let { append(" · ").append(it) }
+        remoteInputs?.let { append(" · ").append(it.joinToString()) }
+    }
+}
+
+private fun JsonElement.toAttachmentDisplay(): String? {
+    val obj = this as? JsonObject ?: return null
+    val type = obj.stringOrNull("type") ?: return null
+    val details = buildList {
+        obj["uri"]?.toDisplayString()?.takeIf { it.isNotBlank() }?.let { add(it) }
+        val resPkg = obj.stringOrNull("resPkg")
+        obj["resId"]?.toDisplayString()?.takeIf { it.isNotBlank() }?.let { resId ->
+            val pkg = resPkg?.let { "$it/" } ?: ""
+            add(pkg + resId)
+        }
+    }
+    return if (details.isEmpty()) type else "$type · ${details.joinToString()}"
+}
+
+private fun JsonElement.toDisplayString(): String? = when (this) {
+    is JsonPrimitive -> when {
+        booleanOrNull != null -> if (booleanOrNull == true) "true" else null
+        isString -> contentOrNull?.takeIf { it.isNotBlank() }
+        else -> content
+    }
+    is JsonObject -> if (isEmpty()) null else PrettyJson.encodeToString(JsonObject.serializer(), this)
+    is JsonArray -> {
+        val values = mapNotNull { it.toDisplayString()?.takeIf { text -> text.isNotBlank() } }
+        if (values.isEmpty()) null else values.joinToString(", ")
+    }
+    else -> null
 }
 
 private object LocalizedStrings {
@@ -1093,6 +1523,115 @@ private object LocalizedStrings {
 
     @Composable
     fun tagsLabel(value: String) = stringResource(R.string.event_list_tags, value)
+
+    val showDetailsLabel: String
+        @Composable get() = stringResource(R.string.event_list_expand)
+    val hideDetailsLabel: String
+        @Composable get() = stringResource(R.string.event_list_collapse)
+    val labelApp: String
+        @Composable get() = stringResource(R.string.event_list_label_app)
+    val labelPackage: String
+        @Composable get() = stringResource(R.string.event_list_label_package)
+    val labelCategory: String
+        @Composable get() = stringResource(R.string.event_list_label_category)
+    val labelTemplate: String
+        @Composable get() = stringResource(R.string.event_list_label_template)
+    val labelShortcut: String
+        @Composable get() = stringResource(R.string.event_list_label_shortcut)
+    val labelLocus: String
+        @Composable get() = stringResource(R.string.event_list_label_locus)
+    val labelChannelName: String
+        @Composable get() = stringResource(R.string.event_list_label_channel_name)
+    val labelChannel: String
+        @Composable get() = stringResource(R.string.event_list_label_channel)
+    val labelImportance: String
+        @Composable get() = stringResource(R.string.event_list_label_importance)
+    val labelRank: String
+        @Composable get() = stringResource(R.string.event_list_label_rank)
+    val labelUserSentiment: String
+        @Composable get() = stringResource(R.string.event_list_label_user_sentiment)
+    val labelVisibility: String
+        @Composable get() = stringResource(R.string.event_list_label_visibility)
+    val labelUser: String
+        @Composable get() = stringResource(R.string.event_list_label_user)
+    val labelGroup: String
+        @Composable get() = stringResource(R.string.event_list_label_group)
+    val labelTimeout: String
+        @Composable get() = stringResource(R.string.event_list_label_timeout)
+    val labelTicker: String
+        @Composable get() = stringResource(R.string.event_list_label_ticker)
+    val labelConversation: String
+        @Composable get() = stringResource(R.string.event_list_label_conversation)
+    val labelPeople: String
+        @Composable get() = stringResource(R.string.event_list_label_people)
+    val labelActions: String
+        @Composable get() = stringResource(R.string.event_list_label_actions)
+    val labelIntents: String
+        @Composable get() = stringResource(R.string.event_list_label_intents)
+    val labelStyle: String
+        @Composable get() = stringResource(R.string.event_list_label_style)
+    val labelAttachments: String
+        @Composable get() = stringResource(R.string.event_list_label_attachments)
+    val labelMetrics: String
+        @Composable get() = stringResource(R.string.event_list_label_metrics)
+    val labelRefs: String
+        @Composable get() = stringResource(R.string.event_list_label_refs)
+    val labelIntegrity: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity)
+    val labelIntegrityHash: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity_hash)
+    val labelIntegrityFields: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity_fields)
+    val labelFlags: String
+        @Composable get() = stringResource(R.string.event_list_label_flags)
+    val labelRawExtras: String
+        @Composable get() = stringResource(R.string.event_list_label_raw_extras)
+    val labelSubjectLines: String
+        @Composable get() = stringResource(R.string.event_list_label_subject_lines)
+    val labelEventType: String
+        @Composable get() = stringResource(R.string.event_list_label_event_type)
+    val labelEntityId: String
+        @Composable get() = stringResource(R.string.event_list_label_entity_id)
+    val labelParentId: String
+        @Composable get() = stringResource(R.string.event_list_label_parent_id)
+    val labelFingerprint: String
+        @Composable get() = stringResource(R.string.event_list_label_fingerprint)
+    val sectionSummary: String
+        @Composable get() = stringResource(R.string.event_list_section_identity)
+    val sectionContext: String
+        @Composable get() = stringResource(R.string.event_list_section_context)
+    val sectionBubble: String
+        @Composable get() = stringResource(R.string.event_list_section_bubble)
+    val sectionEvent: String
+        @Composable get() = stringResource(R.string.event_list_section_event)
+    val bubbleHeight: String
+        @Composable get() = stringResource(R.string.event_list_bubble_height)
+    val bubbleAutoExpand: String
+        @Composable get() = stringResource(R.string.event_list_bubble_auto_expand)
+    val bubbleSuppress: String
+        @Composable get() = stringResource(R.string.event_list_bubble_suppress)
+    val flagColorized: String
+        @Composable get() = stringResource(R.string.event_list_flag_colorized)
+    val flagOnlyAlertOnce: String
+        @Composable get() = stringResource(R.string.event_list_flag_only_alert_once)
+    val flagOngoing: String
+        @Composable get() = stringResource(R.string.event_list_flag_ongoing)
+    val flagClearable: String
+        @Composable get() = stringResource(R.string.event_list_flag_clearable)
+    val flagUnclearable: String
+        @Composable get() = stringResource(R.string.event_list_flag_unclearable)
+    val flagGroupSummary: String
+        @Composable get() = stringResource(R.string.event_list_flag_group_summary)
+    val flagShowWhen: String
+        @Composable get() = stringResource(R.string.event_list_flag_show_when)
+    val flagAmbient: String
+        @Composable get() = stringResource(R.string.event_list_flag_ambient)
+    val flagSuspended: String
+        @Composable get() = stringResource(R.string.event_list_flag_suspended)
+    val flagBadge: String
+        @Composable get() = stringResource(R.string.event_list_flag_badge)
+    val flagConversation: String
+        @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
 private val TIME_FORMATTER: DateTimeFormatter =
@@ -1117,8 +1656,42 @@ private fun EventListPreview() {
             eventCategory = "Inbox",
             eventAction = "Received new message",
             subjectEntity = "Email",
+            subjectEntityId = "com.mail:42",
             tsStart = now,
-            tags = listOf("priority", "gmail")
+            tags = listOf("priority", "gmail"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Mail"))
+                    put("packageName", JsonPrimitive("com.mail"))
+                })
+                put("subject", buildJsonObject {
+                    put("title", JsonPrimitive("Project Apollo"))
+                    put("text", JsonPrimitive("New update from Alex"))
+                    put("conversationTitle", JsonPrimitive("Team chat"))
+                })
+                put("context", buildJsonObject {
+                    put("category", JsonPrimitive("email"))
+                    put("channelId", JsonPrimitive("inbox"))
+                    put("rankingInfo", buildJsonObject {
+                        put("importance", JsonPrimitive(4))
+                        put("isConversation", JsonPrimitive(true))
+                    })
+                })
+                put("traits", buildJsonObject {
+                    put("template", JsonPrimitive("MessagingStyle"))
+                    put("people", buildJsonArray {
+                        add(buildJsonObject { put("name", JsonPrimitive("Alex")) })
+                    })
+                })
+                put("refs", buildJsonObject {
+                    put("key", JsonPrimitive("notif-key"))
+                    put("user", JsonPrimitive("UserHandle{0}"))
+                })
+            },
+            metrics = buildJsonObject {
+                put("actionsCount", JsonPrimitive(2))
+                put("peopleCount", JsonPrimitive(1))
+            }
         ),
         EventEntity(
             eventId = "evt-2",
@@ -1129,7 +1702,19 @@ private fun EventListPreview() {
             eventAction = "Missed call",
             subjectEntity = "Carol Micek",
             tsStart = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() - 3_600_000),
-            tags = listOf("work")
+            tags = listOf("work"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Dialer"))
+                    put("packageName", JsonPrimitive("com.phone"))
+                })
+                put("context", buildJsonObject {
+                    put("category", JsonPrimitive("call"))
+                    put("rankingInfo", buildJsonObject {
+                        put("importance", JsonPrimitive(3))
+                    })
+                })
+            }
         )
     )
 
