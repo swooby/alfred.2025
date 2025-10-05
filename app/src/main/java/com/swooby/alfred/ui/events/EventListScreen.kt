@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,7 +87,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
@@ -136,6 +136,7 @@ fun EventListScreen(
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onShuffleThemeRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -151,19 +152,7 @@ fun EventListScreen(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(
-        colorScheme.surface,
-        colorScheme.primaryContainer,
-        colorScheme.background
-    ) {
-        Brush.verticalGradient(
-            colors = listOf(
-                colorScheme.surface,
-                colorScheme.primaryContainer.copy(alpha = 0.35f),
-                colorScheme.background
-            )
-        )
-    }
+    val backgroundColor = colorScheme.surface
 
     BackHandler(enabled = drawerState.isOpen) {
         coroutineScope.launch { drawerState.close() }
@@ -187,7 +176,8 @@ fun EventListScreen(
                     )
                     DrawerThemeModeSection(
                         selectedMode = themeMode,
-                        onThemeModeChange = onThemeModeChange
+                        onThemeModeChange = onThemeModeChange,
+                        onShuffleThemeRequest = onShuffleThemeRequest
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerSettings) },
@@ -209,7 +199,7 @@ fun EventListScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundBrush)
+                .background(backgroundColor)
         ) {
             EventListScaffold(
                 state = state,
@@ -268,6 +258,7 @@ fun EventListScreen(
 private fun DrawerThemeModeSection(
     selectedMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onShuffleThemeRequest: () -> Unit,
 ) {
     Spacer(modifier = Modifier.height(12.dp))
     Row(
@@ -282,12 +273,19 @@ private fun DrawerThemeModeSection(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         val options = remember {
             listOf(
-                ThemeMode.DARK,
                 ThemeMode.LIGHT,
                 ThemeMode.SYSTEM,
+                ThemeMode.DARK,
             )
         }
         SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
@@ -309,6 +307,12 @@ private fun DrawerThemeModeSection(
                     Text(text = label)
                 }
             }
+        }
+        IconButton(onClick = onShuffleThemeRequest) {
+            Icon(
+                imageVector = Icons.Outlined.Shuffle,
+                contentDescription = LocalizedStrings.shuffleThemeContentDescription
+            )
         }
     }
     Spacer(modifier = Modifier.height(8.dp))
@@ -416,42 +420,25 @@ private fun EventListHeader(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val headerShape = RoundedCornerShape(28.dp)
-    val headerBrush = remember(
-        colorScheme.primaryContainer,
-        colorScheme.secondaryContainer,
-        colorScheme.tertiaryContainer
-    ) {
-        Brush.linearGradient(
-            colors = listOf(
-                colorScheme.primaryContainer.copy(alpha = 0.9f),
-                colorScheme.secondaryContainer.copy(alpha = 0.85f),
-                colorScheme.tertiaryContainer.copy(alpha = 0.9f)
-            )
-        )
+    val headerContainerColor = remember(colorScheme.primaryContainer) {
+        colorScheme.primaryContainer
     }
-    val headerBackgroundLuminance = remember(
-        colorScheme.primaryContainer,
-        colorScheme.secondaryContainer,
-        colorScheme.tertiaryContainer
-    ) {
-        val colors = listOf(
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
-            colorScheme.tertiaryContainer
-        )
-        colors.fold(0f) { total, color -> total + color.luminance() } / colors.size
-    }
-    val isHeaderBackgroundLight = headerBackgroundLuminance > 0.5f
-    val headerContentColor = Color.White
+    val isHeaderBackgroundLight = headerContainerColor.luminance() > 0.5f
+    val headerContentColor = colorScheme.onPrimaryContainer
     val outlineColor = if (isHeaderBackgroundLight) {
-        colorScheme.primary.copy(alpha = 0.12f)
+        colorScheme.primary.copy(alpha = 0.18f)
     } else {
-        headerContentColor.copy(alpha = 0.2f)
+        colorScheme.onPrimaryContainer.copy(alpha = 0.28f)
     }
     val searchContainerColor = if (isHeaderBackgroundLight) {
-        Color.White.copy(alpha = 0.92f)
+        colorScheme.surfaceColorAtElevation(2.dp)
     } else {
-        Color.White.copy(alpha = 0.18f)
+        colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
+    }
+    val avatarBackgroundColor = if (isHeaderBackgroundLight) {
+        colorScheme.primary.copy(alpha = 0.16f)
+    } else {
+        colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
     }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -463,7 +450,7 @@ private fun EventListHeader(
             modifier = Modifier
                 .padding(start = 8.dp, end = 8.dp, top = statusBarPadding + 8.dp, bottom = 8.dp)
                 .clip(headerShape)
-                .background(headerBrush)
+                .background(headerContainerColor)
                 .border(width = 1.dp, color = outlineColor, shape = headerShape)
         ) {
             Column(
@@ -507,7 +494,7 @@ private fun EventListHeader(
                     Avatar(
                         initials = userInitials,
                         onClick = onAvatarClick,
-                        backgroundColor = Color.White.copy(alpha = if (isHeaderBackgroundLight) 0.65f else 0.24f),
+                        backgroundColor = avatarBackgroundColor,
                         contentColor = headerContentColor
                     )
                 }
@@ -967,22 +954,12 @@ private fun EventCard(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val cardShape = RoundedCornerShape(24.dp)
-    val cardBrush = remember(
-        colorScheme.surface,
-        colorScheme.secondaryContainer,
-        colorScheme.primaryContainer,
-        isSelected
-    ) {
-        Brush.verticalGradient(
-            colors = listOf(
-                colorScheme.surfaceColorAtElevation(4.dp),
-                if (isSelected) {
-                    colorScheme.primaryContainer.copy(alpha = 0.75f)
-                } else {
-                    colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                }
-            )
-        )
+    val cardColor = remember(colorScheme, isSelected) {
+        if (isSelected) {
+            colorScheme.primaryContainer
+        } else {
+            colorScheme.surfaceColorAtElevation(4.dp)
+        }
     }
     val borderColor = remember(colorScheme.primary, isSelected) {
         if (isSelected) {
@@ -1160,7 +1137,7 @@ private fun EventCard(
         modifier = modifier
             .then(clickableModifier)
             .clip(cardShape)
-            .background(cardBrush)
+            .background(cardColor)
             .border(
                 width = 1.dp,
                 color = borderColor,
@@ -1501,6 +1478,9 @@ private object LocalizedStrings {
     val themeModeSystem: String
         @Composable get() = stringResource(R.string.event_list_theme_mode_system)
 
+    val shuffleThemeContentDescription: String
+        @Composable get() = stringResource(R.string.event_list_theme_shuffle_cd)
+
     val menuContentDescription: String
         @Composable get() = stringResource(R.string.event_list_menu_cd)
 
@@ -1784,7 +1764,8 @@ private fun EventListPreview() {
             onSelectAll = {},
             onUnselectAll = {},
             onDeleteSelected = {},
-            onThemeModeChange = {}
+            onThemeModeChange = {},
+            onShuffleThemeRequest = {}
         )
     }
 }

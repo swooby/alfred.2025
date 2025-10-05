@@ -18,9 +18,12 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
+import com.swooby.alfred.settings.DefaultThemePreferences
 import com.swooby.alfred.settings.ThemeMode
+import com.swooby.alfred.settings.ThemePreferences
 import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
+import com.swooby.alfred.ui.theme.ThemeSeedGenerator
 import kotlinx.coroutines.launch
 
 class EventListActivity : ComponentActivity() {
@@ -40,14 +43,21 @@ class EventListActivity : ComponentActivity() {
         )
 
         setContent {
-            val themeMode by app.settings.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val themePreferences: ThemePreferences by app.settings.themePreferencesFlow
+                .collectAsState(initial = DefaultThemePreferences)
+            val themeMode = themePreferences.mode
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.DARK -> true
                 ThemeMode.LIGHT -> false
             }
 
-            AlfredTheme(darkTheme = darkTheme) {
+            val paletteSeed = themePreferences.seedArgb
+
+            AlfredTheme(
+                darkTheme = darkTheme,
+                customSeedArgb = paletteSeed
+            ) {
                 val surfaceColor = MaterialTheme.colorScheme.surface
                 val useLightSystemIcons = surfaceColor.luminance() > 0.5f
 
@@ -82,6 +92,18 @@ class EventListActivity : ComponentActivity() {
                     onDeleteSelected = viewModel::deleteSelected,
                     onThemeModeChange = { mode ->
                         settingsScope.launch { app.settings.setThemeMode(mode) }
+                    },
+                    onShuffleThemeRequest = {
+                        settingsScope.launch {
+                            val currentSeed = themePreferences.seedArgb
+                            var newSeed = ThemeSeedGenerator.randomSeed()
+                            var attempts = 0
+                            while (currentSeed != null && newSeed == currentSeed && attempts < 4) {
+                                newSeed = ThemeSeedGenerator.randomSeed()
+                                attempts++
+                            }
+                            app.settings.setCustomThemeSeed(newSeed)
+                        }
                     }
                 )
             }

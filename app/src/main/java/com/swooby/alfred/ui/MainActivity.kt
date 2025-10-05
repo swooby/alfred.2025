@@ -23,8 +23,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
+import com.swooby.alfred.settings.DefaultThemePreferences
 import com.swooby.alfred.settings.SettingsScreen
 import com.swooby.alfred.settings.ThemeMode
+import com.swooby.alfred.settings.ThemePreferences
 import com.swooby.alfred.ui.theme.AlfredTheme
 
 class MainActivity : ComponentActivity() {
@@ -34,14 +36,21 @@ class MainActivity : ComponentActivity() {
         val app = application as AlfredApp
 
         setContent {
-            val themeMode by app.settings.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val themePreferences: ThemePreferences by app.settings.themePreferencesFlow
+                .collectAsState(initial = DefaultThemePreferences)
+            val themeMode = themePreferences.mode
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.DARK -> true
                 ThemeMode.LIGHT -> false
             }
 
-            AlfredTheme(darkTheme = darkTheme) {
+            val paletteSeed = themePreferences.seedArgb
+
+            AlfredTheme(
+                darkTheme = darkTheme,
+                customSeedArgb = paletteSeed
+            ) {
                 val colorScheme = MaterialTheme.colorScheme
                 val useLightStatusIcons = colorScheme.primary.luminance() > 0.5f
 

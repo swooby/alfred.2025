@@ -22,6 +22,7 @@ class SettingsRepository(private val app: Context) {
         val DISABLED_APPS = stringPreferencesKey("disabled_apps_csv")
         val ENABLED_TYPES = stringPreferencesKey("enabled_types_csv")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val THEME_SEED = stringPreferencesKey("theme_seed_argb")
     }
     private val defaultEnabled = setOf("media.start","media.stop","notif.post","display.on","display.off","network.wifi.connect","network.wifi.disconnect")
     val rulesConfigFlow: Flow<RulesConfig> =
@@ -35,10 +36,15 @@ class SettingsRepository(private val app: Context) {
             RulesConfig(enabledTypes, disabledApps, quiet, speakOff, listOf(RateLimit("media.start",30,4), RateLimit("notif.post",10,6)))
         }
 
-    val themeModeFlow: Flow<ThemeMode> =
+    val themePreferencesFlow: Flow<ThemePreferences> =
         app.settingsDataStore.data.map { preferences ->
-            ThemeMode.fromPreference(preferences[K.THEME_MODE])
+            ThemePreferences(
+                mode = ThemeMode.fromPreference(preferences[K.THEME_MODE]),
+                seedArgb = preferences[K.THEME_SEED].toArgbOrNull()
+            )
         }
+
+    val themeModeFlow: Flow<ThemeMode> = themePreferencesFlow.map { it.mode }
 
     suspend fun setQuietHours(startHHmm: String?, endHHmm: String?) {
         app.settingsDataStore.edit { e -> e[K.QUIET_START] = startHHmm ?: ""; e[K.QUIET_END] = endHHmm ?: "" }
@@ -49,4 +55,33 @@ class SettingsRepository(private val app: Context) {
     suspend fun setThemeMode(themeMode: ThemeMode) {
         app.settingsDataStore.edit { it[K.THEME_MODE] = themeMode.asPreferenceString() }
     }
+
+    suspend fun setCustomThemeSeed(argb: Long?) {
+        app.settingsDataStore.edit { prefs ->
+            if (argb == null) {
+                prefs.remove(K.THEME_SEED)
+            } else {
+                prefs[K.THEME_SEED] = argb.toArgbHexString()
+            }
+        }
+    }
+}
+
+private fun String?.toArgbOrNull(): Long? {
+    val raw = this?.trim()?.removePrefix("#") ?: return null
+    val parsed = raw.toLongOrNull(16) ?: return null
+    return if (raw.length <= 6) {
+        0xFF000000L or parsed
+    } else {
+        parsed
+    }
+}
+
+private fun Long.toArgbHexString(): String {
+    val normalized = if (this and 0xFF000000L == 0L) {
+        this or 0xFF000000L
+    } else {
+        this
+    }
+    return "#" + "%08X".format(normalized)
 }

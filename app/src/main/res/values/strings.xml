@@ -37,6 +37,7 @@
     <string name="event_list_theme_mode_dark">Dark</string>
     <string name="event_list_theme_mode_light">Light</string>
     <string name="event_list_theme_mode_system">System</string>
+    <string name="event_list_theme_shuffle_cd">Shuffle theme colors</string>
     <string name="event_list_menu_cd">Open navigation</string>
     <string name="event_list_refresh_cd">Refresh timeline</string>
     <string name="event_list_avatar_cd">Open account menu</string>
