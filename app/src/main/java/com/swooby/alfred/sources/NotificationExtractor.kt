@@ -511,17 +511,20 @@ object NotificationExtractor {
         null
     }
 
+    private val HEX_DIGITS: CharArray = "0123456789abcdef".toCharArray()
+
     private fun sha256(input: String): String {
         if (input.isEmpty()) return ""
         val digest = MessageDigest.getInstance("SHA-256")
         val bytes = digest.digest(input.toByteArray(Charsets.UTF_8))
-        val builder = StringBuilder(bytes.size * 2)
+        val chars = CharArray(bytes.size * 2)
+        var index = 0
         bytes.forEach { byte ->
             val value = byte.toInt() and 0xFF
-            builder.append("0123456789abcdef"[value shr 4])
-            builder.append("0123456789abcdef"[value and 0x0F])
+            chars[index++] = HEX_DIGITS[value ushr 4]
+            chars[index++] = HEX_DIGITS[value and 0x0F]
         }
-        return builder.toString()
+        return chars.concatToString()
     }
 
     private fun MutableMap<String, Any?>.putMeaningful(key: String, value: Any?) {
