@@ -48,10 +48,10 @@ import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -1243,7 +1243,7 @@ private fun EventCard(
             }
 
             if (expanded) {
-                Divider(color = colorScheme.primary.copy(alpha = 0.12f))
+                HorizontalDivider(color = colorScheme.primary.copy(alpha = 0.12f))
 
                 InfoSection(LocalizedStrings.sectionSummary, identityItems)
                 InfoSection(LocalizedStrings.sectionContext, contextItems)
