@@ -87,6 +87,7 @@ fun PermissionsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
