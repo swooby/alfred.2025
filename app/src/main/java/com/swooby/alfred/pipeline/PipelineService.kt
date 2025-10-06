@@ -52,7 +52,7 @@ class PipelineService : Service() {
         val hasAccess = hasNotificationListenerAccess(this, NotifSvc::class.java)
         if (hasAccess) {
             try {
-                app.mediaSource.start()
+                app.mediaSource.start("$TAG.onCreate")
             } catch (se: SecurityException) {
                 // Access might have been revoked between check and start; keep running without media source
                 FooLog.w(TAG, "onCreate: SecurityException", se)
@@ -91,7 +91,10 @@ class PipelineService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        app.mediaSource.stop(); tts.stop(); scope.cancel(); super.onDestroy()
+        app.mediaSource.stop("PipelineService.onCreate")
+        tts.stop()
+        scope.cancel()
+        super.onDestroy()
     }
 
     override fun onBind(p0: Intent?): IBinder? = null

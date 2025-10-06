@@ -147,7 +147,7 @@ class NotifSvc : NotificationListenerService() {
         // Now we have access; start the media source if PipelineService is running.
         val app = application as AlfredApp
         try {
-            app.mediaSource.start()
+            app.mediaSource.start("$TAG.onListenerConnected")
         } catch (se: SecurityException) {
             FooLog.w(TAG, "onListenerConnected: SecurityException", se)
             /* ignore */

@@ -2,6 +2,7 @@ package com.swooby.alfred.sources
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.MediaDescription
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSession
@@ -29,9 +30,11 @@ class MediaSessionsSource(
 ) {
     companion object {
         private val TAG = FooLog.TAG(MediaSessionsSource::class.java)
-        @Suppress("SimplifyBooleanWithConstants")
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+        private val LOG_CONTROLLERS = false && BuildConfig.DEBUG
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
         private val LOG_MEDIA_SESSION_CHANGED = true && BuildConfig.DEBUG
-        @Suppress("SimplifyBooleanWithConstants")
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
         private val LOG_MEDIA_CONTROLLER = true && BuildConfig.DEBUG
     }
     private val msm = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -39,9 +42,10 @@ class MediaSessionsSource(
     private val controllerCallbacks = mutableMapOf<MediaController, MediaControllerCallback>()
     private val tracker = MediaSessionDurationTracker()
 
-    fun start() {
+    fun start(caller: String) {
         try {
-            refreshSessions()
+            FooLog.v(TAG, "start(caller=${FooString.quote(caller)})")
+            refreshSessions("$caller->start")
             msm.addOnActiveSessionsChangedListener(
                 listener,
                 ComponentName(ctx, NotifSvc::class.java)
@@ -52,45 +56,80 @@ class MediaSessionsSource(
         }
     }
 
-    fun stop() {
+    fun stop(caller: String) {
+        FooLog.v(TAG, "stop(caller=${FooString.quote(caller)})")
         msm.removeOnActiveSessionsChangedListener(listener)
         controllerCallbacks.keys.toList().forEach { detach(it) }
         controllerCallbacks.clear()
     }
 
-    private fun refreshSessions(controllers: MutableList<MediaController>? = null) {
-        FooLog.v(TAG, "refreshSessions(...)")
+    /**
+     * Copy of simple [android.media.session.MediaController]`.controlsSameSession` to unhide it.
+     *
+     * `controlsSameSession` has an annotation that says:
+     * ```java
+     * @UnsupportedAppUsage(publicAlternatives = "Check equality of {@link #getSessionToken() tokens} "
+     *             + "instead.", maxTargetSdk = Build.VERSION_CODES.R)
+     * ```
+     */
+    private fun controlsSameSession(c1: MediaController, c2: MediaController): Boolean {
+        return c1.sessionToken == c2.sessionToken
+    }
+
+    /**
+     * Needed because [Map.containsKey] does not work for a [android.media.session.MediaController]
+     * key because [android.media.session.MediaController] does not have a [Any.equals] or
+     * [Any.hashCode] that compares [android.media.session.MediaController.getSessionToken].
+     */
+    private fun contains(c: Collection<MediaController>, key: MediaController): Boolean {
+        c.forEach { controller ->
+            if (controlsSameSession(controller, key)) return true
+        }
+        return false
+    }
+
+    private fun refreshSessions(caller: String, controllers: MutableList<MediaController>? = null) {
+        FooLog.v(TAG, "refreshSessions(caller=${FooString.quote(caller)}, controllers=...)")
         try {
             val controllers = controllers ?: msm.getActiveSessions(ComponentName(ctx, NotifSvc::class.java))
-            FooLog.v(TAG, "refreshSessions: controllers(${controllers.size})=...")
+            if (LOG_CONTROLLERS) {
+                FooLog.v(TAG, "refreshSessions: controllers(${controllers.size})=${controllers.map { toString(it) }}")
+                FooLog.e(TAG, "refreshSessions: BEFORE controllerCallback.keys(${controllerCallbacks.keys.size})=${controllerCallbacks.keys.map { toString(it) }}")
+            }
             controllers.forEach {
-                //FooLog.e(TAG, "refreshSessions: controller=${mediaControllerToString(it)}")
-                if (!controllerCallbacks.containsKey(it)) {
+                if (LOG_CONTROLLERS) {
+                    FooLog.v(TAG, "refreshSessions: controller=${toString(it)}")
+                }
+                if (!contains(controllerCallbacks.keys, it)) {
+                    FooLog.v(TAG, "refreshSessions: controller not attached; attaching...")
                     attach(it)
                 } else {
-                    FooLog.v(TAG, "refreshSessions: controller=${mediaControllerToString(it)} already attached")
+                    FooLog.v(TAG, "refreshSessions: controller already attached; ignoring")
                 }
             }
             // Remove callbacks for any controllers that are no longer active...
-            controllerCallbacks.keys.toList().forEach { if (!controllers.contains(it)) detach(it) }
+            controllerCallbacks.keys.toList().forEach { if (!contains(controllers, it)) detach(it) }
+            if (LOG_CONTROLLERS) {
+                FooLog.e(TAG, "refreshSessions:  AFTER controllerCallback.keys(${controllerCallbacks.keys.size})=${controllerCallbacks.keys.map { toString(it) }}")
+            }
         } catch (se: SecurityException) {
             FooLog.w(TAG, "refreshSessions: SecurityException", se)
         }
     }
 
-    private fun mediaSessionTokenToString(sessionToken: MediaSession.Token): String {
+    private fun toString(sessionToken: MediaSession.Token): String {
         return "MediaSession.Token(hashCode()=${sessionToken.hashCode()})"
     }
 
-    private fun mediaControllerToString(mediaController: MediaController): String {
-        return "MediaController(token=${mediaSessionTokenToString(mediaController.sessionToken)}" +
+    private fun toString(mediaController: MediaController): String {
+        return "MediaController(token=${toString(mediaController.sessionToken)}" +
                 ", sessionInfo=${mediaController.sessionInfo}" +
                 ", tag=${FooString.quote(mediaController.tag)}" +
                 ", packageName=${FooString.quote(mediaController.packageName)}" +
                 ", hashCode()=${mediaController.hashCode()})"
     }
 
-    private fun mediaSessionPlaybackStateToString(state: PlaybackState?): String {
+    private fun toString(state: PlaybackState?): String {
         return if (state == null) "null" else mediaSessionPlaybackStateToString(state.state)
     }
 
@@ -111,28 +150,29 @@ class MediaSessionsSource(
             else -> "UNKNOWN"
         }.let { "$it($state)" }
     }
+
     private fun attach(controller: MediaController) {
-        FooLog.d(TAG, "+attach(${mediaControllerToString(controller)}")
+        FooLog.v(TAG, "+attach(${toString(controller)}")
         val cb = MediaControllerCallback(controller)
         controllerCallbacks[controller] = cb
         controller.registerCallback(cb)
         controller.playbackState?.let { state ->
-            FooLog.i(TAG, "attach: state=${mediaSessionPlaybackStateToString(state.state)}")
+            //FooLog.i(TAG, "attach: state=${mediaSessionPlaybackStateToString(state.state)}")
             when (state.state) {
                 PlaybackState.STATE_PLAYING -> {
-                    FooLog.i(TAG, "attach: STATE_PLAYING; emitMediaStart(...)")
+                    FooLog.v(TAG, "attach: STATE_PLAYING; emitMediaStart(...)")
                     emitMediaStart(controller, controller.metadata, state)
                 }
                 else -> {
-                    FooLog.i(TAG, "attach: not STATE_PLAYING; ignore")
+                    FooLog.v(TAG, "attach: not STATE_PLAYING; ignore")
                 }
             }
         }
-        FooLog.d(TAG, "-attach(...)")
+        FooLog.v(TAG, "-attach(...)")
     }
 
     private fun detach(controller: MediaController) {
-        FooLog.d(TAG, "+detach(${mediaControllerToString(controller)}")
+        FooLog.d(TAG, "+detach(${toString(controller)}")
         controllerCallbacks.remove(controller)?.let { controller.unregisterCallback(it) }
         FooLog.d(TAG, "-detach(...)")
     }
@@ -142,14 +182,14 @@ class MediaSessionsSource(
             if (LOG_MEDIA_SESSION_CHANGED) {
                 FooLog.d(TAG, "#MEDIA onActiveSessionsChanged: controllers.size=${controllers?.size}")
             }
-            refreshSessions(controllers)
+            refreshSessions("onActiveSessionsChanged", controllers)
         }
     }
 
     private inner class MediaControllerCallback(private val c: MediaController) : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) {
             if (LOG_MEDIA_CONTROLLER) {
-                FooLog.d(TAG, "#MEDIA onPlaybackStateChanged(state=${mediaSessionPlaybackStateToString(state)})")
+                FooLog.d(TAG, "#MEDIA onPlaybackStateChanged(controller=${toString(c)}, state=${toString(state)})")
             }
             if (state == null) return
             val md = c.metadata
@@ -162,9 +202,44 @@ class MediaSessionsSource(
             }
         }
 
+        /**
+         * More expanded version of [android.media.MediaDescription.toString]
+         */
+        private fun toString(md: MediaDescription?): String {
+            if (md == null) return "null"
+            val sb = StringBuilder("{")
+            md.mediaId?.let {
+                sb.append(" mediaId=${FooString.quote(it)},")
+            }
+            md.mediaUri?.let {
+                sb.append(" mediaUri=${FooString.quote(it)},")
+            }
+            sb.append(" title=${FooString.quote(md.title)},")
+            md.subtitle?.let {
+                sb.append(" subtitle=${FooString.quote(md.subtitle)},")
+            }
+            md.description?.let {
+                sb.append(" description=${FooString.quote(md.description)},")
+            }
+            md.extras?.let {
+                sb.append(" extras=${FooString.quote(md.extras)},")
+            }
+            return "${sb.toString().trimEnd { it == ',' }} }"
+        }
+
+        private fun toString(md: MediaMetadata?): String {
+            if (md == null) return "null"
+            val sb = StringBuilder("{")
+            // TODO: Expand this to show more than just [android.media.MediaMetadata.getDescription]
+            sb.append("..., ")
+            sb.append(" description=${toString(md.description)},")
+            sb.append("...")
+            return "${sb.toString().trimEnd { it == ',' }} }"
+        }
+
         override fun onMetadataChanged(metadata: MediaMetadata?) {
             if (LOG_MEDIA_CONTROLLER) {
-                FooLog.d(TAG, "#MEDIA onMetadataChanged(metadata=$metadata)")
+                FooLog.d(TAG, "#MEDIA onMetadataChanged(controller=${toString(c)}, metadata=${toString(metadata)})")
             }
             val state = c.playbackState
             if (state == null) return
