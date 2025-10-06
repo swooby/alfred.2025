@@ -18,6 +18,7 @@ import com.swooby.alfred.core.rules.RulesConfig
 import com.swooby.alfred.sources.NotifSvc
 import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.tts.FooTextToSpeech
+import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.hasNotificationListenerAccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,10 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 
 class PipelineService : Service() {
+    companion object {
+        private val TAG = FooLog.TAG(PipelineService::class.java)
+    }
+
     private val app by lazy { application as AlfredApp }
     private lateinit var tts: FooTextToSpeech
     private lateinit var sysSources: SystemSources
@@ -50,6 +55,7 @@ class PipelineService : Service() {
                 app.mediaSource.start()
             } catch (se: SecurityException) {
                 // Access might have been revoked between check and start; keep running without media source
+                FooLog.w(TAG, "onCreate: SecurityException", se)
             }
         } else {
             // Update foreground notification to include an action to enable access

@@ -148,7 +148,8 @@ class NotifSvc : NotificationListenerService() {
         val app = application as AlfredApp
         try {
             app.mediaSource.start()
-        } catch (_: SecurityException) {
+        } catch (se: SecurityException) {
+            FooLog.w(TAG, "onListenerConnected: SecurityException", se)
             /* ignore */
         }
 
