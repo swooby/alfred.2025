@@ -32,7 +32,8 @@ class FooTextToSpeech {
     companion object {
         private val TAG = FooLog.TAG(FooTextToSpeech::class.java)
 
-        var VERBOSE_LOG_SPEECH = true
+        var VERBOSE_LOG_SPEAK = true
+        var VERBOSE_LOG_SILENCE = false
         var VERBOSE_LOG_UTTERANCE_IDS = false
         var VERBOSE_LOG_UTTERANCE_PROGRESS = false
         var VERBOSE_LOG_AUDIO_FOCUS = false
@@ -96,7 +97,7 @@ class FooTextToSpeech {
         synchronized(syncLock) {
             if (audioFocusControllerHandle != null) {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audioFocusControllerHandle already acquired; reusing")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS audioFocusAcquireTry: audioFocusControllerHandle already acquired; reusing")
                 }
                 return true
             }
@@ -111,17 +112,17 @@ class FooTextToSpeech {
             callbacks = audioFocusControllerCallbacks
         )
         if (newHandle == null) {
-            FooLog.w(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audio focus request denied (ex: another app has AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE); ignoring")
+            FooLog.w(TAG, "#TTS_AUDIO_FOCUS audioFocusAcquireTry: audio focus request denied (ex: another app has AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE); ignoring")
             return false
         }
 
         synchronized(syncLock) {
             if (VERBOSE_LOG_AUDIO_FOCUS) {
-                FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: audio focus newHandle acquired; checking if no other thread acquired one...")
+                FooLog.v(TAG, "#TTS_AUDIO_FOCUS audioFocusAcquireTry: audio focus newHandle acquired; checking if no other thread acquired one...")
             }
             if (audioFocusControllerHandle == null) {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: no other thread acquired audioFocusControllerHandle; audioFocusControllerHandle = newHandle")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS audioFocusAcquireTry: no other thread acquired audioFocusControllerHandle; audioFocusControllerHandle = newHandle")
                 }
                 audioFocusControllerHandle = newHandle
                 null
@@ -130,7 +131,7 @@ class FooTextToSpeech {
             }
         }?.let {
             if (VERBOSE_LOG_AUDIO_FOCUS) {
-                FooLog.v(TAG, "#AUDIOFOCUS_TTS audioFocusAcquireTry: another thread already acquired audioFocusControllerHandle; newHandle.release()")
+                FooLog.v(TAG, "#TTS_AUDIO_FOCUS audioFocusAcquireTry: another thread already acquired audioFocusControllerHandle; newHandle.release()")
             }
             it.release()
         }
@@ -274,7 +275,7 @@ class FooTextToSpeech {
         }
 
     init {
-        FooLog.v(TAG, "+FooTextToSpeech()")
+        FooLog.v(TAG, "#TTS +FooTextToSpeech()")
         audioFocusController = FooAudioFocusController.instance
         audioFocusControllerCallbacks = object : FooAudioFocusController.Callbacks() {
             override fun onFocusGained(
@@ -292,7 +293,7 @@ class FooTextToSpeech {
                 return this@FooTextToSpeech.onAudioFocusLost(focusChange)
             }
         }
-        FooLog.v(TAG, "-FooTextToSpeech()")
+        FooLog.v(TAG, "#TTS -FooTextToSpeech()")
     }
 
     fun attach(callbacks: FooTextToSpeechCallbacks) {
@@ -321,6 +322,7 @@ class FooTextToSpeech {
         context: Context,
         callbacks: FooTextToSpeechCallbacks? = null
     ): FooTextToSpeech {
+        FooLog.v(TAG, "#TTS +start(context=$context, callbacks=$callbacks)")
         synchronized(syncLock) {
             if (applicationContext == null) {
                 applicationContext = context.applicationContext
@@ -336,20 +338,21 @@ class FooTextToSpeech {
                 isStarted = true
                 tts = TextToSpeech(applicationContext) { status -> onTextToSpeechInitialized(status) }
             }
-            return this
         }
+        FooLog.v(TAG, "#TTS -start(context=$context, callbacks=$callbacks)")
+        return this
     }
 
     private fun onTextToSpeechInitialized(status: Int) {
         try {
-            FooLog.v(TAG, "+onTextToSpeechInitialized(status=${statusToString(status)})")
+            FooLog.v(TAG, "#TTS +onTextToSpeechInitialized(status=${statusToString(status)})")
             synchronized(syncLock) {
                 if (!isStarted) {
                     return
                 }
                 val success = status == TextToSpeech.SUCCESS
                 if (!success) {
-                    FooLog.w(TAG, "onTextToSpeechInitialized: TextToSpeech failed to initialize: status == ${statusToString(status)}")
+                    FooLog.w(TAG, "#TTS onTextToSpeechInitialized: TextToSpeech failed to initialize: status == ${statusToString(status)}")
                 } else {
                     tts?.let {
                         //it.language = Locale.getDefault()
@@ -400,7 +403,7 @@ class FooTextToSpeech {
                 } else {
                     val speechQueueSize = speechQueue.size
                     if (speechQueueSize > 0) {
-                        FooLog.v(TAG, "onTextToSpeechInitialized: speaking speechQueue($speechQueueSize) items...")
+                        FooLog.v(TAG, "#TTS onTextToSpeechInitialized: speaking speechQueue($speechQueueSize) items...")
                         val iterator = speechQueue.iterator()
                         var utteranceInfo: UtteranceInfo
                         while (iterator.hasNext()) {
@@ -412,70 +415,70 @@ class FooTextToSpeech {
                 }
             } // syncLock
         } finally {
-            FooLog.v(TAG, "-onTextToSpeechInitialized(status=${statusToString(status)})")
+            FooLog.v(TAG, "#TTS -onTextToSpeechInitialized(status=${statusToString(status)})")
         }
     }
 
     private fun onUtteranceStart(utteranceId: String?) {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "+onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
         audioFocusAcquireTry(audioAttributes)
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "-onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
         }
     }
 
     private fun onUtteranceDone(utteranceId: String?) {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "+onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
         }
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
             if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-                FooLog.e(TAG, "onUtteranceDone: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
+                FooLog.e(TAG, "#TTS_UTTERANCE_PROGRESS onUtteranceDone: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
             }
         }
         //FooLog.v(TAG, "onUtteranceDone: runAfter=$runAfter");
         runAfter?.run()
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "-onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
         }
     }
 
     private fun onUtteranceError(utteranceId: String?, errorCode: Int) {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.w(TAG, "+onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
+            FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
         }
         var runAfter: Runnable?
         synchronized(syncLock) {
             runAfter = utteranceCallbacks.remove(utteranceId)
             if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-                FooLog.e(TAG, "onUtteranceError: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
+                FooLog.e(TAG, "#TTS_UTTERANCE_PROGRESS onUtteranceError: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
             }
         }
         //FooLog.w(TAG, "onUtteranceError: runAfter=$runAfter");
         runAfter?.run()
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.w(TAG, "-onUtteranceError(utteranceId=${FooString.quote(utteranceId)}), errorCode=$errorCode)")
+            FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceError(utteranceId=${FooString.quote(utteranceId)}), errorCode=$errorCode)")
         }
     }
 
     private fun onRunAfterSpeak() {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.v(TAG, "+onRunAfterSpeak()")
+            FooLog.v(TAG, "#TTS_AUDIO_FOCUS +onRunAfterSpeak()")
         }
         synchronized(syncLock) {
             val size = utteranceCallbacks.size
             if (size == 0) {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
                 }
                 audioFocusHandleClearLocked()
             } else {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
                 }
                 null
             }
@@ -484,12 +487,12 @@ class FooTextToSpeech {
             onAudioFocusStop()
         }
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.v(TAG, "-onRunAfterSpeak()")
+            FooLog.v(TAG, "#TTS_AUDIO_FOCUS -onRunAfterSpeak()")
         }
     }
 
     fun clear() {
-        FooLog.d(TAG, "+clear()")
+        FooLog.d(TAG, "#TTS +clear()")
         synchronized(syncLock) {
             speechQueue.clear()
 
@@ -503,19 +506,19 @@ class FooTextToSpeech {
             it.release()
             onAudioFocusStop()
         }
-        FooLog.d(TAG, "-clear()")
+        FooLog.d(TAG, "#TTS -clear()")
     }
 
     private fun onAudioFocusGained(): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusGained()")
+            FooLog.e(TAG, "#TTS_AUDIO_FOCUS onAudioFocusGained()")
         }
         return false
     }
 
     private fun onAudioFocusLost(focusChange: Int): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusLost(focusChange=${FooAudioUtils.audioFocusGainLossToString(focusChange)})")
+            FooLog.e(TAG, "#TTS_AUDIO_FOCUS onAudioFocusLost(focusChange=${FooAudioUtils.audioFocusGainLossToString(focusChange)})")
         }
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
@@ -529,7 +532,7 @@ class FooTextToSpeech {
 
     private fun onAudioFocusStop() {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
-            FooLog.e(TAG, "#AUDIOFOCUS_TTS onAudioFocusStop()")
+            FooLog.e(TAG, "#TTS_AUDIO_FOCUS onAudioFocusStop()")
         }
     }
 
@@ -614,12 +617,14 @@ class FooTextToSpeech {
     }
 
     private fun speakInternal(text: String?, clear: Boolean, runAfter: Runnable?): Boolean {
+        var logPrefix = ""
         return try {
-            if (VERBOSE_LOG_SPEECH) {
-                FooLog.d(TAG, "+speakInternal(text=${FooString.quote(text)}, clear=$clear, runAfter=$runAfter)")
-            }
             var success = false
             synchronized(syncLock) {
+                if (VERBOSE_LOG_SPEAK) {
+                    if (!isInitialized) logPrefix = " *ENQUEUE*"
+                    FooLog.d(TAG, "#TTS_SPEAK$logPrefix +speakInternal(text=${FooString.quote(text)}, clear=$clear, runAfter=$runAfter)")
+                }
                 if (tts == null) {
                     throw IllegalStateException("start(context) must be called first")
                 }
@@ -630,7 +635,7 @@ class FooTextToSpeech {
                     params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
 
                     if (VERBOSE_LOG_UTTERANCE_IDS) {
-                        FooLog.v(TAG, "speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
+                        FooLog.v(TAG, "#TTS_UTTERANCE_IDS speakInternal: utteranceId=${FooString.quote(utteranceId)}, text=${FooString.quote(text)}")
                     }
 
                     if (!audioFocusAcquireTry(audioAttributes)) {
@@ -638,7 +643,7 @@ class FooTextToSpeech {
                         // Something else has exclusive audio focus; The right thing to do is to either queue this utterance or drop it [and call runAfter].
                         // For now we will do neither and intentionally continue to speak even if audio focus is denied.
                         // If this causes any usability problem (ex: TTS speaking while we are in a call) then it will be obvious and we can address it then.
-                        FooLog.w(TAG, "speakInternal: audio focus denied; speaking anyway; TODO: fix any usability problem this exposes")
+                        FooLog.w(TAG, "#TTS_SPEAK speakInternal: audio focus denied; speaking anyway; TODO: fix any usability problem this exposes")
                         /*
                         FooLog.w(TAG, "speakInternal: audio focus denied; skipping utteranceId=${FooString.quote(utteranceId)}")
                         runAfter?.run()
@@ -663,8 +668,8 @@ class FooTextToSpeech {
                         runAfter?.run()
                     }
                 } else {
-                    if (VERBOSE_LOG_SPEECH) {
-                        FooLog.d(TAG, "speakInternal: isInitialized == false; enqueuing")
+                    if (VERBOSE_LOG_SPEAK) {
+                        FooLog.d(TAG, "#TTS_SPEAK speakInternal: isInitialized == false; enqueuing")
                     }
                     val utteranceInfo = UtteranceInfo(text, runAfter)
                     speechQueue.add(utteranceInfo)
@@ -673,23 +678,27 @@ class FooTextToSpeech {
             }
             success
         } finally {
-            if (VERBOSE_LOG_SPEECH) {
-                FooLog.d(TAG, "-speakInternal(text=${FooString.quote(text)}, clear=$clear, runAfter=$runAfter)")
+            if (VERBOSE_LOG_SPEAK) {
+                FooLog.d(TAG, "#TTS_SPEAK$logPrefix -speakInternal(text=${FooString.quote(text)}, clear=$clear, runAfter=$runAfter)")
             }
         }
     }
 
+    // TODO: Need to add clear parameter?
     @JvmOverloads
     fun silence(durationMillis: Int, runAfter: Runnable? = null): Boolean {
         var success = false
         synchronized(syncLock) {
-            if (applicationContext == null) {
-                throw IllegalStateException("start(context, ...) must be called first")
+            if (VERBOSE_LOG_SILENCE) {
+                FooLog.d(TAG, "#TTS_SILENCE +silence(durationMillis=$durationMillis, runAfter=$runAfter)")
+            }
+            if (tts == null) {
+                throw IllegalStateException("start(context) must be called first")
             }
             if (isInitialized) {
                 val utteranceId = "silence_$nextUtteranceId"
                 if (VERBOSE_LOG_UTTERANCE_IDS) {
-                    FooLog.v(TAG, "silence: utteranceId=${FooString.quote(utteranceId)}")
+                    FooLog.v(TAG, "#TTS_UTTERANCE_IDS silence: utteranceId=${FooString.quote(utteranceId)}, text=$durationMillis")
                 }
                 if (runAfter != null) {
                     utteranceCallbacks[utteranceId] = runAfter
@@ -707,8 +716,11 @@ class FooTextToSpeech {
                     runAfter?.run()
                 }
             } else {
-                // TODO:(pv) Queue silence…
+                FooLog.v(TAG, "#TTS_SILENCE silence: isInitialized == false; ignoring; TODO: need to enqueue?")
             }
+        }
+        if (VERBOSE_LOG_SILENCE) {
+            FooLog.d(TAG, "#TTS_SPEAK -silence(durationMillis=$durationMillis, runAfter=$runAfter)")
         }
         return success
     }
