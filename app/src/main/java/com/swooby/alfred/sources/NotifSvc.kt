@@ -181,9 +181,11 @@ class NotifSvc : NotificationListenerService() {
         if (LOG_NOTIFICATION) {
             FooLog.d(TAG, "#NOTIFICATION onNotificationPosted(sbn=$sbn, rankingMap=$rankingMap)")
         }
+
         if (sbn == null) return
+
         val envelope = NotificationExtractor.extract(this, sbn, rankingMap)
-        val actorPkg = (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
+        val pkg = (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
             ?: sbn.packageName
         val appLabel = (envelope.actor["appLabel"] as? String)?.takeIf { it.isNotBlank() }
         val template = (envelope.attributes["template"] as? String)?.takeIf { it.isNotBlank() }
@@ -193,16 +195,16 @@ class NotifSvc : NotificationListenerService() {
         val subjectText = extractSubjectBody(envelope.subject)
         val subjectLines = (envelope.subject["lines"] as? List<*>)
             ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
-        val subjectEntity = subjectTitle ?: appLabel ?: actorPkg
+        val subjectEntity = subjectTitle ?: appLabel ?: pkg
         val eventCategory = contextCategory ?: template ?: "notification"
         val eventAction = subjectText ?: subjectTitle ?: template ?: envelope.event
         val subjectEntityId = (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
-            ?: "$actorPkg:${sbn.id}"
+            ?: "$pkg:${sbn.id}"
         val subjectParentId = (envelope.context["groupKey"] as? String)?.takeIf { it.isNotBlank() }
             ?: (envelope.refs["tag"] as? String)?.takeIf { it.isNotBlank() }
             ?: (envelope.refs["channelId"] as? String)?.takeIf { it.isNotBlank() }
         val postInstant = Instant.fromEpochMilliseconds(envelope.time)
-        val metricsJson = envelope.metrics.toJsonObjectOrNull() ?: JsonObject(emptyMap())
+        val metrics = envelope.metrics.toJsonObjectOrNull() ?: JsonObject(emptyMap())
         val attachments = envelope.attachments.mapNotNull { attachment ->
             val kind = (attachment["type"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val uri = (attachment["uri"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -210,7 +212,7 @@ class NotifSvc : NotificationListenerService() {
             val size = (attachment["sizeBytes"] as? Number)?.toLong()
             AttachmentRef(kind = kind, uri = uri, mime = mime, sizeBytes = size)
         }
-        val attributesJson = buildJsonObject {
+        val attributes = buildJsonObject {
             envelope.actor.toJsonObjectOrNull()?.let { put("actor", it) }
             envelope.subject.toJsonObjectOrNull()?.let { put("subject", it) }
             envelope.source.toJsonObjectOrNull()?.let { put("source", it) }
@@ -237,14 +239,15 @@ class NotifSvc : NotificationListenerService() {
             tags += "ranked"
         }
 
+        val eventId = Ulids.newUlid()
         val sensitivity = inferSensitivity(envelope.subject, subjectText, subjectLines, envelope.rawExtrasJson)
 
         val ev = EventEntity(
-            eventId = Ulids.newUlid(),
+            eventId = eventId,
             schemaVer = 1,
             userId = "u_local",
             deviceId = "android:device",
-            appPkg = actorPkg,
+            appPkg = pkg,
             component = "notif_listener",
             parserVer = "notif_extractor_v1",
             eventType = envelope.event,
@@ -256,8 +259,8 @@ class NotifSvc : NotificationListenerService() {
             tsStart = postInstant,
             api = envelope.source["api"]?.toString(),
             sensitivity = sensitivity,
-            attributes = attributesJson,
-            metrics = metricsJson,
+            attributes = attributes,
+            metrics = metrics,
             tags = tags.distinct(),
             attachments = attachments,
             rawFingerprint = fingerprint,
@@ -276,6 +279,7 @@ class NotifSvc : NotificationListenerService() {
         if (LOG_NOTIFICATION) {
             FooLog.d(TAG, "#NOTIFICATION onNotificationRemoved(sbn=$sbn, rankingMap=$rankingMap, reason=${FooNotificationListener.notificationCancelReasonToString(reason)})")
         }
+
         //...
     }
 
