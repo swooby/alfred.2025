@@ -32,7 +32,7 @@ class FooTextToSpeech {
     companion object {
         private val TAG = FooLog.TAG(FooTextToSpeech::class.java)
 
-        var VERBOSE_LOG_SPEECH = false
+        var VERBOSE_LOG_SPEECH = true
         var VERBOSE_LOG_UTTERANCE_IDS = false
         var VERBOSE_LOG_UTTERANCE_PROGRESS = false
         var VERBOSE_LOG_AUDIO_FOCUS = false
@@ -398,15 +398,19 @@ class FooTextToSpeech {
                 if (!isInitialized) {
                     stop()
                 } else {
-                    val iterator = speechQueue.iterator()
-                    var utteranceInfo: UtteranceInfo
-                    while (iterator.hasNext()) {
-                        utteranceInfo = iterator.next()
-                        iterator.remove()
-                        speak(false, utteranceInfo.text, utteranceInfo.runAfter)
+                    val speechQueueSize = speechQueue.size
+                    if (speechQueueSize > 0) {
+                        FooLog.v(TAG, "onTextToSpeechInitialized: speaking speechQueue($speechQueueSize) items...")
+                        val iterator = speechQueue.iterator()
+                        var utteranceInfo: UtteranceInfo
+                        while (iterator.hasNext()) {
+                            utteranceInfo = iterator.next()
+                            iterator.remove()
+                            speak(false, utteranceInfo.text, utteranceInfo.runAfter)
+                        }
                     }
                 }
-            }
+            } // syncLock
         } finally {
             FooLog.v(TAG, "-onTextToSpeechInitialized(status=${statusToString(status)})")
         }
@@ -659,6 +663,9 @@ class FooTextToSpeech {
                         runAfter?.run()
                     }
                 } else {
+                    if (VERBOSE_LOG_SPEECH) {
+                        FooLog.d(TAG, "speakInternal: isInitialized == false; enqueuing")
+                    }
                     val utteranceInfo = UtteranceInfo(text, runAfter)
                     speechQueue.add(utteranceInfo)
                     success = true

@@ -31,9 +31,9 @@ class EventIngestImpl(
     companion object {
         private val TAG = FooLog.TAG(EventIngestImpl::class.java)
         @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
-        private  val LOG_SUBMIT = false && BuildConfig.DEBUG
+        private  val LOG_SUBMIT = true && BuildConfig.DEBUG
         @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
-        private val LOG_FILTER = false && BuildConfig.DEBUG
+        private val LOG_FILTER = true && BuildConfig.DEBUG
     }
 
     private val _in = MutableSharedFlow<RawEvent>(extraBufferCapacity = 1024)
@@ -93,14 +93,14 @@ class EventIngestImpl(
             }
         )
         if (LOG_FILTER) {
-            FooLog.d(TAG, "#EVENT_FILTER emit: fingerprint=${FooString.quote(raw.fingerprint)} coalesceKey=${FooString.quote(raw.coalesceKey)} event=$normalized")
+            FooLog.i(TAG, "#EVENT_FILTER emit: fingerprint=${FooString.quote(raw.fingerprint)} coalesceKey=${FooString.quote(raw.coalesceKey)} event=$normalized")
         }
         _out.emit(normalized)
     }
 
     override fun submit(rawEvent: RawEvent) {
         if (LOG_SUBMIT) {
-            FooLog.i(TAG, "#EVENT_SUBMIT submit: rawEvent=$rawEvent")
+            FooLog.d(TAG, "#EVENT_SUBMIT submit: fingerprint=${FooString.quote(rawEvent.fingerprint)} coalesceKey=${FooString.quote(rawEvent.coalesceKey)} rawEvent=$rawEvent")
         }
         _in.tryEmit(rawEvent)
     }
