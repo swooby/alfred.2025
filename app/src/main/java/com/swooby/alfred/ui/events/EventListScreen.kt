@@ -128,7 +128,6 @@ fun EventListScreen(
     userInitials: String,
     themeMode: ThemeMode,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
@@ -206,7 +205,6 @@ fun EventListScreen(
                 userInitials = userInitials,
                 snackbarHostState = snackbarHostState,
                 onQueryChange = onQueryChange,
-                onRefresh = onRefresh,
                 onMenuClick = {
                     coroutineScope.launch { drawerState.open() }
                 },
@@ -324,7 +322,6 @@ private fun EventListScaffold(
     userInitials: String,
     snackbarHostState: SnackbarHostState,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
@@ -372,9 +369,7 @@ private fun EventListScaffold(
                 query = state.query,
                 isRefreshing = state.isLoading,
                 userInitials = userInitials,
-                lastUpdated = state.lastUpdated,
                 onQueryChange = onQueryChange,
-                onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
                 onAvatarClick = onAvatarClick
             )
@@ -412,9 +407,7 @@ private fun EventListHeader(
     query: String,
     isRefreshing: Boolean,
     userInitials: String,
-    lastUpdated: Instant?,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
 ) {
@@ -503,20 +496,9 @@ private fun EventListHeader(
                     query = query,
                     isRefreshing = isRefreshing,
                     onQueryChange = onQueryChange,
-                    onRefresh = onRefresh,
                     containerColor = searchContainerColor,
                     contentColor = headerContentColor
                 )
-
-                lastUpdated?.let { instant ->
-                    Text(
-                        text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = headerContentColor.copy(alpha = 0.7f),
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
         }
     }
@@ -527,7 +509,6 @@ private fun SearchField(
     query: String,
     isRefreshing: Boolean,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     containerColor: Color? = null,
     contentColor: Color? = null,
 ) {
@@ -559,14 +540,6 @@ private fun SearchField(
                     strokeWidth = 2.dp,
                     color = fieldContentColor
                 )
-            } else {
-                IconButton(onClick = onRefresh) {
-                    Icon(
-                        imageVector = Icons.Outlined.Refresh,
-                        contentDescription = LocalizedStrings.refreshContentDescription,
-                        tint = fieldContentColor
-                    )
-                }
             }
         },
         singleLine = true,
@@ -638,16 +611,6 @@ private fun EventListContent(
         verticalArrangement = Arrangement.spacedBy(3.dp),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
     ) {
-        item {
-            Text(
-                text = LocalizedStrings.timelineTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
         itemsIndexed(state.visibleEvents) { index, event ->
             val isSelected = state.selectedEventIds.contains(event.eventId)
             TimelineEventRow(
@@ -1485,9 +1448,6 @@ private object LocalizedStrings {
     val menuContentDescription: String
         @Composable get() = stringResource(R.string.event_list_menu_cd)
 
-    val refreshContentDescription: String
-        @Composable get() = stringResource(R.string.event_list_refresh_cd)
-
     val avatarContentDescription: String
         @Composable get() = stringResource(R.string.event_list_avatar_cd)
 
@@ -1499,9 +1459,6 @@ private object LocalizedStrings {
 
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
-
-    val timelineTitle: String
-        @Composable get() = stringResource(R.string.event_list_timeline_title)
 
     @Composable
     fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)
@@ -1538,9 +1495,6 @@ private object LocalizedStrings {
 
     val emptyCta: String
         @Composable get() = stringResource(R.string.event_list_empty_hint)
-
-    @Composable
-    fun lastUpdatedLabel(value: String) = stringResource(R.string.event_list_last_updated, value)
 
     @Composable
     fun eventTimestampLabel(value: String) = stringResource(R.string.event_list_event_time, value)
@@ -1758,7 +1712,6 @@ private fun EventListPreview() {
             userInitials = "A",
             themeMode = ThemeMode.SYSTEM,
             onQueryChange = {},
-            onRefresh = {},
             onNavigateToSettings = {},
             onSelectionModeChange = {},
             onEventSelectionChange = { _, _ -> },

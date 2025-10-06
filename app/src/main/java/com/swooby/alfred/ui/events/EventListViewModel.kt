@@ -8,6 +8,7 @@ import com.swooby.alfred.data.EventEntity
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +33,6 @@ data class EventListUiState(
     val visibleEvents: List<EventEntity> = emptyList(),
     val isLoading: Boolean = false,
     val isPerformingAction: Boolean = false,
-    val lastUpdated: Instant? = null,
     val errorMessage: String? = null,
     val selectionMode: Boolean = false,
     val selectedEventIds: Set<String> = emptySet(),
@@ -145,7 +145,6 @@ class EventListViewModel(
             }
             try {
                 eventDao.deleteByIds(userId, eventIds.toList())
-                val now = clock.now()
                 _state.update { current ->
                     val updatedAll = current.allEvents.filterNot { it.eventId in eventIds }
                     val filtered = applyFilter(updatedAll, current.query)
@@ -155,7 +154,6 @@ class EventListViewModel(
                         visibleEvents = filtered,
                         selectedEventIds = emptySet(),
                         selectionMode = false,
-                        lastUpdated = now
                     )
                 }
             } catch (t: Throwable) {
@@ -169,6 +167,7 @@ class EventListViewModel(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeEvents() {
         viewModelScope.launch {
             lookbackStart
@@ -193,7 +192,6 @@ class EventListViewModel(
                     }
                 }
                 .collect { events ->
-                    val now = clock.now()
                     _state.update { current ->
                         val existingIds = events.map(EventEntity::eventId).toSet()
                         val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
@@ -203,7 +201,6 @@ class EventListViewModel(
                             isPerformingAction = false,
                             allEvents = events,
                             visibleEvents = filtered,
-                            lastUpdated = now,
                             errorMessage = null,
                             selectedEventIds = sanitizedSelection,
                             selectionMode = current.selectionMode && events.isNotEmpty(),

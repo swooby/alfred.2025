@@ -81,7 +81,6 @@ class EventListActivity : ComponentActivity() {
                     userInitials = initials,
                     themeMode = themeMode,
                     onQueryChange = viewModel::onQueryChange,
-                    onRefresh = viewModel::refresh,
                     onNavigateToSettings = {
                         startActivity(Intent(this, MainActivity::class.java))
                     },
