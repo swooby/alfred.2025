@@ -5,6 +5,7 @@ import android.app.NotificationChannelGroup
 import android.os.UserHandle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import java.security.MessageDigest
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.core.ingest.RawEvent
@@ -13,6 +14,7 @@ import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
 import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.FooNotificationListener
+import com.swooby.alfred.util.FooSha256
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -138,6 +140,31 @@ class NotifSvc : NotificationListenerService() {
 
     private val app get() = application as AlfredApp
 
+    private fun buildStableNotificationFingerprint(
+        pkg: String,
+        subjectEntityId: String?,
+        subjectTitle: String?,
+        subjectText: String?,
+        subjectLines: List<String>?,
+        eventCategory: String?,
+        eventAction: String?
+    ): String? {
+        val body = subjectText ?: subjectLines
+            ?.joinToString(separator = "\n")
+            ?.takeIf { it.isNotBlank() }
+        val parts = listOf(
+            pkg.takeIf { it.isNotBlank() },
+            subjectEntityId?.takeIf { it.isNotBlank() },
+            subjectTitle?.takeIf { it.isNotBlank() },
+            body,
+            eventCategory?.takeIf { it.isNotBlank() },
+            eventAction?.takeIf { it.isNotBlank() }
+        )
+        if (parts.all { it.isNullOrBlank() }) return null
+        val normalized = parts.joinToString(separator = "|") { it ?: "" }
+        return FooSha256.sha256(normalized)
+    }
+
     override fun onListenerConnected() {
         if (LOG_NOTIFICATION) {
             FooLog.d(TAG, "#NOTIFICATION onListenerConnected()")
@@ -228,7 +255,15 @@ class NotifSvc : NotificationListenerService() {
                 put("subjectLines", buildJsonArray { lines.forEach { add(JsonPrimitive(it)) } })
             }
         }
-        val fingerprint = (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
+        val fingerprint = buildStableNotificationFingerprint(
+            pkg = pkg,
+            subjectEntityId = subjectEntityId,
+            subjectTitle = subjectTitle,
+            subjectText = subjectText,
+            subjectLines = subjectLines,
+            eventCategory = eventCategory,
+            eventAction = eventAction
+        ) ?: (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
             ?: (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
             ?: sbn.key
         val coalesceKey = (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }

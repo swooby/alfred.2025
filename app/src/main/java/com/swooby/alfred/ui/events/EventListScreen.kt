@@ -1025,7 +1025,8 @@ private fun EventCard(
     val styleObj = traits?.objectOrNull("style")
     val bubbleObj = traits?.objectOrNull("bubble")
 
-    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart))
+    val eventInstant = event.ingestAt ?: event.tsEnd ?: event.tsStart
+    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(eventInstant))
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
 
     val chips = buildList {

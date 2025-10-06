@@ -28,12 +28,15 @@ interface EventDao {
     )
     suspend fun clearAllForUser(userId: String)
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM events
-        WHERE userId = :userId AND tsStart BETWEEN :fromTs AND :toTs
-        ORDER BY tsStart DESC
+        WHERE userId = :userId
+          AND COALESCE(ingestAt, tsStart) BETWEEN :fromTs AND :toTs
+        ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-    """)
+        """
+    )
     suspend fun listByTime(
         userId: String,
         fromTs: Instant,
@@ -41,12 +44,15 @@ interface EventDao {
         limit: Int = 500
     ): List<EventEntity>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM events
-        WHERE userId = :userId AND tsStart >= :fromTs
-        ORDER BY tsStart DESC
+        WHERE userId = :userId
+          AND COALESCE(ingestAt, tsStart) >= :fromTs
+        ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-    """)
+        """
+    )
     fun observeRecent(
         userId: String,
         fromTs: Instant,

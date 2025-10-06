@@ -16,6 +16,7 @@ import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.util.SparseArray
 import androidx.core.app.NotificationCompat
+import com.swooby.alfred.util.FooSha256
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -142,7 +143,7 @@ object NotificationExtractor {
         )
 
         val integrity = mutableMapOf<String, Any?>()
-        integrity.putMeaningful("snapshotHash", sha256(rawExtras.toString()))
+        integrity.putMeaningful("snapshotHash", FooSha256.sha256(rawExtras.toString()))
         integrity.putMeaningful("fieldsPresent", rawExtras.keys.toList())
 
         return EventEnvelope(
@@ -509,22 +510,6 @@ object NotificationExtractor {
         block()
     } catch (_: Throwable) {
         null
-    }
-
-    private val HEX_DIGITS: CharArray = "0123456789abcdef".toCharArray()
-
-    private fun sha256(input: String): String {
-        if (input.isEmpty()) return ""
-        val digest = MessageDigest.getInstance("SHA-256")
-        val bytes = digest.digest(input.toByteArray(Charsets.UTF_8))
-        val chars = CharArray(bytes.size * 2)
-        var index = 0
-        bytes.forEach { byte ->
-            val value = byte.toInt() and 0xFF
-            chars[index++] = HEX_DIGITS[value ushr 4]
-            chars[index++] = HEX_DIGITS[value and 0x0F]
-        }
-        return chars.concatToString()
     }
 
     private fun MutableMap<String, Any?>.putMeaningful(key: String, value: Any?) {
