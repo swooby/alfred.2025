@@ -601,10 +601,17 @@ class FooTextToSpeech {
         return anySuccess
     }
 
+    /**
+     * Only called by [speak]`(clear: Boolean, builder: FooTextToSpeechBuilder?, runAfter: Runnable?)`.
+     * @param part FooTextToSpeechPart of the calling sequence
+     * @param clear true or false if the first part of the calling sequence, otherwise null
+     * @param runAfter Runnable to call if the last part of the calling sequence, otherwise null
+     */
     private fun speak(part: FooTextToSpeechPart, clear: Boolean?, runAfter: Runnable?): Boolean {
         if (part is FooTextToSpeechPartSpeech) {
             val text = part.mText
             return if (clear != null) {
+                // Keep runAfter reserved for the trailing silence so audio-focus cleanup fires after the full sequence.
                 speakInternal(text, clear, null)
             } else {
                 speakInternal(text, false, runAfter)
