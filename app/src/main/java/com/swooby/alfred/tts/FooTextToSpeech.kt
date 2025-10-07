@@ -334,6 +334,7 @@ class FooTextToSpeech {
                 if (isInitialized) {
                     callbacks?.onTextToSpeechInitialized(TextToSpeech.SUCCESS)
                 }
+                FooLog.v(TAG, "#TTS start: already started; ignoring")
             } else {
                 isStarted = true
                 tts = TextToSpeech(applicationContext) { status -> onTextToSpeechInitialized(status) }
