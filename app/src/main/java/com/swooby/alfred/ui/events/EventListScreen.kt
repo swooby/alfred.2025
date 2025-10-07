@@ -1085,18 +1085,131 @@ private fun EventCard(
     val styleObj = traits?.objectOrNull("style")
     val bubbleObj = traits?.objectOrNull("bubble")
 
+    val mediaSourceApp = attributes.stringOrNull("source_app")
+    val mediaTitleAttr = attributes.stringOrNull("title")
+    val mediaArtist = attributes.stringOrNull("artist")
+    val mediaAlbum = attributes.stringOrNull("album")
+    val mediaOutputRoute = attributes.stringOrNull("output_route")
+
     val eventInstant = event.ingestAt ?: event.tsEnd ?: event.tsStart
     val timeFormatter = rememberTimeFormatter()
-    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(eventInstant, timeFormatter))
+    val postedLabel = formatInstant(eventInstant, timeFormatter)
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
+
+    val peopleList = traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
+    val actionsList = traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
 
     val chips = buildList {
         category?.let { add("${LocalizedStrings.labelCategory}: $it") }
         template?.let { add("${LocalizedStrings.labelTemplate}: $it") }
         importance?.let { add("${LocalizedStrings.labelImportance}: $it") }
         rank?.let { add("${LocalizedStrings.labelRank}: $it") }
-        conversationTitle?.let { add("${LocalizedStrings.labelConversation}: $it") }
     }
+
+    val componentLabel = LocalizedStrings.componentLabel(event.component)
+    val headerTitle = when (event.component) {
+        "notif_listener" -> appLabel?.takeIf { it.isNotBlank() }
+            ?: LocalizedStrings.unknownApp
+        "media_session" -> appLabel?.takeIf { it.isNotBlank() }
+            ?: mediaSourceApp?.takeIf { it.isNotBlank() }
+            ?: packageName?.takeIf { it.isNotBlank() }
+            ?: LocalizedStrings.unknownApp
+        else -> appLabel?.takeIf { it.isNotBlank() }
+            ?: event.eventCategory.takeIf { it.isNotBlank() }
+            ?: packageName?.takeIf { it.isNotBlank() }
+            ?: LocalizedStrings.componentGeneric
+    }
+    val headerSubtitle = when (event.component) {
+        "notif_listener" -> packageName?.takeIf { it.isNotBlank() && it != headerTitle }
+        "media_session" -> (packageName?.takeIf { it.isNotBlank() } ?: mediaSourceApp?.takeIf { it.isNotBlank() })
+            ?.takeIf { it != headerTitle }
+        else -> event.eventCategory.takeIf { it.isNotBlank() && it != headerTitle }
+    }
+
+    var headlineText = titleText.takeIf { it.isNotBlank() }
+        ?: event.eventAction.takeIf { it.isNotBlank() }
+        ?: event.eventType
+    val supportingTexts = mutableListOf<String>()
+    fun addSupporting(value: String?) {
+        val normalized = value?.trim()
+        if (normalized.isNullOrEmpty()) return
+        if (normalized == headlineText) return
+        if (supportingTexts.contains(normalized)) return
+        supportingTexts += normalized
+    }
+
+    when (event.component) {
+        "media_session" -> {
+            headlineText = mediaTitleAttr?.takeIf { it.isNotBlank() }
+                ?: LocalizedStrings.mediaUnknownTitle
+            val subtitle = listOfNotNull<String>(
+                mediaArtist?.takeIf { it.isNotBlank() },
+                mediaAlbum?.takeIf { it.isNotBlank() }
+            ).joinToString(" • ").takeIf { it.isNotBlank() }
+            addSupporting(subtitle)
+
+            val playbackLabel = LocalizedStrings.mediaPlaybackState(event.eventAction)
+            val playedMs = event.metrics.intOrNull("played_ms")?.takeIf { it > 0 }
+            val playbackLine = playedMs?.let {
+                val formattedDuration = formatElapsedMillis(it.toLong())
+                "${playbackLabel} · ${LocalizedStrings.mediaPlayedDuration(formattedDuration)}"
+            } ?: playbackLabel
+            addSupporting(playbackLine)
+
+            bodyText?.takeIf { !it.equals(playbackLine, ignoreCase = true) }?.let {
+                addSupporting(it)
+            }
+        }
+
+        "notif_listener" -> {
+            subject?.stringOrNull("title")?.takeIf { it.isNotBlank() }?.let {
+                headlineText = it
+            }
+            addSupporting(conversationTitle?.takeIf { it.isNotBlank() })
+            addSupporting(bodyText)
+            if (!expanded && subjectLines.isNotEmpty()) {
+                addSupporting(subjectLines.first())
+            }
+        }
+
+        else -> {
+            addSupporting(bodyText)
+            addSupporting(conversationTitle?.takeIf { it.isNotBlank() })
+            if (!expanded && subjectLines.isNotEmpty()) {
+                addSupporting(subjectLines.first())
+            }
+        }
+    }
+
+    if (supportingTexts.isEmpty()) {
+        addSupporting(bodyText)
+        if (!expanded && subjectLines.isNotEmpty()) {
+            addSupporting(subjectLines.first())
+        }
+    }
+
+    val supportingSummary = supportingTexts.toList()
+    val actionChips = if (event.component == "notif_listener") {
+        actionsList.take(3)
+    } else {
+        emptyList<String>()
+    }
+    val metadataChips = buildList {
+        addAll(chips)
+        when (event.component) {
+            "media_session" -> {
+                mediaOutputRoute?.takeIf { it.isNotBlank() }?.let {
+                    add(LocalizedStrings.mediaRouteLabel(it))
+                }
+            }
+
+            "notif_listener" -> {
+                channelName?.takeIf { it.isNotBlank() }?.let {
+                    add("${LocalizedStrings.labelChannelName}: $it")
+                }
+            }
+        }
+    }.distinct()
 
     val identityItems = buildList {
         appLabel?.let { add(InfoItem(LocalizedStrings.labelApp, it)) }
@@ -1147,11 +1260,6 @@ private fun EventCard(
             add(InfoItem(null, LocalizedStrings.bubbleSuppress))
         }
     }
-
-    val peopleList = traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
-
-    val actionsList = traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
-
     val intentsItems = intentsObj?.entries?.mapNotNull { (key, value) ->
         (value as? JsonObject)?.stringOrNull("creatorPackage")?.let { InfoItem(key, it) }
     } ?: emptyList()
@@ -1219,36 +1327,32 @@ private fun EventCard(
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = postedLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                        EventBadge(
+                            text = componentLabel,
+                            modifier = Modifier
+                        )
+                    }
                     Text(
-                        text = titleText,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = headerTitle,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    bodyText?.let {
+                    headerSubtitle?.let {
                         Text(
                             text = it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colorScheme.onSurfaceVariant,
-                            maxLines = if (expanded) 6 else 3,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    conversationTitle?.takeIf { it.isNotBlank() && it != titleText }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colorScheme.secondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (!expanded && subjectLines.isNotEmpty()) {
-                        Text(
-                            text = subjectLines.first(),
                             style = MaterialTheme.typography.bodySmall,
                             color = colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -1271,36 +1375,83 @@ private fun EventCard(
                 }
             }
 
-            if (chips.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = headlineText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                supportingSummary.forEachIndexed { index, supporting ->
+                    Text(
+                        text = supporting,
+                        style = if (index == 0) {
+                            MaterialTheme.typography.bodyMedium
+                        } else {
+                            MaterialTheme.typography.bodySmall
+                        },
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = when {
+                            expanded && index == 0 -> 6
+                            expanded -> 3
+                            index == 0 -> 3
+                            else -> 1
+                        },
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            tagLine?.let {
+                Text(
+                    text = LocalizedStrings.tagsLabel(it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (actionChips.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    chips.forEach { chip ->
+                    actionChips.forEach { action ->
                         SuggestionChip(
                             onClick = {},
-                            label = { Text(text = chip) },
+                            enabled = false,
+                            label = { Text(text = action) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                labelColor = colorScheme.onSecondaryContainer
+                                containerColor = colorScheme.primaryContainer.copy(alpha = 0.85f),
+                                labelColor = colorScheme.onPrimaryContainer,
+                                disabledContainerColor = colorScheme.primaryContainer.copy(alpha = 0.85f),
+                                disabledLabelColor = colorScheme.onPrimaryContainer
                             )
                         )
                     }
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = postedLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant
-                )
-                tagLine?.let {
-                    Text(
-                        text = LocalizedStrings.tagsLabel(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.secondary
-                    )
+            if (metadataChips.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    metadataChips.forEach { chip ->
+                        SuggestionChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text(text = chip) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                labelColor = colorScheme.onSecondaryContainer,
+                                disabledContainerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                disabledLabelColor = colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
                 }
             }
 
@@ -1457,6 +1608,40 @@ private fun rememberTimeFormatter(): DateTimeFormatter {
     return remember(locale) { timeFormatterFor(locale) }
 }
 
+@Composable
+private fun EventBadge(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        tonalElevation = 0.dp
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun formatElapsedMillis(millis: Long): String {
+    val totalSeconds = millis / 1_000
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
+    }
+}
+
 private fun formatInstant(instant: Instant, formatter: DateTimeFormatter): String {
     val zonedDateTime = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
         .atZone(ZoneId.systemDefault())
@@ -1581,6 +1766,52 @@ private object LocalizedStrings {
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
 
+    val componentMediaSession: String
+        @Composable get() = stringResource(R.string.event_list_component_media_session)
+    val componentNotification: String
+        @Composable get() = stringResource(R.string.event_list_component_notification)
+    val componentGeneric: String
+        @Composable get() = stringResource(R.string.event_list_component_generic)
+    val unknownApp: String
+        @Composable get() = stringResource(R.string.event_list_unknown_app)
+    val mediaUnknownTitle: String
+        @Composable get() = stringResource(R.string.event_list_media_unknown_title)
+
+    @Composable
+    fun componentLabel(component: String?): String = when (component) {
+        "media_session" -> componentMediaSession
+        "notif_listener" -> componentNotification
+        null -> componentGeneric
+        else -> component.replace('_', ' ').replaceFirstChar { ch ->
+            if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+        }
+    }
+
+    @Composable
+    fun mediaPlaybackState(action: String): String {
+        val normalized = action.lowercase(Locale.getDefault())
+        return when (normalized) {
+            "start", "play", "playing" -> stringResource(R.string.event_list_media_state_start)
+            "stop", "stopped" -> stringResource(R.string.event_list_media_state_stop)
+            "pause", "paused" -> stringResource(R.string.event_list_media_state_pause)
+            "resume", "resumed" -> stringResource(R.string.event_list_media_state_resume)
+            else -> stringResource(
+                R.string.event_list_media_state_generic,
+                action.replace('_', ' ').replaceFirstChar { ch ->
+                    if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                }
+            )
+        }
+    }
+
+    @Composable
+    fun mediaPlayedDuration(duration: String): String =
+        stringResource(R.string.event_list_media_played_duration, duration)
+
+    @Composable
+    fun mediaRouteLabel(route: String): String =
+        stringResource(R.string.event_list_media_route, route)
+
     @Composable
     fun totalCountDetails(totalCount: Int, inMemoryCount: Int) =
         stringResource(R.string.event_list_total_count_details, totalCount, inMemoryCount)
@@ -1645,9 +1876,6 @@ private object LocalizedStrings {
 
     val emptyCta: String
         @Composable get() = stringResource(R.string.event_list_empty_hint)
-
-    @Composable
-    fun eventTimestampLabel(value: String) = stringResource(R.string.event_list_event_time, value)
 
     @Composable
     fun eventTypeLabel(value: String) = stringResource(R.string.event_list_event_type, value)
@@ -1807,10 +2035,17 @@ private fun EventListPreview() {
                     put("people", buildJsonArray {
                         add(buildJsonObject { put("name", JsonPrimitive("Alex")) })
                     })
+                    put("actions", buildJsonArray {
+                        add(buildJsonObject { put("title", JsonPrimitive("Reply")) })
+                        add(buildJsonObject { put("title", JsonPrimitive("Mark read")) })
+                    })
                 })
                 put("refs", buildJsonObject {
                     put("key", JsonPrimitive("notif-key"))
                     put("user", JsonPrimitive("UserHandle{0}"))
+                })
+                put("subjectLines", buildJsonArray {
+                    add(JsonPrimitive("Latest update includes timeline adjustments."))
                 })
             },
             metrics = buildJsonObject {
@@ -1822,6 +2057,36 @@ private fun EventListPreview() {
             eventId = "evt-2",
             userId = "u_local",
             deviceId = "pixel-9",
+            appPkg = "com.spotify.music",
+            component = "media_session",
+            eventType = "media.stop",
+            eventCategory = "media",
+            eventAction = "stop",
+            subjectEntity = "track",
+            tsStart = now,
+            tsEnd = now,
+            tags = listOf("music"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Spotify"))
+                    put("packageName", JsonPrimitive("com.spotify.music"))
+                })
+                put("title", JsonPrimitive("Beyond the Sun"))
+                put("artist", JsonPrimitive("Valentina Miras"))
+                put("album", JsonPrimitive("Starlight Echoes"))
+                put("source_app", JsonPrimitive("com.spotify.music"))
+                put("output_route", JsonPrimitive("Pixel Buds"))
+            },
+            metrics = buildJsonObject {
+                put("played_ms", JsonPrimitive(192000))
+            }
+        ),
+        EventEntity(
+            eventId = "evt-3",
+            userId = "u_local",
+            deviceId = "pixel-9",
+            appPkg = "com.phone",
+            component = "call_log",
             eventType = "call",
             eventCategory = "Communications",
             eventAction = "Missed call",

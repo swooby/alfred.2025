@@ -44,6 +44,18 @@
     <string name="event_list_search_placeholder">Search events</string>
     <string name="event_list_header_subtitle">Your Alfred digest</string>
     <string name="event_list_header_title">Activity timeline</string>
+    <string name="event_list_component_media_session">Media playback</string>
+    <string name="event_list_component_notification">Notification</string>
+    <string name="event_list_component_generic">Event</string>
+    <string name="event_list_unknown_app">Unknown app</string>
+    <string name="event_list_media_unknown_title">Unknown track</string>
+    <string name="event_list_media_state_start">Playback started</string>
+    <string name="event_list_media_state_stop">Playback stopped</string>
+    <string name="event_list_media_state_pause">Playback paused</string>
+    <string name="event_list_media_state_resume">Playback resumed</string>
+    <string name="event_list_media_state_generic">Playback %1$s</string>
+    <string name="event_list_media_played_duration">Played for %1$s</string>
+    <string name="event_list_media_route">Route: %1$s</string>
     <plurals name="event_list_total_count">
         <item quantity="one">%1$d event stored</item>
         <item quantity="other">%1$d events stored</item>
@@ -65,7 +77,6 @@
     <string name="event_list_empty_body">When Alfred ingests new activity it will appear here automatically.</string>
     <string name="event_list_empty_hint">Pull to refresh or check back in a moment.</string>
     <string name="event_list_last_updated">Updated %1$s</string>
-    <string name="event_list_event_time">Logged %1$s</string>
     <string name="event_list_event_type">Source: %1$s</string>
     <string name="event_list_entity_id">Entity ID: %1$s</string>
     <string name="event_list_tags">Tags: %1$s</string>

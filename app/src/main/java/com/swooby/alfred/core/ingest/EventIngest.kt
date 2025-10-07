@@ -12,11 +12,20 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-data class RawEvent(
+class RawEvent(
     val event: EventEntity,
     val fingerprint: String? = null,
     val coalesceKey: String? = null
-)
+) {
+    override fun toString(): String {
+        return StringBuilder("{")
+            .append(" fingerprint=").append(FooString.quote(fingerprint)).append(",")
+            .append(" coalesceKey=").append(FooString.quote(coalesceKey)).append(",")
+            .append(" event=").append(event)
+            .append("}")
+            .toString()
+    }
+}
 
 interface EventIngest {
     val out: SharedFlow<EventEntity>
@@ -100,7 +109,7 @@ class EventIngestImpl(
 
     override fun submit(rawEvent: RawEvent) {
         if (LOG_SUBMIT) {
-            FooLog.d(TAG, "#EVENT_SUBMIT submit: fingerprint=${FooString.quote(rawEvent.fingerprint)} coalesceKey=${FooString.quote(rawEvent.coalesceKey)} rawEvent=$rawEvent")
+            FooLog.d(TAG, "#EVENT_SUBMIT submit: rawEvent=$rawEvent")
         }
         _in.tryEmit(rawEvent)
     }
