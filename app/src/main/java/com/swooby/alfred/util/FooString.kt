@@ -32,7 +32,7 @@ object FooString {
     }
 
     /**
-     * Identical to [.repr], but grammatically intended for Strings.
+     * Identical to [repr], but grammatically intended for Strings.
      *
      * @param value value
      * @return "null", or '\"' + value.toString + '\"', or value.toString()
@@ -42,7 +42,7 @@ object FooString {
     }
 
     /**
-     * Identical to [.quote], but grammatically intended for Objects.
+     * Identical to [quote], but grammatically intended for Objects.
      *
      * @param value value
      * @return "null", or '\"' + value.toString + '\"', or value.toString()
