@@ -292,6 +292,7 @@ class NotifSvc : NotificationListenerService() {
             subjectEntityId = subjectEntityId,
             subjectParentId = subjectParentId,
             tsStart = postInstant,
+            ingestAt = postInstant,
             api = envelope.source["api"]?.toString(),
             sensitivity = sensitivity,
             attributes = attributes,

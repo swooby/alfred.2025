@@ -164,7 +164,7 @@ internal fun EventCard(
     val mediaAlbum = attributes.stringOrNull("album")
     val mediaOutputRoute = attributes.stringOrNull("output_route")
 
-    val eventInstant = event.ingestAt ?: event.tsEnd ?: event.tsStart
+    val eventInstant = event.tsStart
     val timeFormatter = rememberTimeFormatter()
     val postedLabel = formatInstant(eventInstant, timeFormatter)
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")

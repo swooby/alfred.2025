@@ -59,6 +59,24 @@ interface EventDao {
 
     @Query(
         """
+        SELECT EXISTS(
+            SELECT 1 FROM events
+            WHERE userId = :userId
+              AND component = :component
+              AND subjectEntityId = :subjectEntityId
+              AND tsStart = :tsStart
+        )
+        """
+    )
+    suspend fun existsNotification(
+        userId: String,
+        component: String,
+        subjectEntityId: String,
+        tsStart: Instant
+    ): Boolean
+
+    @Query(
+        """
         SELECT COUNT(*) FROM events
         WHERE userId = :userId
         """

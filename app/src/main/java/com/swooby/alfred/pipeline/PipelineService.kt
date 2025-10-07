@@ -71,6 +71,20 @@ class PipelineService : Service() {
         // Ingest → rules → summary → TTS + Room
         scope.launch {
             app.ingest.out.collect { ev ->
+                val component = ev.component
+                if (component == "notif_listener" && ev.subjectEntityId != null) {
+                    val alreadyStored = app.db.events().existsNotification(
+                        userId = ev.userId,
+                        component = component,
+                        subjectEntityId = ev.subjectEntityId,
+                        tsStart = ev.tsStart
+                    )
+                    if (alreadyStored) {
+                        FooLog.d(TAG, "#PIPELINE skip duplicate notif_listener event subjectId=${ev.subjectEntityId} tsStart=${ev.tsStart}")
+                        return@collect
+                    }
+                }
+
                 app.db.events().insert(ev)
                 val decision = app.rules.decide(
                     e = ev,
