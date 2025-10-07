@@ -393,15 +393,18 @@ internal fun EventCard(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = postedLabel,
                             style = MaterialTheme.typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
+                            color = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
                         )
-                        EventBadge(text = componentLabel)
+                        EventBadge(
+                            text = componentLabel,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
                     }
                     Text(
                         text = headerTitle,
@@ -798,66 +801,124 @@ private fun JsonElement.toDisplayString(): String? = when (this) {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-private fun EventCardPreview() {
-    val now = Instant.fromEpochMilliseconds(java.time.Instant.now().toEpochMilli())
-    val sampleEvent = EventEntity(
-        eventId = "evt_preview",
-        userId = "u_local",
-        deviceId = "pixel-9",
-        eventType = "notification",
-        eventCategory = "Inbox",
-        eventAction = "New message",
-        subjectEntity = "Email",
-        subjectEntityId = "com.mail:99",
-        tsStart = now,
-        tags = listOf("priority", "gmail"),
-        attributes = buildJsonObject {
-            put("actor", buildJsonObject {
-                put("appLabel", JsonPrimitive("Mail"))
-                put("packageName", JsonPrimitive("com.mail"))
-            })
-            put("subject", buildJsonObject {
-                put("title", JsonPrimitive("Project Apollo"))
-                put("text", JsonPrimitive("Latest update from Alex"))
-                put("conversationTitle", JsonPrimitive("Team chat"))
-            })
-            put("context", buildJsonObject {
-                put("category", JsonPrimitive("email"))
-                put("channelId", JsonPrimitive("inbox"))
-                put("rankingInfo", buildJsonObject {
-                    put("importance", JsonPrimitive(4))
-                    put("isConversation", JsonPrimitive(true))
-                })
-            })
-            put("traits", buildJsonObject {
-                put("template", JsonPrimitive("MessagingStyle"))
-                put("people", buildJsonArray {
-                    add(buildJsonObject { put("name", JsonPrimitive("Alex King")) })
-                    add(buildJsonObject { put("name", JsonPrimitive("Maya Singh")) })
-                })
-                put("actions", buildJsonArray {
-                    add(buildJsonObject { put("title", JsonPrimitive("Reply")) })
-                    add(buildJsonObject { put("title", JsonPrimitive("Mark read")) })
-                    add(buildJsonObject { put("title", JsonPrimitive("Archive")) })
-                })
-            })
-            put("refs", buildJsonObject {
-                put("key", JsonPrimitive("notif-key"))
-                put("user", JsonPrimitive("UserHandle{0}"))
-            })
-            put("subjectLines", buildJsonArray {
-                add(JsonPrimitive("Sprint planning moved to Friday."))
-                add(JsonPrimitive("See shared doc for tasks."))
-            })
-        }
-    )
+private val PreviewTimestamp = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
+private val PreviewNotificationEvent = EventEntity(
+    eventId = "evt_preview_notification",
+    userId = "u_local",
+    deviceId = "pixel-9",
+    appPkg = "com.mail",
+    component = "notif_listener",
+    eventType = "notification_posted",
+    eventCategory = "Inbox",
+    eventAction = "New message",
+    subjectEntity = "Email",
+    subjectEntityId = "com.mail:99",
+    tsStart = PreviewTimestamp,
+    tags = listOf("priority", "gmail"),
+    attributes = buildJsonObject {
+        put("actor", buildJsonObject {
+            put("appLabel", JsonPrimitive("Mail"))
+            put("packageName", JsonPrimitive("com.mail"))
+        })
+        put("subject", buildJsonObject {
+            put("title", JsonPrimitive("Project Apollo"))
+            put("text", JsonPrimitive("Latest update from Alex"))
+            put("conversationTitle", JsonPrimitive("Team chat"))
+        })
+        put("context", buildJsonObject {
+            put("category", JsonPrimitive("email"))
+            put("channelId", JsonPrimitive("inbox"))
+            put("rankingInfo", buildJsonObject {
+                put("importance", JsonPrimitive(4))
+                put("isConversation", JsonPrimitive(true))
+            })
+        })
+        put("traits", buildJsonObject {
+            put("template", JsonPrimitive("MessagingStyle"))
+            put("people", buildJsonArray {
+                add(buildJsonObject { put("name", JsonPrimitive("Alex King")) })
+                add(buildJsonObject { put("name", JsonPrimitive("Maya Singh")) })
+            })
+            put("actions", buildJsonArray {
+                add(buildJsonObject { put("title", JsonPrimitive("Reply")) })
+                add(buildJsonObject { put("title", JsonPrimitive("Mark read")) })
+                add(buildJsonObject { put("title", JsonPrimitive("Archive")) })
+            })
+        })
+        put("refs", buildJsonObject {
+            put("key", JsonPrimitive("notif-key"))
+            put("user", JsonPrimitive("UserHandle{0}"))
+        })
+        put("subjectLines", buildJsonArray {
+            add(JsonPrimitive("Sprint planning moved to Friday."))
+            add(JsonPrimitive("See shared doc for tasks."))
+        })
+    }
+)
+
+private val PreviewMediaSessionEvent = EventEntity(
+    eventId = "evt_preview_media",
+    userId = "u_local",
+    deviceId = "pixel-9",
+    appPkg = "com.spotify.music",
+    component = "media_session",
+    eventType = "media.stop",
+    eventCategory = "media",
+    eventAction = "stop",
+    subjectEntity = "track",
+    subjectEntityId = "song:1234",
+    tsStart = PreviewTimestamp,
+    tsEnd = PreviewTimestamp,
+    tags = listOf("music", "now_playing"),
+    attributes = buildJsonObject {
+        put("actor", buildJsonObject {
+            put("appLabel", JsonPrimitive("Spotify"))
+            put("packageName", JsonPrimitive("com.spotify.music"))
+        })
+        put("title", JsonPrimitive("Beyond the Sun"))
+        put("artist", JsonPrimitive("Valentina Miras"))
+        put("album", JsonPrimitive("Starlight Echoes"))
+        put("source_app", JsonPrimitive("com.spotify.music"))
+        put("output_route", JsonPrimitive("Pixel Buds"))
+    },
+    metrics = buildJsonObject {
+        put("played_ms", JsonPrimitive(192_000))
+        put("volume_stream_music", JsonPrimitive(7))
+    }
+)
+
+private val PreviewGenericEvent = EventEntity(
+    eventId = "evt_preview_generic",
+    userId = "u_local",
+    deviceId = "pixel-9",
+    component = "system_monitor",
+    eventType = "system.event",
+    eventCategory = "System",
+    eventAction = "Battery Optimized",
+    subjectEntity = "Power Manager",
+    tsStart = PreviewTimestamp,
+    tags = listOf("system", "battery"),
+    attributes = buildJsonObject {
+        put("subject", buildJsonObject {
+            put("title", JsonPrimitive("Battery optimization enabled"))
+            put("text", JsonPrimitive("Adaptive Battery is now active for background apps."))
+        })
+        put("context", buildJsonObject {
+            put("category", JsonPrimitive("system"))
+        })
+        put("traits", buildJsonObject {
+            put("template", JsonPrimitive("Status"))
+        })
+    }
+)
+
+@Composable
+private fun EventCardPreviewHost(event: EventEntity) {
     MaterialTheme(colorScheme = lightColorScheme()) {
         Surface(color = MaterialTheme.colorScheme.background) {
             EventCard(
-                event = sampleEvent,
+                event = event,
                 isSelected = false,
                 actionsEnabled = true,
                 onClick = null,
@@ -868,4 +929,22 @@ private fun EventCardPreview() {
             )
         }
     }
+}
+
+@Preview(name = "Notification Event", showBackground = true)
+@Composable
+private fun EventCardNotificationPreview() {
+    EventCardPreviewHost(PreviewNotificationEvent)
+}
+
+@Preview(name = "Media Session Event", showBackground = true)
+@Composable
+private fun EventCardMediaSessionPreview() {
+    EventCardPreviewHost(PreviewMediaSessionEvent)
+}
+
+@Preview(name = "Generic Event", showBackground = true)
+@Composable
+private fun EventCardGenericPreview() {
+    EventCardPreviewHost(PreviewGenericEvent)
 }
