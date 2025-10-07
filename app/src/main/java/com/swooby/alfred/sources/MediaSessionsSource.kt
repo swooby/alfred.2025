@@ -41,6 +41,7 @@ class MediaSessionsSource(
     private val listener = MediaSessionListener()
     private val controllerCallbacks = mutableMapOf<MediaController, MediaControllerCallback>()
     private val tracker = MediaSessionDurationTracker()
+    private val lastTracks = mutableMapOf<MediaController, TrackSnapshot>()
 
     fun start(caller: String) {
         try {
@@ -174,6 +175,7 @@ class MediaSessionsSource(
     private fun detach(controller: MediaController) {
         FooLog.d(TAG, "+detach(${toString(controller)}")
         controllerCallbacks.remove(controller)?.let { controller.unregisterCallback(it) }
+        lastTracks.remove(controller)
         FooLog.d(TAG, "-detach(...)")
     }
 
@@ -197,7 +199,7 @@ class MediaSessionsSource(
                 PlaybackState.STATE_PLAYING -> emitMediaStart(c, md, state)
                 PlaybackState.STATE_PAUSED,
                 PlaybackState.STATE_STOPPED,
-                PlaybackState.STATE_NONE -> emitMediaStop(c, md, state)
+                PlaybackState.STATE_NONE -> emitMediaStop(c, trackSnapshot(md), state)
                 else -> {}
             }
         }
@@ -251,13 +253,17 @@ class MediaSessionsSource(
     }
 
     private fun emitMediaStart(c: MediaController, md: MediaMetadata?, state: PlaybackState) {
+        val snapshot = trackSnapshot(md)
+
+        maybeEmitSyntheticStop(c, snapshot)
+
         val span = tracker.onStart(c, state)
         val sessionId = span.sessionId
         val eventId = Ulids.newUlid()
         val pkg = c.packageName ?: "unknown"
-        val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
-        val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
-        val album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+        val title = snapshot.title
+        val artist = snapshot.artist
+        val album = snapshot.album
         val eventCategory = "media"
         val eventType = SourceEventTypes.MEDIA_START
         val subjectEntityId = subjectEntityId(title, artist, album)
@@ -301,23 +307,24 @@ class MediaSessionsSource(
             tags = listOf("music", "now_playing"),
             sessionId = sessionId
         )
+        lastTracks[c] = snapshot
         app.ingest.submit(
             RawEvent(
                 ev,
                 fingerprint =  fingerprint(pkg, title, artist, album, sessionId, action),
-                coalesceKey = coalesceKey(pkg)
+                coalesceKey = coalesceKey(pkg, action)
             )
         )
     }
 
-    private fun emitMediaStop(c: MediaController, md: MediaMetadata?, st: PlaybackState) {
+    private fun emitMediaStop(c: MediaController, snapshot: TrackSnapshot, st: PlaybackState?) {
         val quad = tracker.onStop(c, st) ?: return
         val eventId = Ulids.newUlid()
         val sessionId = quad.sessionId
         val pkg = c.packageName ?: "unknown"
-        val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
-        val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
-        val album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+        val title = snapshot.title
+        val artist = snapshot.artist
+        val album = snapshot.album
         val eventCategory = "media"
         val eventType = SourceEventTypes.MEDIA_STOP
         val subjectEntityId = subjectEntityId(title, artist, album)
@@ -360,21 +367,60 @@ class MediaSessionsSource(
             tags = listOf("music"),
             sessionId = sessionId
         )
+        lastTracks.remove(c)
         app.ingest.submit(
             RawEvent(
                 ev,
                 fingerprint =  fingerprint(pkg, title, artist, album, sessionId, action),
-                coalesceKey = coalesceKey(pkg)
+                coalesceKey = coalesceKey(pkg, action)
             )
         )
+    }
+
+    private fun trackSnapshot(md: MediaMetadata?): TrackSnapshot {
+        val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+        val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
+        val album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+        return TrackSnapshot(title, artist, album)
+    }
+
+    private fun maybeEmitSyntheticStop(c: MediaController, next: TrackSnapshot) {
+        val previous = lastTracks[c] ?: return
+        FooLog.e(TAG, "#MEDIA maybeEmitSyntheticStop: previous=$previous, next=$next")
+        if (previous == next) {
+            FooLog.v(TAG, "#MEDIA maybeEmitSyntheticStop: previous==next; ignoring")
+            return
+        }
+        FooLog.v(TAG, "#MEDIA maybeEmitSyntheticStop: previous!=next; emitting synthetic stop")
+        emitMediaStop(c, previous, null)
+    }
+
+    private data class TrackSnapshot(
+        val title: String,
+        val artist: String,
+        val album: String
+    ) {
+        override fun toString(): String {
+            val sb = StringBuilder("{")
+            if (title.isNotBlank()) {
+                sb.append(" title=${FooString.quote(title)},")
+            }
+            if (artist.isNotBlank()) {
+                sb.append(" artist=${FooString.quote(artist)},")
+            }
+            if (album.isNotBlank()) {
+                sb.append(" album=${FooString.quote(album)},")
+            }
+            return "${sb.toString().trimEnd { it == ',' }} }"
+        }
     }
 
     private fun fingerprint(pkg: String, title: String, artist: String, album: String, sessionId: String, action: String): String {
         return "$pkg|$title|$artist|$album|$sessionId|$action"
     }
 
-    private fun coalesceKey(pkg: String): String {
-        return "media:$pkg:now_playing"
+    private fun coalesceKey(pkg: String, action: String): String {
+        return "media:$pkg:now_playing:$action"
     }
 
     private fun subjectEntityId(title: String, artist: String, album: String): String? {
