@@ -74,11 +74,9 @@ object FooPlatformUtils {
         return sb.toString()
     }
 
-    fun startActivity(context: Context, intent: Intent) {
-        startActivity(context, intent, null)
-    }
-
-    fun startActivity(context: Context, intent: Intent, bundle: Bundle?) {
+    @JvmOverloads
+    fun startActivity(context: Context, intent: Intent, bundle: Bundle? = null) {
+        /*
         if (context is Application) {
             // TODO Use Application.ActivityLifecycleCallbacks (like in AlfredAI) to actually test for background or not
             /*
@@ -89,6 +87,7 @@ object FooPlatformUtils {
             }
             */
         }
+        */
         context.startActivity(intent, bundle)
     }
 
