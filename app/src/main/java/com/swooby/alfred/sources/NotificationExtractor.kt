@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION")
+//@file:Suppress("DEPRECATION")
 
 package com.swooby.alfred.sources
 
@@ -332,12 +332,12 @@ object NotificationExtractor {
 
     private fun buildPeople(notification: Notification, extras: Bundle): List<Map<String, Any?>> {
         val people = mutableListOf<Map<String, Any?>>()
-        val parcelables = extras.getParcelableArray("android.people.list") ?: emptyArray()
-        parcelables.forEach { item ->
-            (item as? Person)?.let { person ->
-                val stub = personStub(person)
-                if (stub.isNotEmpty()) people += stub
-            }
+        val persons = extras.getParcelableArrayList("android.people.list", Person::class.java)
+                    ?.filterNotNull()
+                    ?: emptyList()
+        persons.forEach { person ->
+            val stub = personStub(person)
+            if (stub.isNotEmpty()) people += stub
         }
         extras.getStringArray("android.people")?.forEach { uri ->
             uri?.takeUnless { it.isBlank() }?.let {
