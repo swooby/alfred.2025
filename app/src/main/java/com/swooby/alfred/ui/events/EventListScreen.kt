@@ -41,7 +41,6 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Shuffle
@@ -90,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -121,6 +121,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Instant
 
 @Composable
@@ -997,7 +998,8 @@ private fun EventCard(
     val bubbleObj = traits?.objectOrNull("bubble")
 
     val eventInstant = event.ingestAt ?: event.tsEnd ?: event.tsStart
-    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(eventInstant))
+    val timeFormatter = rememberTimeFormatter()
+    val postedLabel = LocalizedStrings.eventTimestampLabel(formatInstant(eventInstant, timeFormatter))
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
 
     val chips = buildList {
@@ -1428,7 +1430,6 @@ private fun JsonElement.toDisplayString(): String? = when (this) {
         val values = mapNotNull { it.toDisplayString()?.takeIf { text -> text.isNotBlank() } }
         if (values.isEmpty()) null else values.joinToString(", ")
     }
-    else -> null
 }
 
 private object LocalizedStrings {
@@ -1629,13 +1630,28 @@ private object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
-private val TIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a", Locale.getDefault())
+private val formatterCache = AtomicReference<Pair<Locale, DateTimeFormatter>?>(null)
 
-private fun formatInstant(instant: Instant): String {
+private fun timeFormatterFor(locale: Locale): DateTimeFormatter {
+    formatterCache.get()?.takeIf { it.first == locale }?.let { return it.second }
+    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm:ss a", locale)
+    formatterCache.set(locale to formatter)
+    return formatter
+}
+
+@Composable
+private fun rememberTimeFormatter(): DateTimeFormatter {
+    val configuration = LocalConfiguration.current
+    val locale = remember(configuration) {
+        configuration.locales[0] ?: Locale.getDefault()
+    }
+    return remember(locale) { timeFormatterFor(locale) }
+}
+
+private fun formatInstant(instant: Instant, formatter: DateTimeFormatter): String {
     val zonedDateTime = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
         .atZone(ZoneId.systemDefault())
-    return TIME_FORMATTER.format(zonedDateTime)
+    return formatter.format(zonedDateTime)
 }
 
 @Preview(showBackground = true)
