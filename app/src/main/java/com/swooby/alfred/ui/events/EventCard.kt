@@ -1,5 +1,8 @@
 package com.swooby.alfred.ui.events
 
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -29,6 +32,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -45,7 +50,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.util.FooLog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -60,6 +69,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Instant
 
@@ -123,8 +134,9 @@ internal fun EventCard(
         ?: event.eventAction.takeIf { it.isNotBlank() }
 
     val conversationTitle = subject?.stringOrNull("conversationTitle")
-    val appLabel = actor?.stringOrNull("appLabel")
+    val actorAppLabel = actor?.stringOrNull("appLabel")
     val packageName = event.appPkg ?: actor?.stringOrNull("packageName")
+    val appLabel = rememberResolvedAppLabel(packageName, actorAppLabel)
     val category = contextJson?.stringOrNull("category")
     val template = traits?.stringOrNull("template") ?: subject?.stringOrNull("template")
     val channelId = refsJson?.stringOrNull("channelId")
@@ -682,6 +694,242 @@ private fun EventBadge(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun rememberResolvedAppLabel(
+    packageName: String?,
+    providedLabel: String?
+): String? {
+    val normalizedProvided = providedLabel?.takeIf { it.isNotBlank() }
+    val context = LocalContext.current
+    var resolved by remember(packageName, normalizedProvided) { mutableStateOf(normalizedProvided) }
+
+    LaunchedEffect(packageName, normalizedProvided) {
+        val pkg = packageName?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        normalizedProvided?.let { PackageLabelResolver.rememberProvided(pkg, it) }
+
+        val current = resolved
+        if (!current.isNullOrBlank()) {
+            PackageLabelResolver.rememberProvided(pkg, current)
+            return@LaunchedEffect
+        }
+
+        val cached = PackageLabelResolver.cached(pkg)
+        if (!cached.isNullOrBlank()) {
+            resolved = cached
+            return@LaunchedEffect
+        }
+
+        val lookup = withContext(Dispatchers.IO) {
+            PackageLabelResolver.resolve(context, pkg)
+        }
+        if (!lookup.isNullOrBlank()) {
+            PackageLabelResolver.rememberProvided(pkg, lookup)
+            resolved = lookup
+        }
+    }
+
+    return resolved
+}
+
+private object PackageLabelResolver {
+    private const val LOG_TAG = "PkgLabelResolver"
+    private val cache = ConcurrentHashMap<String, String>()
+    private val heuristicHits = AtomicInteger(0)
+
+    fun rememberProvided(packageName: String, label: String) {
+        if (label.isBlank()) return
+        cache.merge(packageName, label) { current, update ->
+            when {
+                current.isBlank() -> update
+                current.equals(update, ignoreCase = true) -> update
+                update.length > current.length -> update
+                else -> current
+            }
+        }
+    }
+
+    fun cached(packageName: String): String? = cache[packageName]
+
+    fun resolve(context: Context, packageName: String): String? {
+        cache[packageName]?.let { return it }
+        val packageLabel = loadApplicationLabel(context, packageName)
+        if (!packageLabel.isNullOrBlank()) {
+            cache[packageName] = packageLabel
+            return packageLabel
+        }
+        if (!heuristicsEnabled()) {
+            return null
+        }
+        val heuristic = heuristicsFromPackageName(packageName) ?: return null
+        heuristicHits.incrementAndGet()
+        FooLog.d(LOG_TAG, "Heuristic label for $packageName -> $heuristic")
+        cache[packageName] = heuristic
+        return heuristic
+    }
+
+    @SuppressLint("QueryPermissionsNeeded")
+    private fun loadApplicationLabel(context: Context, packageName: String): String? {
+        val packageManager = context.packageManager
+        val flagOptions = listOf(
+            0L,
+            PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong(),
+            PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong() or PackageManager.MATCH_DISABLED_COMPONENTS.toLong(),
+            PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong() or PackageManager.MATCH_DIRECT_BOOT_AWARE.toLong(),
+            PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong() or PackageManager.MATCH_DIRECT_BOOT_UNAWARE.toLong()
+        )
+        val label = flagOptions.firstNotNullOfOrNull { flags ->
+            runCatching {
+                val info = packageManager.getApplicationInfo(
+                    packageName,
+                    PackageManager.ApplicationInfoFlags.of(flags)
+                )
+                packageManager.getApplicationLabel(info).toString().takeIf { it.isNotBlank() }
+            }.getOrNull()
+        }
+        return label?.takeIf { it.isNotBlank() }
+    }
+
+    private fun heuristicsFromPackageName(packageName: String): String? {
+        PackageNameOverrides[packageName]?.let { return it }
+        val segments = packageName.split('.').filter { it.isNotBlank() }
+        if (segments.isEmpty()) return null
+        val candidate = segments.asReversed()
+            .firstOrNull { it.lowercase(Locale.getDefault()) !in DullSegments }
+            ?: segments.last()
+        val normalized = candidate.replace('_', ' ').replace('-', ' ')
+        val spaced = normalized.replace(Regex("(?<=[a-z0-9])(?=[A-Z])"), " ")
+        val words = spaced.split(' ')
+            .mapNotNull { word ->
+                val trimmed = word.trim()
+                trimmed.ifEmpty { null }
+            }
+        if (words.isEmpty()) return null
+        val display = words.joinToString(" ") { raw ->
+            val lower = raw.lowercase(Locale.getDefault())
+            SegmentOverrides[lower] ?: raw.replaceFirstChar { ch ->
+                if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+            }
+        }
+        return display.takeIf { it.isNotBlank() }
+    }
+
+    // Segments to ignore when guessing a display name; most are namespace noise or company suffixes.
+    private val DullSegments = setOf(
+        "android",
+        "application",
+        "applications",
+        "app",
+        "apps",
+        "beta",
+        "corp",
+        "company",
+        "google",
+        "inc",
+        "io",
+        "ltd",
+        "mobile",
+        "official",
+        "prod",
+        "production",
+        "service",
+        "services",
+        "studio",
+        "team",
+        "test"
+    )
+
+    // Common tokens mapped to their canonical casing (e.g., "youtube" -> "YouTube") before joining words.
+    private val SegmentOverrides = mapOf(
+        "youtube" to "YouTube",
+        "youtubetv" to "YouTube TV",
+        "youtubemusic" to "YouTube Music",
+        "gmail" to "Gmail",
+        "whatsapp" to "WhatsApp",
+        "messenger" to "Messenger",
+        "snapchat" to "Snapchat",
+        "instagram" to "Instagram",
+        "facebook" to "Facebook",
+        "linkedin" to "LinkedIn",
+        "reddit" to "Reddit",
+        "telegram" to "Telegram",
+        "spotify" to "Spotify",
+        "slack" to "Slack",
+        "teams" to "Teams",
+        "zoom" to "Zoom",
+        "discord" to "Discord",
+        "drive" to "Drive",
+        "docs" to "Docs",
+        "sheets" to "Sheets",
+        "slides" to "Slides",
+        "photos" to "Photos",
+        "calendar" to "Calendar",
+        "maps" to "Maps",
+        "meet" to "Meet",
+        "fit" to "Fit",
+        "todo" to "To Do",
+        "todoist" to "Todoist"
+    )
+
+    private val PackageNameOverrides = mapOf(
+        "com.google.android.youtube" to "YouTube",
+        "com.google.android.youtube.tv" to "YouTube TV",
+        "com.google.android.apps.youtube.music" to "YouTube Music",
+        "com.google.android.apps.messaging" to "Messages",
+        "com.google.android.gm" to "Gmail",
+        "com.google.android.apps.photos" to "Google Photos",
+        "com.google.android.apps.maps" to "Google Maps",
+        "com.google.android.apps.tachyon" to "Google Meet",
+        "com.google.android.apps.fitness" to "Google Fit",
+        "com.facebook.katana" to "Facebook",
+        "com.facebook.orca" to "Messenger",
+        "com.whatsapp" to "WhatsApp",
+        "com.snapchat.android" to "Snapchat",
+        "com.spotify.music" to "Spotify",
+        "com.twitter.android" to "Twitter",
+        "com.x.android" to "X",
+        "com.discord" to "Discord",
+        "org.telegram.messenger" to "Telegram",
+        "org.thoughtcrime.securesms" to "Signal",
+        "com.google.android.apps.docs" to "Google Drive",
+        "com.google.android.apps.tasks" to "Google Tasks",
+        "com.microsoft.todos" to "Microsoft To Do",
+        "com.microsoft.teams" to "Microsoft Teams",
+        "com.linkedin.android" to "LinkedIn",
+        "com.reddit.frontpage" to "Reddit",
+        "com.slack" to "Slack",
+        "us.zoom.videomeetings" to "Zoom",
+        "com.amazon.mp3" to "Amazon Music"
+    )
+
+    @Suppress("KotlinConstantConditions")
+    private fun heuristicsEnabled() = BuildConfig.ENABLE_LABEL_HEURISTICS
+
+    fun stats(): PackageLabelResolverStats = PackageLabelResolverStats(
+        cacheSize = cache.size,
+        heuristicHits = heuristicHits.get(),
+        heuristicsEnabled = heuristicsEnabled()
+    )
+
+    fun resetStats() {
+        heuristicHits.set(0)
+    }
+}
+
+internal data class PackageLabelResolverStats(
+    val cacheSize: Int,
+    val heuristicHits: Int,
+    val heuristicsEnabled: Boolean
+)
+
+@Suppress("unused")
+internal fun packageLabelResolverStats(): PackageLabelResolverStats =
+    PackageLabelResolver.stats()
+
+@Suppress("unused")
+internal fun resetPackageLabelResolverStats() {
+    PackageLabelResolver.resetStats()
 }
 
 private val formatterCache = AtomicReference<Pair<Locale, DateTimeFormatter>?>(null)

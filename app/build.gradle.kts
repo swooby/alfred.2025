@@ -9,6 +9,14 @@ plugins {
     alias(libs.plugins.androidx.room)
 }
 
+val enableLabelHeuristicsProperty = (project.findProperty("alfred.enableLabelHeuristics") as? String)
+    ?.trim()
+    ?.lowercase()
+val enableLabelHeuristics = when (enableLabelHeuristicsProperty) {
+    "1", "true", "on", "yes" -> true
+    else -> false
+}
+
 android {
     namespace = "com.swooby.alfred"
     compileSdk = 36
@@ -22,6 +30,7 @@ android {
         targetSdk = 36
 
         vectorDrawables { useSupportLibrary = true }
+        buildConfigField("boolean", "ENABLE_LABEL_HEURISTICS", enableLabelHeuristics.toString())
     }
 
     buildTypes {
