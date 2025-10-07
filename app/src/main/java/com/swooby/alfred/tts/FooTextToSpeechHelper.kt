@@ -20,11 +20,15 @@ object FooTextToSpeechHelper {
     const val SETTINGS_ACTION_TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
 
     @JvmStatic
-    val IntentTextToSpeechSettings: Intent
+    val intentTextToSpeechSettings: Intent
         get() = Intent().setAction(SETTINGS_ACTION_TTS_SETTINGS)
 
     @JvmStatic
-    val IntentRequestTextToSpeechData: Intent
+    fun showTextToSpeechSettings(activity: Activity) {
+        FooPlatformUtils.startActivity(activity, intentTextToSpeechSettings)
+    }
+
+    val intentRequestTextToSpeechData: Intent
         get() = Intent().setAction(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA)
 
     /**
@@ -56,10 +60,8 @@ object FooTextToSpeechHelper {
         if (activity.isFinishing || activity.isDestroyed) {
             return
         }
-        val intent = IntentRequestTextToSpeechData
-        val signature =
-            "activity.startActivityForResult(intent=" + FooPlatformUtils.toString(intent) +
-                    ", requestCode=" + requestCode + ')'
+        val intent = intentRequestTextToSpeechData
+        val signature = "activity.startActivityForResult(intent=${FooPlatformUtils.toString(intent)}, requestCode=$requestCode)"
         FooLog.v(TAG, "requestTextToSpeechData: +$signature")
         activity.startActivityForResult(intent, requestCode)
         FooLog.v(TAG, "requestTextToSpeechData: -$signature")

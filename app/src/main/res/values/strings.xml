@@ -14,6 +14,7 @@
     <string name="pipeline_notification_title">Alfred is listening</string>
     <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
     <string name="pipeline_notification_action_enable">Enable</string>
+    <string name="pipeline_notification_action_quit">Quit</string>
     <string name="permissions_title_setup">Alfred 2025 Setup</string>
     <string name="permissions_post_notifications_title">Post Notifications</string>
     <string name="permissions_post_notifications_description">Lets Alfred 2025 speak and show status; required on Android 13+.</string>
@@ -33,6 +34,12 @@
 
     <string name="event_list_drawer_title">Alfred</string>
     <string name="event_list_drawer_settings">Settings</string>
+    <string name="event_list_drawer_notification_access">Notification Listener Access</string>
+    <string name="event_list_drawer_application_info">Application Info</string>
+    <string name="event_list_drawer_developer_options">Developer Options</string>
+    <string name="event_list_drawer_adb_wireless">ADB Wireless Settings</string>
+    <string name="event_list_drawer_text_to_speech">Text-To-Speech</string>
+    <string name="event_list_drawer_quit">Quit</string>
     <string name="event_list_drawer_theme_mode_title">Theme</string>
     <string name="event_list_theme_mode_dark">Dark</string>
     <string name="event_list_theme_mode_light">Light</string>

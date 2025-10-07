@@ -39,17 +39,14 @@ fun PermissionsScreen(
     }
     var listenerGranted by remember {
         mutableStateOf(
-            hasNotificationListenerAccess(
-                ctx,
-                NotificationsSource::class.java
-            )
+            FooNotificationListener.hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
         )
     }
     var ignoringDoze by remember { mutableStateOf(isIgnoringBatteryOptimizations(ctx)) }
 
     fun refreshAll() {
         notificationPermissionGranted = isNotificationPermissionGranted(ctx)
-        listenerGranted = hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
+        listenerGranted = FooNotificationListener.hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
         ignoringDoze = isIgnoringBatteryOptimizations(ctx)
     }
 
@@ -67,7 +64,7 @@ fun PermissionsScreen(
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 // this fires when user toggles access in Settings
-                listenerGranted = hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
+                listenerGranted = FooNotificationListener.hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
             }
         }
         ctx.contentResolver.registerContentObserver(uri, /*notifyForDescendants=*/false, observer)
@@ -100,17 +97,9 @@ fun PermissionsScreen(
             title = stringResource(R.string.permissions_post_notifications_title),
             description = stringResource(R.string.permissions_post_notifications_description),
             granted = notificationPermissionGranted,
-            actionLabel = if (Build.VERSION.SDK_INT >= 33) {
-                stringResource(R.string.permissions_action_grant)
-            } else {
-                stringResource(R.string.permissions_action_open_settings)
-            },
+            actionLabel = stringResource(R.string.permissions_action_grant),
             onClick = {
-                if (Build.VERSION.SDK_INT >= 33) {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    ctx.startActivity(intentAppNotificationSettings(ctx))
-                }
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         )
 
@@ -119,7 +108,7 @@ fun PermissionsScreen(
             description = stringResource(R.string.permissions_notification_listener_description),
             granted = listenerGranted,
             actionLabel = stringResource(R.string.permissions_action_open_settings),
-            onClick = { ctx.startActivity(intentOpenNotificationListenerSettings()) }
+            onClick = { FooNotificationListener.startActivityNotificationListenerSettings(ctx) }
         )
 
         PermissionCard(

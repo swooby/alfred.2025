@@ -14,17 +14,32 @@ import kotlin.time.Clock
 
 class SystemSources(private val ctx: Context, private val app: AlfredApp) {
     private val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_CONNECT)
+        }
+
+        override fun onLost(network: Network) {
+            emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT)
+        }
+    }
+    @Volatile
+    private var networkCallbackRegistered: Boolean = false
 
     fun start() {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
         emitDisplay(if (pm.isInteractive) SourceEventTypes.DISPLAY_ON else SourceEventTypes.DISPLAY_OFF)
         cm.registerNetworkCallback(
             NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
-            object: ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_CONNECT) }
-                override fun onLost(network: Network) { emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT) }
-            }
+            networkCallback
         )
+        networkCallbackRegistered = true
+    }
+
+    fun stop() {
+        if (!networkCallbackRegistered) return
+        runCatching { cm.unregisterNetworkCallback(networkCallback) }
+        networkCallbackRegistered = false
     }
 
     private fun emitDisplay(type: String) {

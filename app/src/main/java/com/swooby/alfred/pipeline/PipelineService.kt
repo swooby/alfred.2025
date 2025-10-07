@@ -18,9 +18,11 @@ import com.swooby.alfred.core.rules.RulesConfig
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SystemSources
+import com.swooby.alfred.support.AppShutdownManager
 import com.swooby.alfred.tts.FooTextToSpeech
 import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.hasNotificationListenerAccess
+import com.swooby.alfred.util.FooNotificationListener
+import com.swooby.alfred.util.FooPlatformUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +34,11 @@ import kotlinx.datetime.TimeZone
 class PipelineService : Service() {
     companion object {
         private val TAG = FooLog.TAG(PipelineService::class.java)
+        private const val NOTIFICATION_ID = 42
+        const val ACTION_QUIT: String = "com.swooby.alfred.pipeline.action.QUIT"
+
+        fun quitIntent(context: Context): Intent =
+            Intent(context, PipelineService::class.java).setAction(ACTION_QUIT)
     }
 
     private val app by lazy { application as AlfredApp }
@@ -42,17 +49,20 @@ class PipelineService : Service() {
     private var cfg = RulesConfig()
 
     override fun onCreate() {
+        FooLog.v(TAG, "+onCreate()")
         super.onCreate()
-        startForeground(42, buildOngoingNotification())
+        startForeground(NOTIFICATION_ID, buildOngoingNotification())
+        AppShutdownManager.onPipelineServiceStarted(this)
 
         tts = FooTextToSpeech.instance.start(app)
         sysSources = SystemSources(this, app)
         sysSources.start()
 
         // 🔒 Only start media session source if we have notification-listener access
-        val hasAccess = hasNotificationListenerAccess(this, NotificationsSource::class.java)
+        val hasAccess = FooNotificationListener.hasNotificationListenerAccess(this, NotificationsSource::class.java)
         if (hasAccess) {
             try {
+                FooNotificationListener.requestNotificationListenerRebind(this, NotificationsSource::class.java)
                 app.mediaSource.start("$TAG.onCreate")
             } catch (se: SecurityException) {
                 // Access might have been revoked between check and start; keep running without media source
@@ -61,7 +71,7 @@ class PipelineService : Service() {
         } else {
             // Update foreground notification to include an action to enable access
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.notify(42, buildOngoingNotification(promptEnable = true))
+            nm.notify(NOTIFICATION_ID, buildOngoingNotification(promptEnable = true))
         }
 
         // Live settings → cfg
@@ -101,15 +111,30 @@ class PipelineService : Service() {
                 }
             }
         }
+        FooLog.v(TAG, "-onCreate()")
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        FooLog.v(TAG, "onStartCommand(intent=${FooPlatformUtils.toString(intent)}, flags=$flags, startId=$startId)")
+        if (intent?.action == ACTION_QUIT) {
+            AppShutdownManager.markQuitRequested(this)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
+        FooLog.v(TAG, "+onDestroy()")
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        runCatching { sysSources.stop() }
+            .onFailure { FooLog.w(TAG, "onDestroy: sysSources.stop failed", it) }
         app.mediaSource.stop("PipelineService.onCreate")
         tts.stop()
         scope.cancel()
+        AppShutdownManager.onPipelineServiceDestroyed(app)
         super.onDestroy()
+        FooLog.v(TAG, "-onDestroy()")
     }
 
     override fun onBind(p0: Intent?): IBinder? = null
@@ -129,6 +154,19 @@ class PipelineService : Service() {
             .setSmallIcon(android.R.drawable.stat_notify_more)
             .setContentTitle(getString(R.string.pipeline_notification_title))
             .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+
+        val quitPendingIntent = PendingIntent.getService(
+            this,
+            100,
+            quitIntent(this),
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addAction(
+            0,
+            getString(R.string.pipeline_notification_action_quit),
+            quitPendingIntent
+        )
 
         if (promptEnable) {
             val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)

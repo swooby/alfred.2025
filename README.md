@@ -27,3 +27,12 @@ or possibly make this project eventually better than Alfred2017.
 * If all essential permissions (`val essentialsOk = notificationPermissionGranted && listenerGranted`) are granted
   then don't show `PermissionsScreen`, go straight to [for now] `SettingsScreen`:  
   https://github.com/swooby/alfred.2025/pull/4
+
+## Testing
+
+- Verify Quit flow
+  1. Launch the app and confirm notification ingestion and media speech are working.
+  2. Open the navigation drawer, tap “Quit”, and ensure the `com.swooby.alfred2025` process exits without restarting.
+  3. Relaunch the app; verify notifications and media speech still function.
+  4. Trigger “Quit” from the foreground notification; confirm the process exits and stays down.
+  5. Launch the app again and confirm notification ingestion and media speech resume.

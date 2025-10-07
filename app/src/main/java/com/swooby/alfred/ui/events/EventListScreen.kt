@@ -105,6 +105,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.sources.SourceComponentIds
@@ -139,6 +140,12 @@ fun EventListScreen(
     themeMode: ThemeMode,
     onQueryChange: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNotificationAccessRequested: () -> Unit,
+    onApplicationInfoRequested: () -> Unit,
+    onDeveloperOptionsRequested: () -> Unit,
+    onAdbWirelessRequested: () -> Unit,
+    onTextToSpeechSettingsRequested: () -> Unit,
+    onQuitRequested: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
     onSelectAll: () -> Unit,
@@ -196,6 +203,78 @@ fun EventListScreen(
                             coroutineScope.launch {
                                 drawerState.close()
                                 onNavigateToSettings()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerNotificationAccess) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onNotificationAccessRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerApplicationInfo) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onApplicationInfoRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerDeveloperOptions) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onDeveloperOptionsRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerAdbWireless) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onAdbWirelessRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    if (BuildConfig.DEBUG) {
+                        //
+                        // Hide when non-DEBUG:
+                        // This launches to Global TTS settings, which does not help this app's defined TTS settings.
+                        //
+                        NavigationDrawerItem(
+                            label = { Text(text = LocalizedStrings.drawerTextToSpeech) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onTextToSpeechSettingsRequested()
+                                }
+                            },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                    }
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerQuit) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onQuitRequested()
                             }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -1011,6 +1090,24 @@ internal object LocalizedStrings {
     val drawerSettings: String
         @Composable get() = stringResource(R.string.event_list_drawer_settings)
 
+    val drawerNotificationAccess: String
+        @Composable get() = stringResource(R.string.event_list_drawer_notification_access)
+
+    val drawerApplicationInfo: String
+        @Composable get() = stringResource(R.string.event_list_drawer_application_info)
+
+    val drawerDeveloperOptions: String
+        @Composable get() = stringResource(R.string.event_list_drawer_developer_options)
+
+    val drawerAdbWireless: String
+        @Composable get() = stringResource(R.string.event_list_drawer_adb_wireless)
+
+    val drawerTextToSpeech: String
+        @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech)
+
+    val drawerQuit: String
+        @Composable get() = stringResource(R.string.event_list_drawer_quit)
+
     val drawerThemeModeTitle: String
         @Composable get() = stringResource(R.string.event_list_drawer_theme_mode_title)
 
@@ -1394,6 +1491,12 @@ private fun EventListPreview() {
             themeMode = ThemeMode.SYSTEM,
             onQueryChange = {},
             onNavigateToSettings = {},
+            onNotificationAccessRequested = {},
+            onApplicationInfoRequested = {},
+            onDeveloperOptionsRequested = {},
+            onAdbWirelessRequested = {},
+            onTextToSpeechSettingsRequested = {},
+            onQuitRequested = {},
             onSelectionModeChange = {},
             onEventSelectionChange = { _, _ -> },
             onSelectAll = {},

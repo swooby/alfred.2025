@@ -24,6 +24,10 @@ import com.swooby.alfred.settings.ThemePreferences
 import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import com.swooby.alfred.ui.theme.ThemeSeedGenerator
+import com.swooby.alfred.support.AppShutdownManager
+import com.swooby.alfred.tts.FooTextToSpeechHelper
+import com.swooby.alfred.util.FooNotificationListener
+import com.swooby.alfred.util.FooPlatformUtils
 import kotlinx.coroutines.launch
 
 class EventListActivity : ComponentActivity() {
@@ -33,6 +37,7 @@ class EventListActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val app = application as AlfredApp
+        val activity = this
         val userId = intent.getStringExtra(EXTRA_USER_ID) ?: DEFAULT_USER_ID
         val viewModelFactory = EventListViewModel.Factory(app.db.events(), userId)
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
@@ -83,6 +88,26 @@ class EventListActivity : ComponentActivity() {
                     onQueryChange = viewModel::onQueryChange,
                     onNavigateToSettings = {
                         startActivity(Intent(this, MainActivity::class.java))
+                    },
+                    onNotificationAccessRequested = {
+                        FooNotificationListener.startActivityNotificationListenerSettings(activity)
+                    },
+                    onApplicationInfoRequested = {
+                        FooPlatformUtils.showAppSettings(activity)
+                    },
+                    onDeveloperOptionsRequested = {
+                        FooPlatformUtils.showDevelopmentSettings(activity)
+                    },
+                    onAdbWirelessRequested = {
+                        FooPlatformUtils.showAdbWirelessSettings(activity)
+                    },
+                    onTextToSpeechSettingsRequested = {
+                        FooTextToSpeechHelper.showTextToSpeechSettings(activity)
+                    },
+                    onQuitRequested = {
+                        AppShutdownManager.requestQuit(activity)
+                        activity.finishAffinity()
+                        activity.finishAndRemoveTask()
                     },
                     onSelectionModeChange = viewModel::setSelectionMode,
                     onEventSelectionChange = viewModel::setEventSelection,
