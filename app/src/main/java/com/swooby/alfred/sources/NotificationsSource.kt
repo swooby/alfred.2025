@@ -574,9 +574,7 @@ class NotificationsSource : NotificationListenerService() {
                         extras.remove(Notification.EXTRA_TEXT)
                         extras.remove(Notification.EXTRA_SUB_TEXT)
                     }
-                    val foo1 = extras.toString()
-                    val foo2 = FooPlatformUtils.toString(extras)
-                    sb.append(foo1)
+                    sb.append(FooPlatformUtils.toString(extras))
                 }
                 sb.append(" } }")
                 return sb.toString()
