@@ -7,6 +7,7 @@ import com.swooby.alfred.data.EventDao
 import com.swooby.alfred.data.EventEntity
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -31,6 +32,7 @@ data class EventListUiState(
     val query: String = "",
     val allEvents: List<EventEntity> = emptyList(),
     val visibleEvents: List<EventEntity> = emptyList(),
+    val totalEventCount: Int = 0,
     val isLoading: Boolean = false,
     val isPerformingAction: Boolean = false,
     val errorMessage: String? = null,
@@ -42,8 +44,9 @@ class EventListViewModel(
     private val eventDao: EventDao,
     private val userId: String,
     private val lookback: Duration = 7.days,
-    private val limit: Int = 500,
+    private val limit: Int = DEFAULT_EVENT_LIMIT,
     private val clock: Clock = Clock.System,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
@@ -52,6 +55,7 @@ class EventListViewModel(
 
     init {
         observeEvents()
+        observeEventCount()
         refresh()
     }
 
@@ -136,7 +140,7 @@ class EventListViewModel(
         val eventIds = state.value.selectedEventIds
         if (eventIds.isEmpty()) return
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             _state.update {
                 it.copy(
                     isPerformingAction = true,
@@ -174,7 +178,7 @@ class EventListViewModel(
                 .flatMapLatest { from ->
                     eventDao.observeRecent(userId, from, limit)
                 }
-                .flowOn(Dispatchers.IO)
+                .flowOn(ioDispatcher)
                 .retryWhen { cause, attempt ->
                     if (cause is CancellationException) {
                         false
@@ -210,6 +214,19 @@ class EventListViewModel(
         }
     }
 
+    private fun observeEventCount() {
+        viewModelScope.launch {
+            eventDao.observeCount(userId)
+                .flowOn(ioDispatcher)
+                .collect { count ->
+                    val total = count.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                    _state.update { current ->
+                        if (current.totalEventCount == total) current else current.copy(totalEventCount = total)
+                    }
+                }
+        }
+    }
+
     private fun calculateLookbackStart(now: Instant = clock.now()): Instant {
         val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
         return Instant.fromEpochMilliseconds(fromEpochMillis)
@@ -238,13 +255,21 @@ class EventListViewModel(
         private val eventDao: EventDao,
         private val userId: String,
         private val lookback: Duration = 7.days,
-        private val limit: Int = 500,
+        private val limit: Int = DEFAULT_EVENT_LIMIT,
         private val clock: Clock = Clock.System,
+        private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(EventListViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return EventListViewModel(eventDao, userId, lookback, limit, clock) as T
+                return EventListViewModel(
+                    eventDao = eventDao,
+                    userId = userId,
+                    lookback = lookback,
+                    limit = limit,
+                    clock = clock,
+                    ioDispatcher = ioDispatcher
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
         }
@@ -253,5 +278,6 @@ class EventListViewModel(
     private companion object {
         private const val MAX_RETRY_MULTIPLIER = 6L
         private val RETRY_BASE_DELAY = 1.seconds
+        private const val DEFAULT_EVENT_LIMIT = 500
     }
 }

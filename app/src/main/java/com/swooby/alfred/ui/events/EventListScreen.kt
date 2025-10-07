@@ -90,6 +90,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -367,6 +368,7 @@ private fun EventListScaffold(
         ) {
             EventListHeader(
                 query = state.query,
+                totalEventCount = state.totalEventCount,
                 isRefreshing = state.isLoading,
                 userInitials = userInitials,
                 onQueryChange = onQueryChange,
@@ -405,6 +407,7 @@ private fun EventListScaffold(
 @Composable
 private fun EventListHeader(
     query: String,
+    totalEventCount: Int,
     isRefreshing: Boolean,
     userInitials: String,
     onQueryChange: (String) -> Unit,
@@ -482,6 +485,11 @@ private fun EventListHeader(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = headerContentColor
+                        )
+                        Text(
+                            text = LocalizedStrings.totalCountLabel(totalEventCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = headerContentColor.copy(alpha = 0.7f)
                         )
                     }
                     Avatar(
@@ -1459,6 +1467,9 @@ private object LocalizedStrings {
 
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
+
+    @Composable
+    fun totalCountLabel(count: Int) = pluralStringResource(R.plurals.event_list_total_count, count, count)
 
     @Composable
     fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)

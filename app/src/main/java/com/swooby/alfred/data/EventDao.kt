@@ -58,4 +58,12 @@ interface EventDao {
         fromTs: Instant,
         limit: Int = 500
     ): Flow<List<EventEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM events
+        WHERE userId = :userId
+        """
+    )
+    fun observeCount(userId: String): Flow<Long>
 }
