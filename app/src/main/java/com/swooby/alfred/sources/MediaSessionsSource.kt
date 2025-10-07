@@ -118,15 +118,15 @@ class MediaSessionsSource(
     }
 
     private fun toString(sessionToken: MediaSession.Token): String {
-        return "MediaSession.Token(hashCode()=${sessionToken.hashCode()})"
+        return "{ hashCode()=${sessionToken.hashCode()} }"
     }
 
     private fun toString(mediaController: MediaController): String {
-        return "MediaController(token=${toString(mediaController.sessionToken)}" +
+        return "{ token=${toString(mediaController.sessionToken)}" +
                 ", sessionInfo=${mediaController.sessionInfo}" +
                 ", tag=${FooString.quote(mediaController.tag)}" +
                 ", packageName=${FooString.quote(mediaController.packageName)}" +
-                ", hashCode()=${mediaController.hashCode()})"
+                ", hashCode()=${mediaController.hashCode()} }"
     }
 
     private fun toString(state: PlaybackState?): String {
