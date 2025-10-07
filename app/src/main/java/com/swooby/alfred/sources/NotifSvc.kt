@@ -140,31 +140,6 @@ class NotifSvc : NotificationListenerService() {
 
     private val app get() = application as AlfredApp
 
-    private fun buildStableNotificationFingerprint(
-        pkg: String,
-        subjectEntityId: String?,
-        subjectTitle: String?,
-        subjectText: String?,
-        subjectLines: List<String>?,
-        eventCategory: String?,
-        eventAction: String?
-    ): String? {
-        val body = subjectText ?: subjectLines
-            ?.joinToString(separator = "\n")
-            ?.takeIf { it.isNotBlank() }
-        val parts = listOf(
-            pkg.takeIf { it.isNotBlank() },
-            subjectEntityId?.takeIf { it.isNotBlank() },
-            subjectTitle?.takeIf { it.isNotBlank() },
-            body,
-            eventCategory?.takeIf { it.isNotBlank() },
-            eventAction?.takeIf { it.isNotBlank() }
-        )
-        if (parts.all { it.isNullOrBlank() }) return null
-        val normalized = parts.joinToString(separator = "|") { it ?: "" }
-        return FooSha256.sha256(normalized)
-    }
-
     override fun onListenerConnected() {
         if (LOG_NOTIFICATION) {
             FooLog.d(TAG, "#NOTIFICATION onListenerConnected()")
@@ -202,6 +177,31 @@ class NotifSvc : NotificationListenerService() {
             FooLog.d(TAG, "#NOTIFICATION onListenerDisconnected()")
         }
         //val elapsedMillis = System.currentTimeMillis() - mOnListenerConnectedStartMillis
+    }
+
+    private fun buildStableNotificationFingerprint(
+        pkg: String,
+        subjectEntityId: String?,
+        subjectTitle: String?,
+        subjectText: String?,
+        subjectLines: List<String>?,
+        eventCategory: String?,
+        eventAction: String?
+    ): String? {
+        val body = subjectText ?: subjectLines
+            ?.joinToString(separator = "\n")
+            ?.takeIf { it.isNotBlank() }
+        val parts = listOf(
+            pkg.takeIf { it.isNotBlank() },
+            subjectEntityId?.takeIf { it.isNotBlank() },
+            subjectTitle?.takeIf { it.isNotBlank() },
+            body,
+            eventCategory?.takeIf { it.isNotBlank() },
+            eventAction?.takeIf { it.isNotBlank() }
+        )
+        if (parts.all { it.isNullOrBlank() }) return null
+        val normalized = parts.joinToString(separator = "|") { it ?: "" }
+        return FooSha256.sha256(normalized)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
