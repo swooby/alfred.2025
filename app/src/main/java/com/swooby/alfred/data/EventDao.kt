@@ -48,14 +48,12 @@ interface EventDao {
         """
         SELECT * FROM events
         WHERE userId = :userId
-          AND COALESCE(ingestAt, tsStart) >= :fromTs
         ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
         """
     )
     fun observeRecent(
         userId: String,
-        fromTs: Instant,
         limit: Int = 500
     ): Flow<List<EventEntity>>
 

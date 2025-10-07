@@ -86,9 +86,10 @@ class EventListActivity : ComponentActivity() {
                     },
                     onSelectionModeChange = viewModel::setSelectionMode,
                     onEventSelectionChange = viewModel::setEventSelection,
-                    onSelectAll = viewModel::selectAllVisible,
-                    onUnselectAll = viewModel::unselectAllVisible,
+                    onSelectAll = viewModel::selectAll,
+                    onUnselectAll = viewModel::unselectAll,
                     onDeleteSelected = viewModel::deleteSelected,
+                    onLoadMore = viewModel::loadMore,
                     onThemeModeChange = { mode ->
                         settingsScope.launch { app.settings.setThemeMode(mode) }
                     },

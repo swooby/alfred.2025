@@ -9,21 +9,17 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.time.Clock
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
 
 /**
  * UI state container for the event list screen.
@@ -38,19 +34,21 @@ data class EventListUiState(
     val errorMessage: String? = null,
     val selectionMode: Boolean = false,
     val selectedEventIds: Set<String> = emptySet(),
+    val totalSelectionCount: Int = 0,
+    val isAllSelected: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val canLoadMore: Boolean = false,
 )
 
 class EventListViewModel(
     private val eventDao: EventDao,
     private val userId: String,
-    private val lookback: Duration = 7.days,
-    private val limit: Int = DEFAULT_EVENT_LIMIT,
-    private val clock: Clock = Clock.System,
+    private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
-    private val lookbackStart = MutableStateFlow(calculateLookbackStart(clock.now()))
+    private val pageLimit = MutableStateFlow(pageSize)
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
 
     init {
@@ -72,10 +70,11 @@ class EventListViewModel(
             it.copy(
                 isLoading = true,
                 isPerformingAction = false,
-                errorMessage = null
+                errorMessage = null,
+                isLoadingMore = false
             )
         }
-        lookbackStart.value = calculateLookbackStart()
+        pageLimit.value = pageSize
     }
 
     fun setSelectionMode(enabled: Boolean) {
@@ -83,37 +82,41 @@ class EventListViewModel(
             if (enabled) {
                 current.copy(selectionMode = true)
             } else {
-                current.copy(selectionMode = false, selectedEventIds = emptySet())
+                current.copy(
+                    selectionMode = false,
+                    selectedEventIds = emptySet(),
+                    isAllSelected = false,
+                    totalSelectionCount = 0
+                )
             }
         }
     }
 
-    fun selectAllVisible() {
+    fun selectAll() {
         _state.update { current ->
             val visibleIds = current.visibleEvents.map(EventEntity::eventId).toSet()
             if (visibleIds.isEmpty()) {
                 current
             } else {
+                val total = determineSelectionCount(current.totalEventCount, current.allEvents.size)
                 current.copy(
                     selectionMode = true,
-                    selectedEventIds = current.selectedEventIds + visibleIds
+                    selectedEventIds = visibleIds,
+                    isAllSelected = true,
+                    totalSelectionCount = total
                 )
             }
         }
     }
 
-    fun unselectAllVisible() {
+    fun unselectAll() {
         _state.update { current ->
-            val visibleIds = current.visibleEvents.map(EventEntity::eventId).toSet()
-            if (visibleIds.isEmpty()) {
-                current
-            } else {
-                val updatedSelection = current.selectedEventIds - visibleIds
-                current.copy(
-                    selectionMode = current.selectionMode,
-                    selectedEventIds = updatedSelection
-                )
-            }
+            current.copy(
+                selectionMode = false,
+                selectedEventIds = emptySet(),
+                isAllSelected = false,
+                totalSelectionCount = 0
+            )
         }
     }
 
@@ -128,17 +131,22 @@ class EventListViewModel(
                 } else {
                     updated.remove(eventId)
                 }
+                val hasSelection = updated.isNotEmpty()
                 current.copy(
-                    selectionMode = if (isSelected) true else current.selectionMode,
-                    selectedEventIds = updated
+                    selectionMode = if (isSelected) true else hasSelection && current.selectionMode,
+                    selectedEventIds = updated,
+                    isAllSelected = false,
+                    totalSelectionCount = updated.size
                 )
             }
         }
     }
 
     fun deleteSelected() {
-        val eventIds = state.value.selectedEventIds
-        if (eventIds.isEmpty()) return
+        val currentState = state.value
+        val deleteAll = currentState.isAllSelected && currentState.totalSelectionCount > 0
+        val eventIds = currentState.selectedEventIds
+        if (!deleteAll && eventIds.isEmpty()) return
 
         viewModelScope.launch(ioDispatcher) {
             _state.update {
@@ -148,16 +156,18 @@ class EventListViewModel(
                 )
             }
             try {
-                eventDao.deleteByIds(userId, eventIds.toList())
+                if (deleteAll) {
+                    eventDao.clearAllForUser(userId)
+                } else {
+                    eventDao.deleteByIds(userId, eventIds.toList())
+                }
                 _state.update { current ->
-                    val updatedAll = current.allEvents.filterNot { it.eventId in eventIds }
-                    val filtered = applyFilter(updatedAll, current.query)
                     current.copy(
                         isPerformingAction = false,
-                        allEvents = updatedAll,
-                        visibleEvents = filtered,
                         selectedEventIds = emptySet(),
                         selectionMode = false,
+                        isAllSelected = false,
+                        totalSelectionCount = 0
                     )
                 }
             } catch (t: Throwable) {
@@ -171,12 +181,12 @@ class EventListViewModel(
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeEvents() {
         viewModelScope.launch {
-            lookbackStart
-                .flatMapLatest { from ->
-                    eventDao.observeRecent(userId, from, limit)
+            pageLimit
+                .flatMapLatest { limit ->
+                    eventDao.observeRecent(userId, limit)
+                        .map { limit to it }
                 }
                 .flowOn(ioDispatcher)
                 .retryWhen { cause, attempt ->
@@ -195,11 +205,28 @@ class EventListViewModel(
                         true
                     }
                 }
-                .collect { events ->
+                .collect { (limit, events) ->
                     _state.update { current ->
                         val existingIds = events.map(EventEntity::eventId).toSet()
-                        val sanitizedSelection = current.selectedEventIds.filter { it in existingIds }.toSet()
+                        val sanitizedSelection = when {
+                            current.isAllSelected -> existingIds
+                            else -> current.selectedEventIds.filter { it in existingIds }.toSet()
+                        }
                         val filtered = applyFilter(events, current.query)
+                        val hasEvents = events.isNotEmpty()
+                        val normalizedSelectionMode = when {
+                            !hasEvents -> false
+                            current.isAllSelected -> true
+                            else -> current.selectionMode && sanitizedSelection.isNotEmpty()
+                        }
+                        val totalSelectionCount = when {
+                            !hasEvents -> 0
+                            current.isAllSelected -> determineSelectionCount(current.totalEventCount, events.size)
+                            else -> sanitizedSelection.size
+                        }
+                        val moreAvailableByLimit = events.size >= limit
+                        val canLoadMore = moreAvailableByLimit &&
+                            (current.totalEventCount == 0 || events.size < current.totalEventCount)
                         current.copy(
                             isLoading = false,
                             isPerformingAction = false,
@@ -207,7 +234,11 @@ class EventListViewModel(
                             visibleEvents = filtered,
                             errorMessage = null,
                             selectedEventIds = sanitizedSelection,
-                            selectionMode = current.selectionMode && events.isNotEmpty(),
+                            selectionMode = normalizedSelectionMode,
+                            isAllSelected = current.isAllSelected && hasEvents,
+                            totalSelectionCount = totalSelectionCount,
+                            isLoadingMore = false,
+                            canLoadMore = canLoadMore
                         )
                     }
             }
@@ -221,15 +252,44 @@ class EventListViewModel(
                 .collect { count ->
                     val total = count.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                     _state.update { current ->
-                        if (current.totalEventCount == total) current else current.copy(totalEventCount = total)
+                        val canLoadMore = current.allEvents.size >= pageLimit.value &&
+                            (total == 0 || current.allEvents.size < total)
+                        val totalSelectionCount = if (current.isAllSelected) {
+                            determineSelectionCount(total, current.allEvents.size)
+                        } else {
+                            current.totalSelectionCount
+                        }
+                        if (
+                            current.totalEventCount == total &&
+                            current.canLoadMore == canLoadMore &&
+                            current.totalSelectionCount == totalSelectionCount
+                        ) {
+                            current
+                        } else {
+                            current.copy(
+                                totalEventCount = total,
+                                canLoadMore = canLoadMore,
+                                totalSelectionCount = totalSelectionCount
+                            )
+                        }
                     }
                 }
         }
     }
 
-    private fun calculateLookbackStart(now: Instant = clock.now()): Instant {
-        val fromEpochMillis = now.toEpochMilliseconds() - lookback.inWholeMilliseconds
-        return Instant.fromEpochMilliseconds(fromEpochMillis)
+    fun loadMore() {
+        val currentState = state.value
+        if (!currentState.canLoadMore || currentState.isLoadingMore || currentState.isPerformingAction) {
+            return
+        }
+        _state.update {
+            it.copy(isLoadingMore = true)
+        }
+        pageLimit.update { current ->
+            val base = if (current <= 0) pageSize else current
+            val next = base.toLong() + pageSize.toLong()
+            next.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        }
     }
 
     private fun applyFilter(events: List<EventEntity>, query: String): List<EventEntity> {
@@ -254,9 +314,7 @@ class EventListViewModel(
     class Factory(
         private val eventDao: EventDao,
         private val userId: String,
-        private val lookback: Duration = 7.days,
-        private val limit: Int = DEFAULT_EVENT_LIMIT,
-        private val clock: Clock = Clock.System,
+        private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
         private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -265,9 +323,7 @@ class EventListViewModel(
                 return EventListViewModel(
                     eventDao = eventDao,
                     userId = userId,
-                    lookback = lookback,
-                    limit = limit,
-                    clock = clock,
+                    pageSize = pageSize,
                     ioDispatcher = ioDispatcher
                 ) as T
             }
@@ -278,6 +334,10 @@ class EventListViewModel(
     private companion object {
         private const val MAX_RETRY_MULTIPLIER = 6L
         private val RETRY_BASE_DELAY = 1.seconds
-        private const val DEFAULT_EVENT_LIMIT = 500
+        private const val DEFAULT_EVENT_PAGE_SIZE = 100
+
+        private fun determineSelectionCount(totalKnown: Int, loadedCount: Int): Int {
+            return if (totalKnown > 0) totalKnown else loadedCount
+        }
     }
 }

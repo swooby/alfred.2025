@@ -48,6 +48,9 @@
         <item quantity="one">%1$d event stored</item>
         <item quantity="other">%1$d events stored</item>
     </plurals>
+    <string name="event_list_total_count_details">%1$d events (%2$d loaded)</string>
+    <string name="event_list_total_count_details_single">%1$d of %2$d events (%3$d loaded)</string>
+    <string name="event_list_total_count_details_range">%1$d-%2$d of %3$d events (%4$d loaded)</string>
     <string name="event_list_timeline_title">Timeline</string>
     <string name="event_list_selection_count">%1$d selected</string>
     <string name="event_list_select_all">Select all</string>

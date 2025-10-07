@@ -31,7 +31,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -77,12 +79,14 @@ import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,7 +94,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -118,11 +121,14 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Instant
+
+private const val LOAD_MORE_PREFETCH_THRESHOLD = 20
 
 @Composable
 fun EventListScreen(
@@ -136,6 +142,7 @@ fun EventListScreen(
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onLoadMore: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onShuffleThemeRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -217,10 +224,11 @@ fun EventListScreen(
                 onSelectAll = onSelectAll,
                 onUnselectAll = onUnselectAll,
                 onDeleteSelected = {
-                    if (!state.isPerformingAction && state.selectedEventIds.isNotEmpty()) {
+                    if (!state.isPerformingAction && state.totalSelectionCount > 0) {
                         showDeleteSelectedDialog = true
                     }
                 },
+                onLoadMore = onLoadMore,
                 onEventSelectionChange = { event, isSelected ->
                     onEventSelectionChange(event.eventId, isSelected)
                 },
@@ -241,7 +249,7 @@ fun EventListScreen(
     if (showDeleteSelectedDialog) {
         ActionConfirmDialog(
             title = LocalizedStrings.deleteSelectedDialogTitle,
-            message = LocalizedStrings.deleteSelectedDialogMessage(state.selectedEventIds.size),
+            message = LocalizedStrings.deleteSelectedDialogMessage(state.totalSelectionCount),
             confirmLabel = LocalizedStrings.dialogDelete,
             dismissLabel = LocalizedStrings.dialogCancel,
             onDismiss = { showDeleteSelectedDialog = false },
@@ -330,12 +338,27 @@ private fun EventListScaffold(
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onLoadMore: () -> Unit,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val actionsEnabled = !state.isPerformingAction
+    val listState = rememberLazyListState()
+    val visibleRange by remember(listState, state.visibleEvents.size) {
+        derivedStateOf {
+            val visibleIndices = listState.layoutInfo.visibleItemsInfo
+                .mapNotNull { info ->
+                    info.index.takeIf { index ->
+                        index >= 0 && index < state.visibleEvents.size
+                    }
+                }
+            val first = visibleIndices.minOrNull() ?: return@derivedStateOf null
+            val last = visibleIndices.maxOrNull() ?: return@derivedStateOf null
+            IntRange(first, last)
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -346,13 +369,18 @@ private fun EventListScaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             AnimatedVisibility(visible = state.selectionMode) {
-                val visibleSelectedCount = state.visibleEvents.count { event ->
-                    state.selectedEventIds.contains(event.eventId)
+                val visibleSelectedCount = if (state.isAllSelected) {
+                    state.visibleEvents.size
+                } else {
+                    state.visibleEvents.count { event ->
+                        state.selectedEventIds.contains(event.eventId)
+                    }
                 }
                 SelectionBottomBar(
-                    selectedCount = state.selectedEventIds.size,
+                    selectedCount = state.totalSelectionCount,
                     visibleCount = state.visibleEvents.size,
                     visibleSelectedCount = visibleSelectedCount,
+                    allSelected = state.isAllSelected,
                     onSelectAll = onSelectAll,
                     onUnselectAll = onUnselectAll,
                     onDeleteSelected = onDeleteSelected,
@@ -370,6 +398,8 @@ private fun EventListScaffold(
             EventListHeader(
                 query = state.query,
                 totalEventCount = state.totalEventCount,
+                inMemoryCount = state.visibleEvents.size,
+                visibleRange = visibleRange,
                 isRefreshing = state.isLoading,
                 userInitials = userInitials,
                 onQueryChange = onQueryChange,
@@ -397,6 +427,8 @@ private fun EventListScaffold(
                 actionsEnabled = actionsEnabled,
                 onEventSelectionChange = onEventSelectionChange,
                 onEventLongPress = onEventLongPress,
+                listState = listState,
+                onLoadMore = onLoadMore,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f, fill = true)
@@ -409,6 +441,8 @@ private fun EventListScaffold(
 private fun EventListHeader(
     query: String,
     totalEventCount: Int,
+    inMemoryCount: Int,
+    visibleRange: IntRange?,
     isRefreshing: Boolean,
     userInitials: String,
     onQueryChange: (String) -> Unit,
@@ -488,7 +522,19 @@ private fun EventListHeader(
                             color = headerContentColor
                         )
                         Text(
-                            text = LocalizedStrings.totalCountLabel(totalEventCount),
+                            text = visibleRange?.let { range ->
+                                val start = (range.first + 1).coerceAtLeast(1)
+                                val end = (range.last + 1).coerceAtLeast(start)
+                                LocalizedStrings.totalCountDetailsWithRange(
+                                    startIndex = start,
+                                    endIndex = end,
+                                    totalCount = totalEventCount,
+                                    inMemoryCount = inMemoryCount,
+                                )
+                            } ?: LocalizedStrings.totalCountDetails(
+                                totalCount = totalEventCount,
+                                inMemoryCount = inMemoryCount
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = headerContentColor.copy(alpha = 0.7f)
                         )
@@ -606,6 +652,8 @@ private fun EventListContent(
     actionsEnabled: Boolean,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
+    listState: LazyListState,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (state.visibleEvents.isEmpty()) {
@@ -613,10 +661,32 @@ private fun EventListContent(
         return
     }
 
+    val shouldLoadMore = remember(listState, state.visibleEvents, state.canLoadMore, state.isLoadingMore) {
+        derivedStateOf {
+            if (!state.canLoadMore || state.isLoadingMore) return@derivedStateOf false
+            if (state.visibleEvents.isEmpty()) return@derivedStateOf false
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@derivedStateOf false
+            val triggerIndex = (state.visibleEvents.lastIndex - LOAD_MORE_PREFETCH_THRESHOLD).coerceAtLeast(0)
+            lastVisibleIndex >= triggerIndex
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        snapshotFlow { shouldLoadMore.value }
+            .distinctUntilChanged()
+            .collect { canLoad ->
+                if (canLoad) {
+                    onLoadMore()
+                }
+            }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding(),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(3.dp),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
     ) {
@@ -634,6 +704,23 @@ private fun EventListContent(
                 onLongPress = { onEventLongPress(event) },
                 actionsEnabled = actionsEnabled
             )
+        }
+
+        if (state.isLoadingMore) {
+            item("loading_more_indicator") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
         }
 
         item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -798,6 +885,7 @@ private fun SelectionBottomBar(
     selectedCount: Int,
     visibleCount: Int,
     visibleSelectedCount: Int,
+    allSelected: Boolean,
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
@@ -838,8 +926,8 @@ private fun SelectionBottomBar(
                 overflow = TextOverflow.Ellipsis
             )
             TextButton(
-                onClick = if (allVisibleSelected) onUnselectAll else onSelectAll,
-                enabled = actionsEnabled && hasVisibleEvents,
+                onClick = if (allSelected || allVisibleSelected) onUnselectAll else onSelectAll,
+                enabled = actionsEnabled && (hasVisibleEvents || allSelected),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             ) {
                 Row(
@@ -850,7 +938,7 @@ private fun SelectionBottomBar(
                         imageVector = Icons.Outlined.SelectAll,
                         contentDescription = null
                     )
-                    val label = if (allVisibleSelected) {
+                    val label = if (allSelected || allVisibleSelected) {
                         LocalizedStrings.unselectAllLabel
                     } else {
                         LocalizedStrings.selectAllLabel
@@ -1351,6 +1439,30 @@ private fun InfoLine(item: InfoItem) {
     )
 }
 
+private val formatterCache = AtomicReference<Pair<Locale, DateTimeFormatter>?>(null)
+
+private fun timeFormatterFor(locale: Locale): DateTimeFormatter {
+    formatterCache.get()?.takeIf { it.first == locale }?.let { return it.second }
+    val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss", locale)
+    formatterCache.set(locale to formatter)
+    return formatter
+}
+
+@Composable
+private fun rememberTimeFormatter(): DateTimeFormatter {
+    val configuration = LocalConfiguration.current
+    val locale = remember(configuration) {
+        configuration.locales[0] ?: Locale.getDefault()
+    }
+    return remember(locale) { timeFormatterFor(locale) }
+}
+
+private fun formatInstant(instant: Instant, formatter: DateTimeFormatter): String {
+    val zonedDateTime = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
+        .atZone(ZoneId.systemDefault())
+    return formatter.format(zonedDateTime)
+}
+
 private val PrettyJson = Json {
     prettyPrint = true
     encodeDefaults = false
@@ -1470,7 +1582,33 @@ private object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_header_title)
 
     @Composable
-    fun totalCountLabel(count: Int) = pluralStringResource(R.plurals.event_list_total_count, count, count)
+    fun totalCountDetails(totalCount: Int, inMemoryCount: Int) =
+        stringResource(R.string.event_list_total_count_details, totalCount, inMemoryCount)
+
+    @Composable
+    fun totalCountDetailsWithRange(
+        startIndex: Int,
+        endIndex: Int,
+        totalCount: Int,
+        inMemoryCount: Int,
+    ): String {
+        return if (startIndex == endIndex) {
+            stringResource(
+                R.string.event_list_total_count_details_single,
+                startIndex,
+                totalCount,
+                inMemoryCount,
+            )
+        } else {
+            stringResource(
+                R.string.event_list_total_count_details_range,
+                startIndex,
+                endIndex,
+                totalCount,
+                inMemoryCount,
+            )
+        }
+    }
 
     @Composable
     fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)
@@ -1630,30 +1768,6 @@ private object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
-private val formatterCache = AtomicReference<Pair<Locale, DateTimeFormatter>?>(null)
-
-private fun timeFormatterFor(locale: Locale): DateTimeFormatter {
-    formatterCache.get()?.takeIf { it.first == locale }?.let { return it.second }
-    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm:ss a", locale)
-    formatterCache.set(locale to formatter)
-    return formatter
-}
-
-@Composable
-private fun rememberTimeFormatter(): DateTimeFormatter {
-    val configuration = LocalConfiguration.current
-    val locale = remember(configuration) {
-        configuration.locales[0] ?: Locale.getDefault()
-    }
-    return remember(locale) { timeFormatterFor(locale) }
-}
-
-private fun formatInstant(instant: Instant, formatter: DateTimeFormatter): String {
-    val zonedDateTime = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
-        .atZone(ZoneId.systemDefault())
-    return formatter.format(zonedDateTime)
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun EventListPreview() {
@@ -1745,6 +1859,7 @@ private fun EventListPreview() {
             onSelectAll = {},
             onUnselectAll = {},
             onDeleteSelected = {},
+            onLoadMore = {},
             onThemeModeChange = {},
             onShuffleThemeRequest = {}
         )
