@@ -17,18 +17,23 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
 
     fun start() {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
-        emitDisplay(if (pm.isInteractive) "display.on" else "display.off")
+        emitDisplay(if (pm.isInteractive) SourceEventTypes.DISPLAY_ON else SourceEventTypes.DISPLAY_OFF)
         cm.registerNetworkCallback(
             NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
             object: ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { emitWifiIfAny("network.wifi.connect") }
-                override fun onLost(network: Network) { emitWifiIfAny("network.wifi.disconnect") }
+                override fun onAvailable(network: Network) { emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_CONNECT) }
+                override fun onLost(network: Network) { emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT) }
             }
         )
     }
 
     private fun emitDisplay(type: String) {
         val now = Clock.System.now()
+        val action = when (type) {
+            SourceEventTypes.DISPLAY_ON -> "on"
+            SourceEventTypes.DISPLAY_OFF -> "off"
+            else -> type.substringAfterLast('.')
+        }
         app.ingest.submit(RawEvent(
             EventEntity(
                 eventId = Ulids.newUlid(),
@@ -37,7 +42,7 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
                 deviceId = "android:device",
                 eventType = type,
                 eventCategory = "display",
-                eventAction = if (type.endsWith("on")) "on" else "off",
+                eventAction = action,
                 subjectEntity = "display",
                 tsStart = now,
                 api = "PowerManager"

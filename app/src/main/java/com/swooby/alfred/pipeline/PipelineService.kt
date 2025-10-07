@@ -15,9 +15,11 @@ import com.swooby.alfred.R
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
-import com.swooby.alfred.sources.NotifSvc
+import com.swooby.alfred.sources.NotificationsSource
+import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.tts.FooTextToSpeech
+import com.swooby.alfred.util.FooLog
 import com.swooby.alfred.util.hasNotificationListenerAccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,10 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 
 class PipelineService : Service() {
+    companion object {
+        private val TAG = FooLog.TAG(PipelineService::class.java)
+    }
+
     private val app by lazy { application as AlfredApp }
     private lateinit var tts: FooTextToSpeech
     private lateinit var sysSources: SystemSources
@@ -44,12 +50,13 @@ class PipelineService : Service() {
         sysSources.start()
 
         // 🔒 Only start media session source if we have notification-listener access
-        val hasAccess = hasNotificationListenerAccess(this, NotifSvc::class.java)
+        val hasAccess = hasNotificationListenerAccess(this, NotificationsSource::class.java)
         if (hasAccess) {
             try {
-                app.mediaSource.start()
+                app.mediaSource.start("$TAG.onCreate")
             } catch (se: SecurityException) {
                 // Access might have been revoked between check and start; keep running without media source
+                FooLog.w(TAG, "onCreate: SecurityException", se)
             }
         } else {
             // Update foreground notification to include an action to enable access
@@ -65,6 +72,20 @@ class PipelineService : Service() {
         // Ingest → rules → summary → TTS + Room
         scope.launch {
             app.ingest.out.collect { ev ->
+                val component = ev.component
+                if (component == SourceComponentIds.NOTIFICATION_SOURCE && ev.subjectEntityId != null) {
+                    val alreadyStored = app.db.events().existsNotification(
+                        userId = ev.userId,
+                        component = component,
+                        subjectEntityId = ev.subjectEntityId,
+                        tsStart = ev.tsStart
+                    )
+                    if (alreadyStored) {
+                        FooLog.d(TAG, "#PIPELINE skip duplicate ${SourceComponentIds.NOTIFICATION_SOURCE} event subjectId=${ev.subjectEntityId} tsStart=${ev.tsStart}")
+                        return@collect
+                    }
+                }
+
                 app.db.events().insert(ev)
                 val decision = app.rules.decide(
                     e = ev,
@@ -85,7 +106,10 @@ class PipelineService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        app.mediaSource.stop(); tts.stop(); scope.cancel(); super.onDestroy()
+        app.mediaSource.stop("PipelineService.onCreate")
+        tts.stop()
+        scope.cancel()
+        super.onDestroy()
     }
 
     override fun onBind(p0: Intent?): IBinder? = null

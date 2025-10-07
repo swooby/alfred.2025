@@ -30,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
+import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.ui.theme.AlfredTheme
 
 @Composable
@@ -174,7 +175,17 @@ private fun SettingsContent_Preview() {
     var quietStart by remember { mutableStateOf("22:00") }
     var quietEnd by remember { mutableStateOf("07:00") }
     var disabledAppsCsv by remember { mutableStateOf("com.reddit.frontpage,com.twitter.android") }
-    var enabledTypesCsv by remember { mutableStateOf("media.start,media.stop,notif.post,display.on,display.off") }
+    var enabledTypesCsv by remember {
+        mutableStateOf(
+            listOf(
+                SourceEventTypes.MEDIA_START,
+                SourceEventTypes.MEDIA_STOP,
+                SourceEventTypes.NOTIFICATION_POST,
+                SourceEventTypes.DISPLAY_ON,
+                SourceEventTypes.DISPLAY_OFF
+            ).joinToString(",")
+        )
+    }
     var speakScreenOff by remember { mutableStateOf(false) }
 
     AlfredTheme {

@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,22 +31,28 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,36 +79,58 @@ import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.sources.SourceComponentIds
+import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.settings.ThemeMode
 import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Instant
+
+private const val LOAD_MORE_PREFETCH_THRESHOLD = 20
 
 @Composable
 fun EventListScreen(
@@ -108,14 +138,15 @@ fun EventListScreen(
     userInitials: String,
     themeMode: ThemeMode,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onLoadMore: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onShuffleThemeRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -131,19 +162,7 @@ fun EventListScreen(
     }
 
     val colorScheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(
-        colorScheme.surface,
-        colorScheme.primaryContainer,
-        colorScheme.background
-    ) {
-        Brush.verticalGradient(
-            colors = listOf(
-                colorScheme.surface,
-                colorScheme.primaryContainer.copy(alpha = 0.35f),
-                colorScheme.background
-            )
-        )
-    }
+    val backgroundColor = colorScheme.surface
 
     BackHandler(enabled = drawerState.isOpen) {
         coroutineScope.launch { drawerState.close() }
@@ -167,7 +186,8 @@ fun EventListScreen(
                     )
                     DrawerThemeModeSection(
                         selectedMode = themeMode,
-                        onThemeModeChange = onThemeModeChange
+                        onThemeModeChange = onThemeModeChange,
+                        onShuffleThemeRequest = onShuffleThemeRequest
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerSettings) },
@@ -189,14 +209,13 @@ fun EventListScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundBrush)
+                .background(backgroundColor)
         ) {
             EventListScaffold(
                 state = state,
                 userInitials = userInitials,
                 snackbarHostState = snackbarHostState,
                 onQueryChange = onQueryChange,
-                onRefresh = onRefresh,
                 onMenuClick = {
                     coroutineScope.launch { drawerState.open() }
                 },
@@ -207,10 +226,11 @@ fun EventListScreen(
                 onSelectAll = onSelectAll,
                 onUnselectAll = onUnselectAll,
                 onDeleteSelected = {
-                    if (!state.isPerformingAction && state.selectedEventIds.isNotEmpty()) {
+                    if (!state.isPerformingAction && state.totalSelectionCount > 0) {
                         showDeleteSelectedDialog = true
                     }
                 },
+                onLoadMore = onLoadMore,
                 onEventSelectionChange = { event, isSelected ->
                     onEventSelectionChange(event.eventId, isSelected)
                 },
@@ -231,7 +251,7 @@ fun EventListScreen(
     if (showDeleteSelectedDialog) {
         ActionConfirmDialog(
             title = LocalizedStrings.deleteSelectedDialogTitle,
-            message = LocalizedStrings.deleteSelectedDialogMessage(state.selectedEventIds.size),
+            message = LocalizedStrings.deleteSelectedDialogMessage(state.totalSelectionCount),
             confirmLabel = LocalizedStrings.dialogDelete,
             dismissLabel = LocalizedStrings.dialogCancel,
             onDismiss = { showDeleteSelectedDialog = false },
@@ -248,6 +268,7 @@ fun EventListScreen(
 private fun DrawerThemeModeSection(
     selectedMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onShuffleThemeRequest: () -> Unit,
 ) {
     Spacer(modifier = Modifier.height(12.dp))
     Row(
@@ -262,12 +283,19 @@ private fun DrawerThemeModeSection(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         val options = remember {
             listOf(
-                ThemeMode.DARK,
                 ThemeMode.LIGHT,
                 ThemeMode.SYSTEM,
+                ThemeMode.DARK,
             )
         }
         SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
@@ -290,6 +318,12 @@ private fun DrawerThemeModeSection(
                 }
             }
         }
+        IconButton(onClick = onShuffleThemeRequest) {
+            Icon(
+                imageVector = Icons.Outlined.Shuffle,
+                contentDescription = LocalizedStrings.shuffleThemeContentDescription
+            )
+        }
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
@@ -300,19 +334,33 @@ private fun EventListScaffold(
     userInitials: String,
     snackbarHostState: SnackbarHostState,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
+    onLoadMore: () -> Unit,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val actionsEnabled = !state.isPerformingAction
+    val listState = rememberLazyListState()
+    val visibleRange by remember(listState, state.visibleEvents.size) {
+        derivedStateOf {
+            val visibleIndices = listState.layoutInfo.visibleItemsInfo
+                .mapNotNull { info ->
+                    info.index.takeIf { index ->
+                        index >= 0 && index < state.visibleEvents.size
+                    }
+                }
+            val first = visibleIndices.minOrNull() ?: return@derivedStateOf null
+            val last = visibleIndices.maxOrNull() ?: return@derivedStateOf null
+            IntRange(first, last)
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -323,13 +371,18 @@ private fun EventListScaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             AnimatedVisibility(visible = state.selectionMode) {
-                val visibleSelectedCount = state.visibleEvents.count { event ->
-                    state.selectedEventIds.contains(event.eventId)
+                val visibleSelectedCount = if (state.isAllSelected) {
+                    state.visibleEvents.size
+                } else {
+                    state.visibleEvents.count { event ->
+                        state.selectedEventIds.contains(event.eventId)
+                    }
                 }
                 SelectionBottomBar(
-                    selectedCount = state.selectedEventIds.size,
+                    selectedCount = state.totalSelectionCount,
                     visibleCount = state.visibleEvents.size,
                     visibleSelectedCount = visibleSelectedCount,
+                    allSelected = state.isAllSelected,
                     onSelectAll = onSelectAll,
                     onUnselectAll = onUnselectAll,
                     onDeleteSelected = onDeleteSelected,
@@ -346,11 +399,12 @@ private fun EventListScaffold(
         ) {
             EventListHeader(
                 query = state.query,
+                totalEventCount = state.totalEventCount,
+                inMemoryCount = state.visibleEvents.size,
+                visibleRange = visibleRange,
                 isRefreshing = state.isLoading,
                 userInitials = userInitials,
-                lastUpdated = state.lastUpdated,
                 onQueryChange = onQueryChange,
-                onRefresh = onRefresh,
                 onMenuClick = onMenuClick,
                 onAvatarClick = onAvatarClick
             )
@@ -375,6 +429,8 @@ private fun EventListScaffold(
                 actionsEnabled = actionsEnabled,
                 onEventSelectionChange = onEventSelectionChange,
                 onEventLongPress = onEventLongPress,
+                listState = listState,
+                onLoadMore = onLoadMore,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f, fill = true)
@@ -386,52 +442,36 @@ private fun EventListScaffold(
 @Composable
 private fun EventListHeader(
     query: String,
+    totalEventCount: Int,
+    inMemoryCount: Int,
+    visibleRange: IntRange?,
     isRefreshing: Boolean,
     userInitials: String,
-    lastUpdated: Instant?,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
     onAvatarClick: () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val headerShape = RoundedCornerShape(28.dp)
-    val headerBrush = remember(
-        colorScheme.primaryContainer,
-        colorScheme.secondaryContainer,
-        colorScheme.tertiaryContainer
-    ) {
-        Brush.linearGradient(
-            colors = listOf(
-                colorScheme.primaryContainer.copy(alpha = 0.9f),
-                colorScheme.secondaryContainer.copy(alpha = 0.85f),
-                colorScheme.tertiaryContainer.copy(alpha = 0.9f)
-            )
-        )
+    val headerContainerColor = remember(colorScheme.primaryContainer) {
+        colorScheme.primaryContainer
     }
-    val headerBackgroundLuminance = remember(
-        colorScheme.primaryContainer,
-        colorScheme.secondaryContainer,
-        colorScheme.tertiaryContainer
-    ) {
-        val colors = listOf(
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
-            colorScheme.tertiaryContainer
-        )
-        colors.fold(0f) { total, color -> total + color.luminance() } / colors.size
-    }
-    val isHeaderBackgroundLight = headerBackgroundLuminance > 0.5f
-    val headerContentColor = Color.White
+    val isHeaderBackgroundLight = headerContainerColor.luminance() > 0.5f
+    val headerContentColor = colorScheme.onPrimaryContainer
     val outlineColor = if (isHeaderBackgroundLight) {
-        colorScheme.primary.copy(alpha = 0.12f)
+        colorScheme.primary.copy(alpha = 0.18f)
     } else {
-        headerContentColor.copy(alpha = 0.2f)
+        colorScheme.onPrimaryContainer.copy(alpha = 0.28f)
     }
     val searchContainerColor = if (isHeaderBackgroundLight) {
-        Color.White.copy(alpha = 0.92f)
+        colorScheme.surfaceColorAtElevation(2.dp)
     } else {
-        Color.White.copy(alpha = 0.18f)
+        colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
+    }
+    val avatarBackgroundColor = if (isHeaderBackgroundLight) {
+        colorScheme.primary.copy(alpha = 0.16f)
+    } else {
+        colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
     }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -443,7 +483,7 @@ private fun EventListHeader(
             modifier = Modifier
                 .padding(start = 8.dp, end = 8.dp, top = statusBarPadding + 8.dp, bottom = 8.dp)
                 .clip(headerShape)
-                .background(headerBrush)
+                .background(headerContainerColor)
                 .border(width = 1.dp, color = outlineColor, shape = headerShape)
         ) {
             Column(
@@ -483,11 +523,28 @@ private fun EventListHeader(
                             fontWeight = FontWeight.SemiBold,
                             color = headerContentColor
                         )
+                        Text(
+                            text = visibleRange?.let { range ->
+                                val start = (range.first + 1).coerceAtLeast(1)
+                                val end = (range.last + 1).coerceAtLeast(start)
+                                LocalizedStrings.totalCountDetailsWithRange(
+                                    startIndex = start,
+                                    endIndex = end,
+                                    totalCount = totalEventCount,
+                                    inMemoryCount = inMemoryCount,
+                                )
+                            } ?: LocalizedStrings.totalCountDetails(
+                                totalCount = totalEventCount,
+                                inMemoryCount = inMemoryCount
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = headerContentColor.copy(alpha = 0.7f)
+                        )
                     }
                     Avatar(
                         initials = userInitials,
                         onClick = onAvatarClick,
-                        backgroundColor = Color.White.copy(alpha = if (isHeaderBackgroundLight) 0.65f else 0.24f),
+                        backgroundColor = avatarBackgroundColor,
                         contentColor = headerContentColor
                     )
                 }
@@ -496,20 +553,9 @@ private fun EventListHeader(
                     query = query,
                     isRefreshing = isRefreshing,
                     onQueryChange = onQueryChange,
-                    onRefresh = onRefresh,
                     containerColor = searchContainerColor,
                     contentColor = headerContentColor
                 )
-
-                lastUpdated?.let { instant ->
-                    Text(
-                        text = LocalizedStrings.lastUpdatedLabel(formatInstant(instant)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = headerContentColor.copy(alpha = 0.7f),
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
         }
     }
@@ -520,7 +566,6 @@ private fun SearchField(
     query: String,
     isRefreshing: Boolean,
     onQueryChange: (String) -> Unit,
-    onRefresh: () -> Unit,
     containerColor: Color? = null,
     contentColor: Color? = null,
 ) {
@@ -552,14 +597,6 @@ private fun SearchField(
                     strokeWidth = 2.dp,
                     color = fieldContentColor
                 )
-            } else {
-                IconButton(onClick = onRefresh) {
-                    Icon(
-                        imageVector = Icons.Outlined.Refresh,
-                        contentDescription = LocalizedStrings.refreshContentDescription,
-                        tint = fieldContentColor
-                    )
-                }
             }
         },
         singleLine = true,
@@ -617,6 +654,8 @@ private fun EventListContent(
     actionsEnabled: Boolean,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
+    listState: LazyListState,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (state.visibleEvents.isEmpty()) {
@@ -624,23 +663,35 @@ private fun EventListContent(
         return
     }
 
+    val shouldLoadMore = remember(listState, state.visibleEvents, state.canLoadMore, state.isLoadingMore) {
+        derivedStateOf {
+            if (!state.canLoadMore || state.isLoadingMore) return@derivedStateOf false
+            if (state.visibleEvents.isEmpty()) return@derivedStateOf false
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@derivedStateOf false
+            val triggerIndex = (state.visibleEvents.lastIndex - LOAD_MORE_PREFETCH_THRESHOLD).coerceAtLeast(0)
+            lastVisibleIndex >= triggerIndex
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        snapshotFlow { shouldLoadMore.value }
+            .distinctUntilChanged()
+            .collect { canLoad ->
+                if (canLoad) {
+                    onLoadMore()
+                }
+            }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding(),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(3.dp),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
     ) {
-        item {
-            Text(
-                text = LocalizedStrings.timelineTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
         itemsIndexed(state.visibleEvents) { index, event ->
             val isSelected = state.selectedEventIds.contains(event.eventId)
             TimelineEventRow(
@@ -655,6 +706,23 @@ private fun EventListContent(
                 onLongPress = { onEventLongPress(event) },
                 actionsEnabled = actionsEnabled
             )
+        }
+
+        if (state.isLoadingMore) {
+            item("loading_more_indicator") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
         }
 
         item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -819,6 +887,7 @@ private fun SelectionBottomBar(
     selectedCount: Int,
     visibleCount: Int,
     visibleSelectedCount: Int,
+    allSelected: Boolean,
     onSelectAll: () -> Unit,
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
@@ -859,8 +928,8 @@ private fun SelectionBottomBar(
                 overflow = TextOverflow.Ellipsis
             )
             TextButton(
-                onClick = if (allVisibleSelected) onUnselectAll else onSelectAll,
-                enabled = actionsEnabled && hasVisibleEvents,
+                onClick = if (allSelected || allVisibleSelected) onUnselectAll else onSelectAll,
+                enabled = actionsEnabled && (hasVisibleEvents || allSelected),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
             ) {
                 Row(
@@ -871,7 +940,7 @@ private fun SelectionBottomBar(
                         imageVector = Icons.Outlined.SelectAll,
                         contentDescription = null
                     )
-                    val label = if (allVisibleSelected) {
+                    val label = if (allSelected || allVisibleSelected) {
                         LocalizedStrings.unselectAllLabel
                     } else {
                         LocalizedStrings.selectAllLabel
@@ -935,152 +1004,7 @@ private fun ActionConfirmDialog(
     )
 }
 
-@Composable
-private fun EventCard(
-    event: EventEntity,
-    isSelected: Boolean,
-    actionsEnabled: Boolean,
-    onClick: (() -> Unit)?,
-    onLongPress: (() -> Unit)?,
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    val cardShape = RoundedCornerShape(24.dp)
-    val cardBrush = remember(
-        colorScheme.surface,
-        colorScheme.secondaryContainer,
-        colorScheme.primaryContainer,
-        isSelected
-    ) {
-        Brush.verticalGradient(
-            colors = listOf(
-                colorScheme.surfaceColorAtElevation(4.dp),
-                if (isSelected) {
-                    colorScheme.primaryContainer.copy(alpha = 0.75f)
-                } else {
-                    colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                }
-            )
-        )
-    }
-    val borderColor = remember(colorScheme.primary, isSelected) {
-        if (isSelected) {
-            colorScheme.primary.copy(alpha = 0.4f)
-        } else {
-            colorScheme.primary.copy(alpha = 0.12f)
-        }
-    }
-    val clickableModifier = if (onClick != null || onLongPress != null) {
-        val interactionSource = remember { MutableInteractionSource() }
-        Modifier.combinedClickable(
-            enabled = actionsEnabled,
-            interactionSource = interactionSource,
-            indication = ripple(bounded = true),
-            onClick = { onClick?.invoke() },
-            onLongClick = onLongPress
-        )
-    } else {
-        Modifier
-    }
-
-    Box(
-        modifier = modifier
-            .then(clickableModifier)
-            .clip(cardShape)
-            .background(cardBrush)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = cardShape
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = event.subjectEntity,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (event.eventAction.isNotBlank()) {
-                        Text(
-                            text = event.eventAction,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SuggestionChip(
-                    onClick = {},
-                    label = { Text(text = event.eventCategory) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = colorScheme.tertiaryContainer,
-                        labelColor = colorScheme.onTertiaryContainer
-                    )
-                )
-                Text(
-                    text = LocalizedStrings.eventTimestampLabel(formatInstant(event.tsStart)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant
-                )
-            }
-
-            if (event.tags.isNotEmpty()) {
-                val previewTags = event.tags.take(4)
-                val tagLine = buildString {
-                    append(previewTags.joinToString(separator = ", "))
-                    if (event.tags.size > previewTags.size) {
-                        append(", …")
-                    }
-                }
-                Text(
-                    text = LocalizedStrings.tagsLabel(tagLine),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.secondary
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = LocalizedStrings.eventTypeLabel(event.eventType),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorScheme.primary
-                )
-                event.subjectEntityId?.let {
-                    Text(
-                        text = LocalizedStrings.entityIdLabel(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-private object LocalizedStrings {
+internal object LocalizedStrings {
     val drawerTitle: String
         @Composable get() = stringResource(R.string.event_list_drawer_title)
 
@@ -1099,11 +1023,11 @@ private object LocalizedStrings {
     val themeModeSystem: String
         @Composable get() = stringResource(R.string.event_list_theme_mode_system)
 
+    val shuffleThemeContentDescription: String
+        @Composable get() = stringResource(R.string.event_list_theme_shuffle_cd)
+
     val menuContentDescription: String
         @Composable get() = stringResource(R.string.event_list_menu_cd)
-
-    val refreshContentDescription: String
-        @Composable get() = stringResource(R.string.event_list_refresh_cd)
 
     val avatarContentDescription: String
         @Composable get() = stringResource(R.string.event_list_avatar_cd)
@@ -1117,8 +1041,80 @@ private object LocalizedStrings {
     val headerTitle: String
         @Composable get() = stringResource(R.string.event_list_header_title)
 
-    val timelineTitle: String
-        @Composable get() = stringResource(R.string.event_list_timeline_title)
+    val componentMediaSession: String
+        @Composable get() = stringResource(R.string.event_list_component_media_session)
+    val componentNotification: String
+        @Composable get() = stringResource(R.string.event_list_component_notification)
+    val componentGeneric: String
+        @Composable get() = stringResource(R.string.event_list_component_generic)
+    val unknownApp: String
+        @Composable get() = stringResource(R.string.event_list_unknown_app)
+    val mediaUnknownTitle: String
+        @Composable get() = stringResource(R.string.event_list_media_unknown_title)
+
+    @Composable
+    fun componentLabel(component: String?): String = when (component) {
+        SourceComponentIds.MEDIA_SOURCE -> componentMediaSession
+        SourceComponentIds.NOTIFICATION_SOURCE -> componentNotification
+        null -> componentGeneric
+        else -> component.replace('_', ' ').replaceFirstChar { ch ->
+            if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+        }
+    }
+
+    @Composable
+    fun mediaPlaybackState(action: String): String {
+        val normalized = action.lowercase(Locale.getDefault())
+        return when (normalized) {
+            "start", "play", "playing" -> stringResource(R.string.event_list_media_state_start)
+            "stop", "stopped" -> stringResource(R.string.event_list_media_state_stop)
+            "pause", "paused" -> stringResource(R.string.event_list_media_state_pause)
+            "resume", "resumed" -> stringResource(R.string.event_list_media_state_resume)
+            else -> stringResource(
+                R.string.event_list_media_state_generic,
+                action.replace('_', ' ').replaceFirstChar { ch ->
+                    if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                }
+            )
+        }
+    }
+
+    @Composable
+    fun mediaPlayedDuration(duration: String): String =
+        stringResource(R.string.event_list_media_played_duration, duration)
+
+    @Composable
+    fun mediaRouteLabel(route: String): String =
+        stringResource(R.string.event_list_media_route, route)
+
+    @Composable
+    fun totalCountDetails(totalCount: Int, inMemoryCount: Int) =
+        stringResource(R.string.event_list_total_count_details, totalCount, inMemoryCount)
+
+    @Composable
+    fun totalCountDetailsWithRange(
+        startIndex: Int,
+        endIndex: Int,
+        totalCount: Int,
+        inMemoryCount: Int,
+    ): String {
+        return if (startIndex == endIndex) {
+            stringResource(
+                R.string.event_list_total_count_details_single,
+                startIndex,
+                totalCount,
+                inMemoryCount,
+            )
+        } else {
+            stringResource(
+                R.string.event_list_total_count_details_range,
+                startIndex,
+                endIndex,
+                totalCount,
+                inMemoryCount,
+            )
+        }
+    }
 
     @Composable
     fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)
@@ -1157,12 +1153,6 @@ private object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_empty_hint)
 
     @Composable
-    fun lastUpdatedLabel(value: String) = stringResource(R.string.event_list_last_updated, value)
-
-    @Composable
-    fun eventTimestampLabel(value: String) = stringResource(R.string.event_list_event_time, value)
-
-    @Composable
     fun eventTypeLabel(value: String) = stringResource(R.string.event_list_event_type, value)
 
     @Composable
@@ -1170,15 +1160,115 @@ private object LocalizedStrings {
 
     @Composable
     fun tagsLabel(value: String) = stringResource(R.string.event_list_tags, value)
-}
 
-private val TIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a", Locale.getDefault())
-
-private fun formatInstant(instant: Instant): String {
-    val zonedDateTime = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
-        .atZone(ZoneId.systemDefault())
-    return TIME_FORMATTER.format(zonedDateTime)
+    val showDetailsLabel: String
+        @Composable get() = stringResource(R.string.event_list_expand)
+    val hideDetailsLabel: String
+        @Composable get() = stringResource(R.string.event_list_collapse)
+    val labelApp: String
+        @Composable get() = stringResource(R.string.event_list_label_app)
+    val labelPackage: String
+        @Composable get() = stringResource(R.string.event_list_label_package)
+    val labelCategory: String
+        @Composable get() = stringResource(R.string.event_list_label_category)
+    val labelTemplate: String
+        @Composable get() = stringResource(R.string.event_list_label_template)
+    val labelShortcut: String
+        @Composable get() = stringResource(R.string.event_list_label_shortcut)
+    val labelLocus: String
+        @Composable get() = stringResource(R.string.event_list_label_locus)
+    val labelChannelName: String
+        @Composable get() = stringResource(R.string.event_list_label_channel_name)
+    val labelChannel: String
+        @Composable get() = stringResource(R.string.event_list_label_channel)
+    val labelImportance: String
+        @Composable get() = stringResource(R.string.event_list_label_importance)
+    val labelRank: String
+        @Composable get() = stringResource(R.string.event_list_label_rank)
+    val labelUserSentiment: String
+        @Composable get() = stringResource(R.string.event_list_label_user_sentiment)
+    val labelVisibility: String
+        @Composable get() = stringResource(R.string.event_list_label_visibility)
+    val labelUser: String
+        @Composable get() = stringResource(R.string.event_list_label_user)
+    val labelGroup: String
+        @Composable get() = stringResource(R.string.event_list_label_group)
+    val labelTimeout: String
+        @Composable get() = stringResource(R.string.event_list_label_timeout)
+    val labelTicker: String
+        @Composable get() = stringResource(R.string.event_list_label_ticker)
+    val labelConversation: String
+        @Composable get() = stringResource(R.string.event_list_label_conversation)
+    val labelPeople: String
+        @Composable get() = stringResource(R.string.event_list_label_people)
+    val labelActions: String
+        @Composable get() = stringResource(R.string.event_list_label_actions)
+    val labelIntents: String
+        @Composable get() = stringResource(R.string.event_list_label_intents)
+    val labelStyle: String
+        @Composable get() = stringResource(R.string.event_list_label_style)
+    val labelAttachments: String
+        @Composable get() = stringResource(R.string.event_list_label_attachments)
+    val labelMetrics: String
+        @Composable get() = stringResource(R.string.event_list_label_metrics)
+    val labelRefs: String
+        @Composable get() = stringResource(R.string.event_list_label_refs)
+    val labelIntegrity: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity)
+    val labelIntegrityHash: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity_hash)
+    val labelIntegrityFields: String
+        @Composable get() = stringResource(R.string.event_list_label_integrity_fields)
+    val labelFlags: String
+        @Composable get() = stringResource(R.string.event_list_label_flags)
+    val labelRawExtras: String
+        @Composable get() = stringResource(R.string.event_list_label_raw_extras)
+    val labelSubjectLines: String
+        @Composable get() = stringResource(R.string.event_list_label_subject_lines)
+    val labelEventType: String
+        @Composable get() = stringResource(R.string.event_list_label_event_type)
+    val labelEntityId: String
+        @Composable get() = stringResource(R.string.event_list_label_entity_id)
+    val labelParentId: String
+        @Composable get() = stringResource(R.string.event_list_label_parent_id)
+    val labelFingerprint: String
+        @Composable get() = stringResource(R.string.event_list_label_fingerprint)
+    val sectionSummary: String
+        @Composable get() = stringResource(R.string.event_list_section_identity)
+    val sectionContext: String
+        @Composable get() = stringResource(R.string.event_list_section_context)
+    val sectionBubble: String
+        @Composable get() = stringResource(R.string.event_list_section_bubble)
+    val sectionEvent: String
+        @Composable get() = stringResource(R.string.event_list_section_event)
+    val bubbleHeight: String
+        @Composable get() = stringResource(R.string.event_list_bubble_height)
+    val bubbleAutoExpand: String
+        @Composable get() = stringResource(R.string.event_list_bubble_auto_expand)
+    val bubbleSuppress: String
+        @Composable get() = stringResource(R.string.event_list_bubble_suppress)
+    val flagColorized: String
+        @Composable get() = stringResource(R.string.event_list_flag_colorized)
+    val flagOnlyAlertOnce: String
+        @Composable get() = stringResource(R.string.event_list_flag_only_alert_once)
+    val flagOngoing: String
+        @Composable get() = stringResource(R.string.event_list_flag_ongoing)
+    val flagClearable: String
+        @Composable get() = stringResource(R.string.event_list_flag_clearable)
+    val flagUnclearable: String
+        @Composable get() = stringResource(R.string.event_list_flag_unclearable)
+    val flagGroupSummary: String
+        @Composable get() = stringResource(R.string.event_list_flag_group_summary)
+    val flagShowWhen: String
+        @Composable get() = stringResource(R.string.event_list_flag_show_when)
+    val flagAmbient: String
+        @Composable get() = stringResource(R.string.event_list_flag_ambient)
+    val flagSuspended: String
+        @Composable get() = stringResource(R.string.event_list_flag_suspended)
+    val flagBadge: String
+        @Composable get() = stringResource(R.string.event_list_flag_badge)
+    val flagConversation: String
+        @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
 @Preview(showBackground = true)
@@ -1194,19 +1284,102 @@ private fun EventListPreview() {
             eventCategory = "Inbox",
             eventAction = "Received new message",
             subjectEntity = "Email",
+            subjectEntityId = "com.mail:42",
             tsStart = now,
-            tags = listOf("priority", "gmail")
+            tags = listOf("priority", "gmail"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Mail"))
+                    put("packageName", JsonPrimitive("com.mail"))
+                })
+                put("subject", buildJsonObject {
+                    put("title", JsonPrimitive("Project Apollo"))
+                    put("text", JsonPrimitive("New update from Alex"))
+                    put("conversationTitle", JsonPrimitive("Team chat"))
+                })
+                put("context", buildJsonObject {
+                    put("category", JsonPrimitive("email"))
+                    put("channelId", JsonPrimitive("inbox"))
+                    put("rankingInfo", buildJsonObject {
+                        put("importance", JsonPrimitive(4))
+                        put("isConversation", JsonPrimitive(true))
+                    })
+                })
+                put("traits", buildJsonObject {
+                    put("template", JsonPrimitive("MessagingStyle"))
+                    put("people", buildJsonArray {
+                        add(buildJsonObject { put("name", JsonPrimitive("Alex")) })
+                    })
+                    put("actions", buildJsonArray {
+                        add(buildJsonObject { put("title", JsonPrimitive("Reply")) })
+                        add(buildJsonObject { put("title", JsonPrimitive("Mark read")) })
+                    })
+                })
+                put("refs", buildJsonObject {
+                    put("key", JsonPrimitive("notification-key"))
+                    put("user", JsonPrimitive("UserHandle{0}"))
+                })
+                put("subjectLines", buildJsonArray {
+                    add(JsonPrimitive("Latest update includes timeline adjustments."))
+                })
+            },
+            metrics = buildJsonObject {
+                put("actionsCount", JsonPrimitive(2))
+                put("peopleCount", JsonPrimitive(1))
+            }
         ),
         EventEntity(
             eventId = "evt-2",
             userId = "u_local",
             deviceId = "pixel-9",
+            appPkg = "com.spotify.music",
+            component = SourceComponentIds.MEDIA_SOURCE,
+            eventType = SourceEventTypes.MEDIA_STOP,
+            eventCategory = "media",
+            eventAction = "stop",
+            subjectEntity = "track",
+            tsStart = now,
+            tsEnd = now,
+            tags = listOf("music"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Spotify"))
+                    put("packageName", JsonPrimitive("com.spotify.music"))
+                })
+                put("title", JsonPrimitive("Beyond the Sun"))
+                put("artist", JsonPrimitive("Valentina Miras"))
+                put("album", JsonPrimitive("Starlight Echoes"))
+                put("source_app", JsonPrimitive("com.spotify.music"))
+                put("output_route", JsonPrimitive("Pixel Buds"))
+            },
+            metrics = buildJsonObject {
+                put("played_ms", JsonPrimitive(192000))
+            }
+        ),
+        EventEntity(
+            eventId = "evt-3",
+            userId = "u_local",
+            deviceId = "pixel-9",
+            appPkg = "com.phone",
+            component = "call_log",
             eventType = "call",
             eventCategory = "Communications",
             eventAction = "Missed call",
             subjectEntity = "Carol Micek",
             tsStart = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() - 3_600_000),
-            tags = listOf("work")
+            tags = listOf("work"),
+            attributes = buildJsonObject {
+                put("actor", buildJsonObject {
+                    put("appLabel", JsonPrimitive("Dialer"))
+                    put("packageName", JsonPrimitive("com.phone"))
+                })
+                put("context", buildJsonObject {
+                    put("category", JsonPrimitive("call"))
+                    put("rankingInfo", buildJsonObject {
+                        put("importance", JsonPrimitive(3))
+                    })
+                })
+            }
         )
     )
 
@@ -1220,14 +1393,15 @@ private fun EventListPreview() {
             userInitials = "A",
             themeMode = ThemeMode.SYSTEM,
             onQueryChange = {},
-            onRefresh = {},
             onNavigateToSettings = {},
             onSelectionModeChange = {},
             onEventSelectionChange = { _, _ -> },
             onSelectAll = {},
             onUnselectAll = {},
             onDeleteSelected = {},
-            onThemeModeChange = {}
+            onLoadMore = {},
+            onThemeModeChange = {},
+            onShuffleThemeRequest = {}
         )
     }
 }

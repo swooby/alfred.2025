@@ -5,7 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
 import com.swooby.alfred.pipeline.PipelineService
-import com.swooby.alfred.sources.NotifSvc
+import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.ui.events.EventListActivity
 import com.swooby.alfred.ui.permissions.PermissionsActivity
 import com.swooby.alfred.util.hasNotificationListenerAccess
@@ -23,7 +23,7 @@ class LauncherActivity : ComponentActivity() {
 
         val hasEssentials =
             isNotificationPermissionGranted(this) &&
-                hasNotificationListenerAccess(this, NotifSvc::class.java)
+                hasNotificationListenerAccess(this, NotificationsSource::class.java)
 
         val nextIntent = if (hasEssentials) {
             ContextCompat.startForegroundService(

@@ -21,7 +21,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import com.swooby.alfred.R
-import com.swooby.alfred.sources.NotifSvc
+import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.util.*
 
 @Composable
@@ -32,7 +32,7 @@ fun PermissionsScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     // --- status state ---
-    var notifGranted by remember {
+    var notificationPermissionGranted by remember {
         mutableStateOf(
             isNotificationPermissionGranted(ctx)
         )
@@ -41,24 +41,24 @@ fun PermissionsScreen(
         mutableStateOf(
             hasNotificationListenerAccess(
                 ctx,
-                NotifSvc::class.java
+                NotificationsSource::class.java
             )
         )
     }
     var ignoringDoze by remember { mutableStateOf(isIgnoringBatteryOptimizations(ctx)) }
 
     fun refreshAll() {
-        notifGranted = isNotificationPermissionGranted(ctx)
-        listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
+        notificationPermissionGranted = isNotificationPermissionGranted(ctx)
+        listenerGranted = hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
         ignoringDoze = isIgnoringBatteryOptimizations(ctx)
     }
 
     // --- runtime POST_NOTIFICATIONS launcher (unchanged) ---
-    val notifPermLauncher = rememberLauncherForActivityResult(
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         // Some OEMs return false positives; re-check authoritative state.
-        notifGranted = granted || isNotificationPermissionGranted(ctx)
+        notificationPermissionGranted = granted || isNotificationPermissionGranted(ctx)
     }
 
     // ✅ 1) Observe the secure setting for enabled notification listeners
@@ -67,7 +67,7 @@ fun PermissionsScreen(
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 // this fires when user toggles access in Settings
-                listenerGranted = hasNotificationListenerAccess(ctx, NotifSvc::class.java)
+                listenerGranted = hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
             }
         }
         ctx.contentResolver.registerContentObserver(uri, /*notifyForDescendants=*/false, observer)
@@ -87,6 +87,7 @@ fun PermissionsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
@@ -98,7 +99,7 @@ fun PermissionsScreen(
         PermissionCard(
             title = stringResource(R.string.permissions_post_notifications_title),
             description = stringResource(R.string.permissions_post_notifications_description),
-            granted = notifGranted,
+            granted = notificationPermissionGranted,
             actionLabel = if (Build.VERSION.SDK_INT >= 33) {
                 stringResource(R.string.permissions_action_grant)
             } else {
@@ -106,7 +107,7 @@ fun PermissionsScreen(
             },
             onClick = {
                 if (Build.VERSION.SDK_INT >= 33) {
-                    notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
                     ctx.startActivity(intentAppNotificationSettings(ctx))
                 }
@@ -130,7 +131,7 @@ fun PermissionsScreen(
             optional = true
         )
 
-        val essentialsGranted = notifGranted && listenerGranted
+        val essentialsGranted = notificationPermissionGranted && listenerGranted
         Button(
             enabled = essentialsGranted,
             onClick = onEssentialsGranted,

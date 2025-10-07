@@ -28,12 +28,15 @@ interface EventDao {
     )
     suspend fun clearAllForUser(userId: String)
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM events
-        WHERE userId = :userId AND tsStart BETWEEN :fromTs AND :toTs
-        ORDER BY tsStart DESC
+        WHERE userId = :userId
+          AND COALESCE(ingestAt, tsStart) BETWEEN :fromTs AND :toTs
+        ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-    """)
+        """
+    )
     suspend fun listByTime(
         userId: String,
         fromTs: Instant,
@@ -41,15 +44,42 @@ interface EventDao {
         limit: Int = 500
     ): List<EventEntity>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM events
-        WHERE userId = :userId AND tsStart >= :fromTs
-        ORDER BY tsStart DESC
+        WHERE userId = :userId
+        ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-    """)
+        """
+    )
     fun observeRecent(
         userId: String,
-        fromTs: Instant,
         limit: Int = 500
     ): Flow<List<EventEntity>>
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM events
+            WHERE userId = :userId
+              AND component = :component
+              AND subjectEntityId = :subjectEntityId
+              AND tsStart = :tsStart
+        )
+        """
+    )
+    suspend fun existsNotification(
+        userId: String,
+        component: String,
+        subjectEntityId: String,
+        tsStart: Instant
+    ): Boolean
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM events
+        WHERE userId = :userId
+        """
+    )
+    fun observeCount(userId: String): Flow<Long>
 }

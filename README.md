@@ -24,6 +24,6 @@ or possibly make this project eventually better than Alfred2017.
 * `SpeakerImpl` does not appear to be initializing correctly;
   `onInit` is never called and `ready` is always false.  
   https://github.com/swooby/alfred.2025/pull/6
-* If all essential permissions (`val essentialsOk = notifGranted && listenerGranted`) are granted
+* If all essential permissions (`val essentialsOk = notificationPermissionGranted && listenerGranted`) are granted
   then don't show `PermissionsScreen`, go straight to [for now] `SettingsScreen`:  
   https://github.com/swooby/alfred.2025/pull/4

@@ -10,11 +10,16 @@ import com.swooby.alfred.core.summary.TemplatedSummaryGenerator
 import com.swooby.alfred.data.AlfredDb
 import com.swooby.alfred.settings.SettingsRepository
 import com.swooby.alfred.sources.MediaSessionsSource
+import com.swooby.alfred.util.FooLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class AlfredApp : Application() {
+    companion object {
+        private val TAG = FooLog.TAG(AlfredApp::class.java)
+    }
+
     lateinit var appScope: CoroutineScope
     lateinit var db: AlfredDb
     lateinit var ingest: EventIngest
@@ -24,6 +29,7 @@ class AlfredApp : Application() {
     lateinit var mediaSource: MediaSessionsSource
 
     override fun onCreate() {
+        FooLog.v(TAG, "+onCreate()")
         super.onCreate()
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         db = AlfredDb.open(this)
@@ -32,5 +38,6 @@ class AlfredApp : Application() {
         summarizer = TemplatedSummaryGenerator()
         settings = SettingsRepository(this)
         mediaSource = MediaSessionsSource(this, this)
+        FooLog.v(TAG, "-onCreate()")
     }
 }

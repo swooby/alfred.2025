@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.swooby.alfred.core.rules.QuietHours
 import com.swooby.alfred.core.rules.RateLimit
 import com.swooby.alfred.core.rules.RulesConfig
+import com.swooby.alfred.sources.SourceEventTypes
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalTime
@@ -22,8 +23,17 @@ class SettingsRepository(private val app: Context) {
         val DISABLED_APPS = stringPreferencesKey("disabled_apps_csv")
         val ENABLED_TYPES = stringPreferencesKey("enabled_types_csv")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val THEME_SEED = stringPreferencesKey("theme_seed_argb")
     }
-    private val defaultEnabled = setOf("media.start","media.stop","notif.post","display.on","display.off","network.wifi.connect","network.wifi.disconnect")
+    private val defaultEnabled = setOf(
+        SourceEventTypes.MEDIA_START,
+        SourceEventTypes.MEDIA_STOP,
+        SourceEventTypes.NOTIFICATION_POST,
+        SourceEventTypes.DISPLAY_ON,
+        SourceEventTypes.DISPLAY_OFF,
+        SourceEventTypes.NETWORK_WIFI_CONNECT,
+        SourceEventTypes.NETWORK_WIFI_DISCONNECT
+    )
     val rulesConfigFlow: Flow<RulesConfig> =
         app.settingsDataStore.data.map { p ->
             val speakOff = p[K.SPEAK_SCREEN_OFF_ONLY] ?: false
@@ -32,13 +42,27 @@ class SettingsRepository(private val app: Context) {
             val quiet = if (qs.isNotEmpty() && qe.isNotEmpty()) QuietHours(LocalTime.parse(qs), LocalTime.parse(qe)) else null
             val disabledApps = (p[K.DISABLED_APPS] ?: "").split(',').mapNotNull { it.trim().ifEmpty { null } }.toSet()
             val enabledTypes = (p[K.ENABLED_TYPES] ?: defaultEnabled.joinToString(",")).split(',').mapNotNull { it.trim().ifEmpty { null } }.toSet()
-            RulesConfig(enabledTypes, disabledApps, quiet, speakOff, listOf(RateLimit("media.start",30,4), RateLimit("notif.post",10,6)))
+            RulesConfig(
+                enabledTypes,
+                disabledApps,
+                quiet,
+                speakOff,
+                listOf(
+                    RateLimit(SourceEventTypes.MEDIA_START, perSeconds = 30, maxEvents = 4),
+                    RateLimit(SourceEventTypes.NOTIFICATION_POST, perSeconds = 10, maxEvents = 6)
+                )
+            )
         }
 
-    val themeModeFlow: Flow<ThemeMode> =
+    val themePreferencesFlow: Flow<ThemePreferences> =
         app.settingsDataStore.data.map { preferences ->
-            ThemeMode.fromPreference(preferences[K.THEME_MODE])
+            ThemePreferences(
+                mode = ThemeMode.fromPreference(preferences[K.THEME_MODE]),
+                seedArgb = preferences[K.THEME_SEED].toArgbOrNull()
+            )
         }
+
+    val themeModeFlow: Flow<ThemeMode> = themePreferencesFlow.map { it.mode }
 
     suspend fun setQuietHours(startHHmm: String?, endHHmm: String?) {
         app.settingsDataStore.edit { e -> e[K.QUIET_START] = startHHmm ?: ""; e[K.QUIET_END] = endHHmm ?: "" }
@@ -49,4 +73,33 @@ class SettingsRepository(private val app: Context) {
     suspend fun setThemeMode(themeMode: ThemeMode) {
         app.settingsDataStore.edit { it[K.THEME_MODE] = themeMode.asPreferenceString() }
     }
+
+    suspend fun setCustomThemeSeed(argb: Long?) {
+        app.settingsDataStore.edit { prefs ->
+            if (argb == null) {
+                prefs.remove(K.THEME_SEED)
+            } else {
+                prefs[K.THEME_SEED] = argb.toArgbHexString()
+            }
+        }
+    }
+}
+
+private fun String?.toArgbOrNull(): Long? {
+    val raw = this?.trim()?.removePrefix("#") ?: return null
+    val parsed = raw.toLongOrNull(16) ?: return null
+    return if (raw.length <= 6) {
+        0xFF000000L or parsed
+    } else {
+        parsed
+    }
+}
+
+private fun Long.toArgbHexString(): String {
+    val normalized = if (this and 0xFF000000L == 0L) {
+        this or 0xFF000000L
+    } else {
+        this
+    }
+    return "#" + "%08X".format(normalized)
 }
