@@ -107,6 +107,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.sources.SourceComponentIds
+import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.settings.ThemeMode
 import com.swooby.alfred.ui.theme.AlfredTheme
 import kotlinx.coroutines.launch
@@ -1052,8 +1054,8 @@ internal object LocalizedStrings {
 
     @Composable
     fun componentLabel(component: String?): String = when (component) {
-        "media_session" -> componentMediaSession
-        "notif_listener" -> componentNotification
+        SourceComponentIds.MEDIA_SOURCE -> componentMediaSession
+        SourceComponentIds.NOTIFICATION_SOURCE -> componentNotification
         null -> componentGeneric
         else -> component.replace('_', ' ').replaceFirstChar { ch ->
             if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
@@ -1314,7 +1316,7 @@ private fun EventListPreview() {
                     })
                 })
                 put("refs", buildJsonObject {
-                    put("key", JsonPrimitive("notif-key"))
+                    put("key", JsonPrimitive("notification-key"))
                     put("user", JsonPrimitive("UserHandle{0}"))
                 })
                 put("subjectLines", buildJsonArray {
@@ -1331,8 +1333,8 @@ private fun EventListPreview() {
             userId = "u_local",
             deviceId = "pixel-9",
             appPkg = "com.spotify.music",
-            component = "media_session",
-            eventType = "media.stop",
+            component = SourceComponentIds.MEDIA_SOURCE,
+            eventType = SourceEventTypes.MEDIA_STOP,
             eventCategory = "media",
             eventAction = "stop",
             subjectEntity = "track",

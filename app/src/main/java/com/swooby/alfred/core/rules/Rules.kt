@@ -1,18 +1,25 @@
 package com.swooby.alfred.core.rules
 
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.sources.SourceEventTypes
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 data class RulesConfig(
-    val enabledTypes: Set<String> = setOf("media.start","media.stop","notif.post","display.on","display.off"),
+    val enabledTypes: Set<String> = setOf(
+        SourceEventTypes.MEDIA_START,
+        SourceEventTypes.MEDIA_STOP,
+        SourceEventTypes.NOTIFICATION_POST,
+        SourceEventTypes.DISPLAY_ON,
+        SourceEventTypes.DISPLAY_OFF
+    ),
     val disabledApps: Set<String> = emptySet(),
     val quietHours: QuietHours? = null,
     val speakWhenScreenOffOnly: Boolean = false,
     val rateLimits: List<RateLimit> = listOf(
-        RateLimit("media.start", 30, 4),
-        RateLimit("notif.post", 10, 6)
+        RateLimit(SourceEventTypes.MEDIA_START, perSeconds = 30, maxEvents = 4),
+        RateLimit(SourceEventTypes.NOTIFICATION_POST, perSeconds = 10, maxEvents = 6)
     )
 )
 

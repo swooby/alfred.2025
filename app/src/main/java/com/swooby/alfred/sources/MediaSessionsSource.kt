@@ -48,7 +48,7 @@ class MediaSessionsSource(
             refreshSessions("$caller->start")
             msm.addOnActiveSessionsChangedListener(
                 listener,
-                ComponentName(ctx, NotifSvc::class.java)
+                ComponentName(ctx, NotificationsSource::class.java)
             )
         } catch (se: SecurityException) {
             // No access yet; caller should have gated this, but be safe.
@@ -91,7 +91,7 @@ class MediaSessionsSource(
     private fun refreshSessions(caller: String, controllers: MutableList<MediaController>? = null) {
         FooLog.v(TAG, "refreshSessions(caller=${FooString.quote(caller)}, controllers=...)")
         try {
-            val controllers = controllers ?: msm.getActiveSessions(ComponentName(ctx, NotifSvc::class.java))
+            val controllers = controllers ?: msm.getActiveSessions(ComponentName(ctx, NotificationsSource::class.java))
             if (LOG_CONTROLLERS) {
                 FooLog.v(TAG, "refreshSessions: controllers(${controllers.size})=${controllers.map { toString(it) }}")
                 FooLog.e(TAG, "refreshSessions: BEFORE controllerCallback.keys(${controllerCallbacks.keys.size})=${controllerCallbacks.keys.map { toString(it) }}")
@@ -259,6 +259,7 @@ class MediaSessionsSource(
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
         val album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
         val eventCategory = "media"
+        val eventType = SourceEventTypes.MEDIA_START
         val subjectEntityId = subjectEntityId(title, artist, album)
         val api = "MediaSession"
         val sensitivity = if (title.isNotBlank() || artist.isNotBlank()) Sensitivity.CONTENT else Sensitivity.METADATA
@@ -286,8 +287,8 @@ class MediaSessionsSource(
             userId = "u_local",
             deviceId = "android:device",
             appPkg = pkg,
-            component = "media_session",
-            eventType = "$eventCategory.$action",
+            component = SourceComponentIds.MEDIA_SOURCE,
+            eventType = eventType,
             eventCategory = eventCategory,
             eventAction = action,
             subjectEntity = "track",
@@ -318,6 +319,7 @@ class MediaSessionsSource(
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
         val album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
         val eventCategory = "media"
+        val eventType = SourceEventTypes.MEDIA_STOP
         val subjectEntityId = subjectEntityId(title, artist, album)
         val api = "MediaSession"
         val sensitivity = if (title.isNotBlank() || artist.isNotBlank()) Sensitivity.CONTENT else Sensitivity.METADATA
@@ -342,8 +344,8 @@ class MediaSessionsSource(
             userId = "u_local",
             deviceId = "android:device",
             appPkg = pkg,
-            component = "media_session",
-            eventType = "$eventCategory.$action",
+            component = SourceComponentIds.MEDIA_SOURCE,
+            eventType = eventType,
             eventCategory = eventCategory,
             eventAction = action,
             subjectEntity = "track",

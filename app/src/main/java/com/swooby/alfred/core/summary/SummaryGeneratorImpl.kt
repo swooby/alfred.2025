@@ -1,6 +1,7 @@
 package com.swooby.alfred.core.summary
 
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.sources.SourceEventTypes
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.intOrNull
 
@@ -10,13 +11,13 @@ class SummaryGeneratorImpl : SummaryGenerator {
     }
     override fun digest(title: String, events: List<EventEntity>): Utterance.Digest {
         val lines = mutableListOf<String>()
-        val notifCount = events.count { it.eventType == "notif.post" }
+        val notificationCount = events.count { it.eventType == SourceEventTypes.NOTIFICATION_POST }
         val musicSec = events
-            .filter { it.eventType == "media.stop" }
+            .filter { it.eventType == SourceEventTypes.MEDIA_STOP }
             .mapNotNull { it.metrics["played_ms"]?.jsonPrimitive?.intOrNull ?: it.durationMs?.toInt() }
             .sum() / 1000
-        val screenOnCount = events.count { it.eventType == "display.on" }
-        if (notifCount > 0) lines += "Notifications: {}.".format(notifCount)
+        val screenOnCount = events.count { it.eventType == SourceEventTypes.DISPLAY_ON }
+        if (notificationCount > 0) lines += "Notifications: {}.".format(notificationCount)
         if (musicSec > 0) lines += "Music time: {} min.".format(musicSec / 60)
         if (screenOnCount > 0) lines += "Screen ons: {}.".format(screenOnCount)
         if (lines.isEmpty()) lines += "Nothing notable."

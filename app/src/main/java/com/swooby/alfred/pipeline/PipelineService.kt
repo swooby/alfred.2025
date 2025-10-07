@@ -15,7 +15,8 @@ import com.swooby.alfred.R
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
-import com.swooby.alfred.sources.NotifSvc
+import com.swooby.alfred.sources.NotificationsSource
+import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.tts.FooTextToSpeech
 import com.swooby.alfred.util.FooLog
@@ -49,7 +50,7 @@ class PipelineService : Service() {
         sysSources.start()
 
         // 🔒 Only start media session source if we have notification-listener access
-        val hasAccess = hasNotificationListenerAccess(this, NotifSvc::class.java)
+        val hasAccess = hasNotificationListenerAccess(this, NotificationsSource::class.java)
         if (hasAccess) {
             try {
                 app.mediaSource.start("$TAG.onCreate")
@@ -72,7 +73,7 @@ class PipelineService : Service() {
         scope.launch {
             app.ingest.out.collect { ev ->
                 val component = ev.component
-                if (component == "notif_listener" && ev.subjectEntityId != null) {
+                if (component == SourceComponentIds.NOTIFICATION_SOURCE && ev.subjectEntityId != null) {
                     val alreadyStored = app.db.events().existsNotification(
                         userId = ev.userId,
                         component = component,
@@ -80,7 +81,7 @@ class PipelineService : Service() {
                         tsStart = ev.tsStart
                     )
                     if (alreadyStored) {
-                        FooLog.d(TAG, "#PIPELINE skip duplicate notif_listener event subjectId=${ev.subjectEntityId} tsStart=${ev.tsStart}")
+                        FooLog.d(TAG, "#PIPELINE skip duplicate ${SourceComponentIds.NOTIFICATION_SOURCE} event subjectId=${ev.subjectEntityId} tsStart=${ev.tsStart}")
                         return@collect
                     }
                 }

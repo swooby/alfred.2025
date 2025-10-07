@@ -52,6 +52,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
+import com.swooby.alfred.sources.SourceComponentIds
+import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.util.FooLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -181,9 +183,9 @@ internal fun EventCard(
 
     val componentLabel = LocalizedStrings.componentLabel(event.component)
     val headerTitle = when (event.component) {
-        "notif_listener" -> appLabel?.takeIf { it.isNotBlank() }
+        SourceComponentIds.NOTIFICATION_SOURCE -> appLabel?.takeIf { it.isNotBlank() }
             ?: LocalizedStrings.unknownApp
-        "media_session" -> appLabel?.takeIf { it.isNotBlank() }
+        SourceComponentIds.MEDIA_SOURCE -> appLabel?.takeIf { it.isNotBlank() }
             ?: mediaSourceApp?.takeIf { it.isNotBlank() }
             ?: packageName?.takeIf { it.isNotBlank() }
             ?: LocalizedStrings.unknownApp
@@ -193,8 +195,8 @@ internal fun EventCard(
             ?: LocalizedStrings.componentGeneric
     }
     val headerSubtitle = when (event.component) {
-        "notif_listener" -> packageName?.takeIf { it.isNotBlank() && it != headerTitle }
-        "media_session" -> (packageName?.takeIf { it.isNotBlank() } ?: mediaSourceApp?.takeIf { it.isNotBlank() })
+        SourceComponentIds.NOTIFICATION_SOURCE -> packageName?.takeIf { it.isNotBlank() && it != headerTitle }
+        SourceComponentIds.MEDIA_SOURCE -> (packageName?.takeIf { it.isNotBlank() } ?: mediaSourceApp?.takeIf { it.isNotBlank() })
             ?.takeIf { it != headerTitle }
         else -> event.eventCategory.takeIf { it.isNotBlank() && it != headerTitle }
     }
@@ -212,7 +214,7 @@ internal fun EventCard(
     }
 
     when (event.component) {
-        "media_session" -> {
+        SourceComponentIds.MEDIA_SOURCE -> {
             headlineText = mediaTitleAttr?.takeIf { it.isNotBlank() }
                 ?: LocalizedStrings.mediaUnknownTitle
             val subtitle = listOfNotNull(
@@ -234,7 +236,7 @@ internal fun EventCard(
             }
         }
 
-        "notif_listener" -> {
+        SourceComponentIds.NOTIFICATION_SOURCE -> {
             subject?.stringOrNull("title")?.takeIf { it.isNotBlank() }?.let {
                 headlineText = it
             }
@@ -262,7 +264,7 @@ internal fun EventCard(
     }
 
     val supportingSummary = supportingTexts.toList()
-    val actionChips = if (event.component == "notif_listener") {
+    val actionChips = if (event.component == SourceComponentIds.NOTIFICATION_SOURCE) {
         actionsList.take(3)
     } else {
         emptyList()
@@ -270,13 +272,13 @@ internal fun EventCard(
     val metadataChips = buildList {
         addAll(chips)
         when (event.component) {
-            "media_session" -> {
+            SourceComponentIds.MEDIA_SOURCE -> {
                 mediaOutputRoute?.takeIf { it.isNotBlank() }?.let {
                     add(LocalizedStrings.mediaRouteLabel(it))
                 }
             }
 
-            "notif_listener" -> {
+            SourceComponentIds.NOTIFICATION_SOURCE -> {
                 channelName?.takeIf { it.isNotBlank() }?.let {
                     add("${LocalizedStrings.labelChannelName}: $it")
                 }
@@ -1056,8 +1058,8 @@ private val PreviewNotificationEvent = EventEntity(
     userId = "u_local",
     deviceId = "pixel-9",
     appPkg = "com.mail",
-    component = "notif_listener",
-    eventType = "notification_posted",
+    component = SourceComponentIds.NOTIFICATION_SOURCE,
+    eventType = SourceEventTypes.NOTIFICATION_POST,
     eventCategory = "Inbox",
     eventAction = "New message",
     subjectEntity = "Email",
@@ -1095,7 +1097,7 @@ private val PreviewNotificationEvent = EventEntity(
             })
         })
         put("refs", buildJsonObject {
-            put("key", JsonPrimitive("notif-key"))
+            put("key", JsonPrimitive("notification-key"))
             put("user", JsonPrimitive("UserHandle{0}"))
         })
         put("subjectLines", buildJsonArray {
@@ -1110,8 +1112,8 @@ private val PreviewMediaSessionEvent = EventEntity(
     userId = "u_local",
     deviceId = "pixel-9",
     appPkg = "com.spotify.music",
-    component = "media_session",
-    eventType = "media.stop",
+    component = SourceComponentIds.MEDIA_SOURCE,
+    eventType = SourceEventTypes.MEDIA_STOP,
     eventCategory = "media",
     eventAction = "stop",
     subjectEntity = "track",

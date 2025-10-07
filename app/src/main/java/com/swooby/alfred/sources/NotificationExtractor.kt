@@ -47,13 +47,14 @@ data class EventEnvelope(
 
 /** Main API */
 object NotificationExtractor {
+    const val PARSER_VERSION = "notification_extractor_v1"
 
     @JvmStatic
     fun extract(
         context: Context,
+        eventType: String,
         sbn: StatusBarNotification,
         rankingMap: RankingMap? = null,
-        eventType: String = "notification_posted"
     ): EventEnvelope {
         val notification = sbn.notification
         val extras = NotificationCompat.getExtras(notification) ?: Bundle.EMPTY
