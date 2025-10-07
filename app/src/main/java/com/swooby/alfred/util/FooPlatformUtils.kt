@@ -14,35 +14,28 @@ import androidx.core.net.toUri
 
 object FooPlatformUtils {
     fun toString(intent: Intent?): String {
-        if (intent == null) {
-            return "null"
-        }
-
+        if (intent == null) return "null"
         val sb = StringBuilder()
-
-        sb.append(intent)
-
-        val bundle = intent.extras
-        sb.append(", extras=").append(toString(bundle))
-
+        sb.append(intent) // only prints "(has extras)" for extras
+        sb.append(", extras=").append(toString(intent.extras)) // show extras
         return sb.toString()
     }
 
+    /**
+     * May be unnecessary; [android.os.Bundle]`.toString` output seems almost acceptable nowadays.
+     */
     fun toString(bundle: Bundle?): String {
-        if (bundle == null) {
-            return "null"
-        }
+        if (bundle == null) return "null"
 
         val sb = StringBuilder()
 
         val keys = bundle.keySet()
-        val it: Iterator<String> = keys.iterator()
+        val it = keys.iterator()
 
         sb.append('{')
         while (it.hasNext()) {
             val key = it.next()
-            var value: Any?
-            value = try {
+            var value = try {
                 /**
                  * [android.os.BaseBundle.get] calls hidden method [android.os.BaseBundle.getValue].
                  * `android.os.BaseBundle#getValue(java.lang.String)` says:
@@ -61,7 +54,7 @@ object FooPlatformUtils {
             sb.append(FooString.quote(key)).append('=')
 
             if (key.lowercase(Locale.getDefault()).contains("password")) {
-                value = "*CENSORED*"
+                value = "*REDACTED*"
             }
 
             if (value is Bundle) {
