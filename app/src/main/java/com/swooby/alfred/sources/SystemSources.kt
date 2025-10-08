@@ -11,6 +11,8 @@ import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.util.Ulids
 import com.smartfoo.android.core.platform.FooDisplayListener
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 
 class SystemSources(private val ctx: Context, private val app: AlfredApp) {
@@ -19,15 +21,33 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
     }
 
     private val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val ignoredInitialNetworks = Collections.newSetFromMap(ConcurrentHashMap<Network, Boolean>())
+    private val wifiNetworks = Collections.newSetFromMap(ConcurrentHashMap<Network, Boolean>())
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             FooLog.v(TAG, "#NETWORK onAvailable(network=$network)")
+            val capabilities = cm.getNetworkCapabilities(network)
+            val isWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            if (!isWifi) {
+                FooLog.v(TAG, "#NETWORK onAvailable: ignoring non-WIFI network $network")
+                return
+            }
+            wifiNetworks.add(network)
+            if (ignoredInitialNetworks.remove(network)) {
+                FooLog.v(TAG, "#NETWORK onAvailable: ignoring initial WIFI network $network")
+                return
+            }
             emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_CONNECT)
         }
 
         override fun onLost(network: Network) {
             FooLog.v(TAG, "#NETWORK onLost(network=$network)")
-            emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT)
+            if (wifiNetworks.remove(network)) {
+                emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT)
+            } else {
+                FooLog.v(TAG, "#NETWORK onLost: ignoring non-tracked network $network")
+            }
         }
     }
     @Volatile
@@ -36,15 +56,15 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
     private val screenListener = FooDisplayListener(ctx)
     private val screenCallbacks = object : FooDisplayListener.FooDisplayListenerCallbacks {
         override fun onDisplayOff(displayId: Int) {
-            emitScreenEvent(SourceEventTypes.DISPLAY_OFF, userInteractive = false, coalesceKey = "display_state")
+            emitDisplayEvent(SourceEventTypes.DISPLAY_OFF, userInteractive = false, coalesceKey = "display_state")
         }
 
         override fun onDisplayOn(displayId: Int, isDeviceLocked: Boolean) {
-            emitScreenEvent(SourceEventTypes.DISPLAY_ON, userInteractive = true, coalesceKey = "display_state")
+            emitDisplayEvent(SourceEventTypes.DISPLAY_ON, userInteractive = true, coalesceKey = "display_state")
         }
 
         override fun onDeviceUnlocked() {
-            emitScreenEvent(SourceEventTypes.DEVICE_UNLOCK, userInteractive = true, coalesceKey = "device_unlock")
+            emitDisplayEvent(SourceEventTypes.DEVICE_UNLOCK, userInteractive = true, coalesceKey = "device_unlock")
         }
     }
 
@@ -52,21 +72,37 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
     private var screenListenerAttached: Boolean = false
 
     fun start() {
+        FooLog.v(TAG, "+start()")
         if (!screenListenerAttached) {
             screenListener.attach(screenCallbacks)
             screenListenerAttached = true
         }
 
         if (!networkCallbackRegistered) {
+            ignoredInitialNetworks.clear()
+            wifiNetworks.clear()
+            cm.activeNetwork?.let { active ->
+                val capabilities = cm.getNetworkCapabilities(active)
+                if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                    ignoredInitialNetworks.add(active)
+                    wifiNetworks.add(active)
+                    FooLog.v(TAG, "#NETWORK start: ignoring launch-active WIFI network $active")
+                }
+            }
             cm.registerNetworkCallback(
-                NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
+                NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                    .build(),
                 networkCallback
             )
             networkCallbackRegistered = true
         }
+        FooLog.v(TAG, "-start()")
     }
 
     fun stop() {
+        FooLog.v(TAG, "+stop()")
         if (screenListenerAttached) {
             runCatching { screenListener.detach(screenCallbacks) }
             screenListenerAttached = false
@@ -74,10 +110,13 @@ class SystemSources(private val ctx: Context, private val app: AlfredApp) {
         if (networkCallbackRegistered) {
             runCatching { cm.unregisterNetworkCallback(networkCallback) }
             networkCallbackRegistered = false
+            ignoredInitialNetworks.clear()
+            wifiNetworks.clear()
         }
+        FooLog.v(TAG, "-stop()")
     }
 
-    private fun emitScreenEvent(type: String, userInteractive: Boolean?, coalesceKey: String) {
+    private fun emitDisplayEvent(type: String, userInteractive: Boolean?, coalesceKey: String) {
         val now = Clock.System.now()
         val action = when (type) {
             SourceEventTypes.DISPLAY_ON -> "on"
