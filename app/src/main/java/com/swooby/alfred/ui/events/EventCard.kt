@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -393,17 +395,16 @@ internal fun EventCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -413,7 +414,9 @@ internal fun EventCard(
                             text = postedLabel,
                             style = MaterialTheme.typography.bodySmall,
                             color = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         EventBadge(
                             text = componentLabel,
@@ -447,6 +450,7 @@ internal fun EventCard(
                     }
                 }
                 IconButton(
+                    modifier = Modifier.size(24.dp),
                     onClick = { expanded = !expanded },
                     enabled = actionsEnabled
                 ) {
@@ -461,7 +465,7 @@ internal fun EventCard(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = headlineText,
                     style = MaterialTheme.typography.titleMedium,
@@ -492,11 +496,13 @@ internal fun EventCard(
             if (actionChips.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     actionChips.forEach { action ->
                         SuggestionChip(
-                            onClick = {},
+                            onClick = {
+                                // TODO: Do the action of the Notification...
+                            },
                             enabled = false,
                             label = { Text(text = action) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
@@ -513,7 +519,7 @@ internal fun EventCard(
             if (metadataChips.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     metadataChips.forEach { chip ->
                         SuggestionChip(
@@ -531,7 +537,7 @@ internal fun EventCard(
                 }
             }
 
-            if (expanded) {
+            if (expanded || (BuildConfig.DEBUG && LocalInspectionMode.current)) {
                 HorizontalDivider(color = colorScheme.primary.copy(alpha = 0.12f))
 
                 InfoSection(LocalizedStrings.sectionSummary, identityItems)

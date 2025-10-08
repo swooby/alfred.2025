@@ -7,13 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,11 +32,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
@@ -52,7 +45,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -67,15 +59,12 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -93,43 +82,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
 import com.swooby.alfred.data.EventEntity
-import com.swooby.alfred.sources.SourceComponentIds
-import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.settings.ThemeMode
+import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.ui.theme.AlfredTheme
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.flow.distinctUntilChanged
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.time.Instant
 
 private const val LOAD_MORE_PREFETCH_THRESHOLD = 20
 
@@ -985,9 +954,8 @@ private fun SelectionBottomBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             IconButton(
                 onClick = onExitSelection,
@@ -998,49 +966,65 @@ private fun SelectionBottomBar(
                     contentDescription = LocalizedStrings.exitSelectionLabel
                 )
             }
-            Text(
-                text = LocalizedStrings.selectionCountLabel(selectedCount),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            TextButton(
-                onClick = if (allSelected || allVisibleSelected) onUnselectAll else onSelectAll,
-                enabled = actionsEnabled && (hasVisibleEvents || allSelected),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-            ) {
+            Column {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.SelectAll,
-                        contentDescription = null
-                    )
-                    val label = if (allSelected || allVisibleSelected) {
-                        LocalizedStrings.unselectAllLabel
-                    } else {
-                        LocalizedStrings.selectAllLabel
-                    }
                     Text(
-                        text = label,
+                        text = LocalizedStrings.selectionCountLabel(selectedCount),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        softWrap = false
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            FilledTonalButton(
-                onClick = onDeleteSelected,
-                enabled = actionsEnabled && selectedCount > 0,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = LocalizedStrings.deleteSelectedLabel,
-                    maxLines = 1,
-                    softWrap = false
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = if (allSelected || allVisibleSelected) onUnselectAll else onSelectAll,
+                        enabled = actionsEnabled && (hasVisibleEvents || allSelected),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SelectAll,
+                                contentDescription = null
+                            )
+                            val label = if (allSelected || allVisibleSelected) {
+                                LocalizedStrings.unselectAllLabel
+                            } else {
+                                LocalizedStrings.selectAllLabel
+                            }
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    FilledTonalButton(
+                        onClick = onDeleteSelected,
+                        enabled = actionsEnabled && selectedCount > 0,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = LocalizedStrings.deleteSelectedLabel,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
             }
         }
     }
@@ -1396,6 +1380,24 @@ private fun EventListPreview() {
             onLoadMore = {},
             onThemeModeChange = {},
             onShuffleThemeRequest = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SelectionBottomBarPreview() {
+    AlfredTheme {
+        SelectionBottomBar(
+            selectedCount = 4,
+            visibleCount = 6,
+            visibleSelectedCount = 2,
+            allSelected = false,
+            onSelectAll = {},
+            onUnselectAll = {},
+            onDeleteSelected = {},
+            onExitSelection = {},
+            actionsEnabled = true
         )
     }
 }
