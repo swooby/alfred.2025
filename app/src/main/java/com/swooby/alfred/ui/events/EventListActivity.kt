@@ -3,7 +3,9 @@ package com.swooby.alfred.ui.events
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.SideEffect
@@ -11,10 +13,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
@@ -33,8 +34,8 @@ import kotlinx.coroutines.launch
 class EventListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val app = application as AlfredApp
         val activity = this
@@ -64,17 +65,32 @@ class EventListActivity : ComponentActivity() {
                 customSeedArgb = paletteSeed
             ) {
                 val surfaceColor = MaterialTheme.colorScheme.surface
+                val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
                 val useLightSystemIcons = surfaceColor.luminance() > 0.5f
 
                 SideEffect {
-                    window.statusBarColor = Color.Transparent.toArgb()
-                    window.navigationBarColor = Color.Transparent.toArgb()
-                    WindowCompat
-                        .getInsetsController(window, window.decorView)
-                        .apply {
-                            isAppearanceLightStatusBars = useLightSystemIcons
-                            isAppearanceLightNavigationBars = useLightSystemIcons
-                        }
+                    val transparent = Color.Transparent.toArgb()
+                    val surfaceVariantArgb = surfaceVariantColor.toArgb()
+                    val statusBarStyle = if (useLightSystemIcons) {
+                        SystemBarStyle.light(
+                            scrim = transparent,
+                            darkScrim = surfaceVariantArgb
+                        )
+                    } else {
+                        SystemBarStyle.dark(transparent)
+                    }
+                    val navigationBarStyle = if (useLightSystemIcons) {
+                        SystemBarStyle.light(
+                            scrim = transparent,
+                            darkScrim = surfaceVariantArgb
+                        )
+                    } else {
+                        SystemBarStyle.dark(transparent)
+                    }
+                    enableEdgeToEdge(
+                        statusBarStyle = statusBarStyle,
+                        navigationBarStyle = navigationBarStyle
+                    )
                 }
 
                 val viewModel: EventListViewModel = viewModel(factory = viewModelFactory)
