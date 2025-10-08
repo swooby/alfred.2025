@@ -31,6 +31,7 @@ class SettingsRepository(private val app: Context) {
         SourceEventTypes.NOTIFICATION_POST,
         SourceEventTypes.DISPLAY_ON,
         SourceEventTypes.DISPLAY_OFF,
+        SourceEventTypes.DEVICE_UNLOCK,
         SourceEventTypes.NETWORK_WIFI_CONNECT,
         SourceEventTypes.NETWORK_WIFI_DISCONNECT
     )

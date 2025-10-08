@@ -182,7 +182,8 @@ private fun SettingsContent_Preview() {
                 SourceEventTypes.MEDIA_STOP,
                 SourceEventTypes.NOTIFICATION_POST,
                 SourceEventTypes.DISPLAY_ON,
-                SourceEventTypes.DISPLAY_OFF
+                SourceEventTypes.DISPLAY_OFF,
+                SourceEventTypes.DEVICE_UNLOCK
             ).joinToString(",")
         )
     }

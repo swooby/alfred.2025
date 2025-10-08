@@ -89,6 +89,7 @@ class ScreenTemplate : PhraseTemplate {
         return when (e.eventType) {
             SourceEventTypes.DISPLAY_ON  -> Utterance.Live(5, "Screen on.")
             SourceEventTypes.DISPLAY_OFF -> Utterance.Live(5, "Screen off.")
+            SourceEventTypes.DEVICE_UNLOCK -> Utterance.Live(5, "Device unlocked.")
             else -> null
         }
     }

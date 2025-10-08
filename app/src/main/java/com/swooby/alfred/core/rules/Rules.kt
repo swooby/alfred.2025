@@ -12,7 +12,8 @@ data class RulesConfig(
         SourceEventTypes.MEDIA_STOP,
         SourceEventTypes.NOTIFICATION_POST,
         SourceEventTypes.DISPLAY_ON,
-        SourceEventTypes.DISPLAY_OFF
+        SourceEventTypes.DISPLAY_OFF,
+        SourceEventTypes.DEVICE_UNLOCK,
     ),
     val disabledApps: Set<String> = emptySet(),
     val quietHours: QuietHours? = null,

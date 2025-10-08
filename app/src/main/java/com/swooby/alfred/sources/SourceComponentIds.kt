@@ -17,6 +17,7 @@ object SourceEventTypes {
     const val MEDIA_STOP = "media.stop"
     const val DISPLAY_ON = "display.on"
     const val DISPLAY_OFF = "display.off"
+    const val DEVICE_UNLOCK = "device.unlock"
     const val NETWORK_WIFI_CONNECT = "network.wifi.connect"
     const val NETWORK_WIFI_DISCONNECT = "network.wifi.disconnect"
 }

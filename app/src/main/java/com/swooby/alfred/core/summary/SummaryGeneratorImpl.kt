@@ -17,10 +17,13 @@ class SummaryGeneratorImpl : SummaryGenerator {
             .mapNotNull { it.metrics["played_ms"]?.jsonPrimitive?.intOrNull ?: it.durationMs?.toInt() }
             .sum() / 1000
         val screenOnCount = events.count { it.eventType == SourceEventTypes.DISPLAY_ON }
-        if (notificationCount > 0) lines += "Notifications: {}.".format(notificationCount)
-        if (musicSec > 0) lines += "Music time: {} min.".format(musicSec / 60)
-        if (screenOnCount > 0) lines += "Screen ons: {}.".format(screenOnCount)
+
+        if (notificationCount > 0) lines += "Notifications: ${notificationCount}."
+        if (musicSec > 0) lines += "Music time: ${musicSec / 60} min."
+        if (screenOnCount > 0) lines += "Screen ons: ${screenOnCount}."
+
         if (lines.isEmpty()) lines += "Nothing notable."
+
         return Utterance.Digest(3, title, lines)
     }
 }
