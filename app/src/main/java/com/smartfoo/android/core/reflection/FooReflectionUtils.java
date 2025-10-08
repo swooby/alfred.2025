@@ -1,4 +1,7 @@
-package com.swooby.alfred.util;
+package com.smartfoo.android.core.reflection;
+
+import com.smartfoo.android.core.logging.FooLog;
+import com.smartfoo.android.core.FooString;
 
 import java.lang.reflect.Field;
 

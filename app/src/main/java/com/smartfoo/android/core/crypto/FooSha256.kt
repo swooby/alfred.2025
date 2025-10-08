@@ -1,4 +1,4 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.crypto
 
 import java.security.MessageDigest
 

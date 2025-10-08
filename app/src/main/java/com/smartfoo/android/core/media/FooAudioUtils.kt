@@ -1,4 +1,4 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.media
 
 import android.content.Context
 import android.media.AudioManager
@@ -6,6 +6,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import com.swooby.alfred.R
+import com.smartfoo.android.core.FooString
 import kotlin.math.roundToInt
 
 @Suppress("unused")

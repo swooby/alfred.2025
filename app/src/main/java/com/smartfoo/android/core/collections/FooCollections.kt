@@ -1,4 +1,6 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.collections
+
+import com.smartfoo.android.core.FooObjects
 
 object FooCollections {
     fun <T> hashCode(items: Collection<T>): Int {

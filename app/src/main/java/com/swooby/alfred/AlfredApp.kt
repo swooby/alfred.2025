@@ -10,7 +10,7 @@ import com.swooby.alfred.core.summary.TemplatedSummaryGenerator
 import com.swooby.alfred.data.AlfredDb
 import com.swooby.alfred.settings.SettingsRepository
 import com.swooby.alfred.sources.MediaSessionsSource
-import com.swooby.alfred.util.FooLog
+import com.smartfoo.android.core.logging.FooLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

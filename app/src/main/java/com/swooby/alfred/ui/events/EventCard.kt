@@ -54,7 +54,7 @@ import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SourceEventTypes
-import com.swooby.alfred.util.FooLog
+import com.smartfoo.android.core.logging.FooLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json

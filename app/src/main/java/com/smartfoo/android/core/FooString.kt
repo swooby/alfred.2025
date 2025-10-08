@@ -1,4 +1,6 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core
+
+import com.smartfoo.android.core.reflection.FooReflectionUtils
 
 object FooString {
     /**

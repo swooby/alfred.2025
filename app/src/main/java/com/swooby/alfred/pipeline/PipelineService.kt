@@ -19,10 +19,10 @@ import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.support.AppShutdownManager
-import com.swooby.alfred.tts.FooTextToSpeech
-import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.FooNotificationListener
-import com.swooby.alfred.util.FooPlatformUtils
+import com.smartfoo.android.core.texttospeech.FooTextToSpeech
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.notification.FooNotificationListener
+import com.smartfoo.android.core.platform.FooPlatformUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

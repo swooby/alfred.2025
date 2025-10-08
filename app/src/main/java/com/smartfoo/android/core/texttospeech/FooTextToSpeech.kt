@@ -1,4 +1,4 @@
-package com.swooby.alfred.tts
+package com.smartfoo.android.core.texttospeech
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -8,14 +8,14 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
-import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPart
-import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSilence
-import com.swooby.alfred.tts.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
-import com.swooby.alfred.util.FooAudioFocusController
-import com.swooby.alfred.util.FooAudioUtils
-import com.swooby.alfred.util.FooListenerManager
-import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.FooString
+import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPart
+import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartSilence
+import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
+import com.smartfoo.android.core.media.FooAudioFocusController
+import com.smartfoo.android.core.media.FooAudioUtils
+import com.smartfoo.android.core.notification.FooListenerManager
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.FooString
 
 /**
  * NOTE: There should be only one TextToSpeech instance per application.

@@ -1,6 +1,7 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.logging
 
 import android.util.Log
+import com.smartfoo.android.core.reflection.FooReflectionUtils
 
 object FooLog {
     @JvmStatic

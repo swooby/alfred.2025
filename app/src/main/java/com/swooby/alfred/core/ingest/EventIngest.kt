@@ -2,8 +2,8 @@ package com.swooby.alfred.core.ingest
 
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.data.EventEntity
-import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.FooString
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.FooString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*

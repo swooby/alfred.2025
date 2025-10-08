@@ -2,7 +2,6 @@ package com.swooby.alfred.ui.permissions
 
 import android.Manifest
 import android.database.ContentObserver
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -20,6 +19,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import com.smartfoo.android.core.notification.FooNotificationListener
 import com.swooby.alfred.R
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.util.*

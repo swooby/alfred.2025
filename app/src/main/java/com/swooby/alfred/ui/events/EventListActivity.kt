@@ -26,9 +26,9 @@ import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import com.swooby.alfred.ui.theme.ThemeSeedGenerator
 import com.swooby.alfred.support.AppShutdownManager
-import com.swooby.alfred.tts.FooTextToSpeechHelper
-import com.swooby.alfred.util.FooNotificationListener
-import com.swooby.alfred.util.FooPlatformUtils
+import com.smartfoo.android.core.texttospeech.FooTextToSpeechHelper
+import com.smartfoo.android.core.notification.FooNotificationListener
+import com.smartfoo.android.core.platform.FooPlatformUtils
 import kotlinx.coroutines.launch
 
 class EventListActivity : ComponentActivity() {

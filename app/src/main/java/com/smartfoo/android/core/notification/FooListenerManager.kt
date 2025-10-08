@@ -1,6 +1,8 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.notification
 
 import com.swooby.alfred.BuildConfig
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.FooString
 import java.util.Collections
 
 class FooListenerManager<T>(name: String) {

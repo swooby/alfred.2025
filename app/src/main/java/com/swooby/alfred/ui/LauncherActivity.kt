@@ -8,7 +8,7 @@ import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.ui.events.EventListActivity
 import com.swooby.alfred.ui.permissions.PermissionsActivity
-import com.swooby.alfred.util.FooNotificationListener
+import com.smartfoo.android.core.notification.FooNotificationListener
 import com.swooby.alfred.util.isNotificationPermissionGranted
 
 /**

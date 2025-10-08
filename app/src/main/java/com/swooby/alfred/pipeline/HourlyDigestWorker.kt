@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.*
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.core.summary.Utterance
-import com.swooby.alfred.tts.FooTextToSpeech
+import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock

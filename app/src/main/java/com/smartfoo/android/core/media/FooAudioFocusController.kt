@@ -1,10 +1,12 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.media
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioManager.OnAudioFocusChangeListener
+import com.smartfoo.android.core.notification.FooListenerManager
+import com.smartfoo.android.core.logging.FooLog
 import java.util.concurrent.atomic.AtomicLong
 
 /**

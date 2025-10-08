@@ -9,8 +9,8 @@ import androidx.core.content.ContextCompat
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.sources.NotificationsSource
-import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.FooNotificationListener
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.notification.FooNotificationListener
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 

@@ -1,4 +1,4 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.notification
 
 import android.annotation.SuppressLint
 import android.content.ComponentName
@@ -9,6 +9,7 @@ import android.os.Build.VERSION_CODES
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import androidx.annotation.RequiresApi
+import com.smartfoo.android.core.logging.FooLog
 
 object FooNotificationListener {
     private val TAG = FooLog.TAG(FooNotificationListener::class.java)
@@ -70,7 +71,7 @@ object FooNotificationListener {
     }
 
     /**
-     * Per hidden field [android.provider.Settings.Secure] `ENABLED_NOTIFICATION_LISTENERS`
+     * Per hidden field [Settings.Secure] `ENABLED_NOTIFICATION_LISTENERS`
      */
     private const val ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listeners"
 

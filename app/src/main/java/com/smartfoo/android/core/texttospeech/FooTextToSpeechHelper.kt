@@ -1,14 +1,10 @@
-package com.swooby.alfred.tts
+package com.smartfoo.android.core.texttospeech
 
 import android.app.Activity
 import android.content.Intent
 import android.speech.tts.TextToSpeech
-import android.text.TextUtils
-import com.swooby.alfred.util.FooLog
-import com.swooby.alfred.util.FooPlatformUtils
-import java.util.Collections
-import java.util.Locale
-import java.util.MissingResourceException
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.platform.FooPlatformUtils
 
 /**
  * From:

@@ -16,7 +16,7 @@ import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.util.SparseArray
 import androidx.core.app.NotificationCompat
-import com.swooby.alfred.util.FooSha256
+import com.smartfoo.android.core.crypto.FooSha256
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject

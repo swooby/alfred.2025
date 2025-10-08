@@ -1,16 +1,15 @@
-package com.swooby.alfred.util
+package com.smartfoo.android.core.platform
 
-import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.service.quicksettings.TileService
-import java.util.Locale
 import androidx.core.net.toUri
+import com.smartfoo.android.core.FooString
+import java.util.Locale
 
 object FooPlatformUtils {
     fun toString(intent: Intent?): String {
@@ -204,7 +203,7 @@ object FooPlatformUtils {
     fun showAppSettings(context: Context, packageName: String?) {
         val uri = "package:$packageName".toUri()
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri)
-        FooPlatformUtils.startActivity(context, intent)
+        startActivity(context, intent)
     }
 
     fun showAppSettings(context: Context) {

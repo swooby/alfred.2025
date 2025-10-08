@@ -1,9 +1,9 @@
-package com.swooby.alfred.tts
+package com.smartfoo.android.core.texttospeech
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
-import com.swooby.alfred.util.FooCollections
-import com.swooby.alfred.util.FooString
+import com.smartfoo.android.core.collections.FooCollections
+import com.smartfoo.android.core.FooString
 import java.util.LinkedList
 
 class FooTextToSpeechBuilder {
