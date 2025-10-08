@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.EventEntity
@@ -13,13 +14,19 @@ import com.smartfoo.android.core.platform.FooDisplayListener
 import kotlin.time.Clock
 
 class SystemSources(private val ctx: Context, private val app: AlfredApp) {
+    companion object {
+        private val TAG = FooLog.TAG(SystemSources::class.java)
+    }
+
     private val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            FooLog.v(TAG, "#NETWORK onAvailable(network=$network)")
             emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_CONNECT)
         }
 
         override fun onLost(network: Network) {
+            FooLog.v(TAG, "#NETWORK onLost(network=$network)")
             emitWifiIfAny(SourceEventTypes.NETWORK_WIFI_DISCONNECT)
         }
     }
