@@ -1371,121 +1371,12 @@ internal object LocalizedStrings {
 @Preview(showBackground = true)
 @Composable
 private fun EventListPreview() {
-    val now = Instant.fromEpochMilliseconds(java.time.Instant.now().toEpochMilli())
-    val sampleEvents = listOf(
-        EventEntity(
-            eventId = "evt-1",
-            userId = "u_local",
-            deviceId = "pixel-9",
-            eventType = "notification",
-            eventCategory = "Inbox",
-            eventAction = "Received new message",
-            subjectEntity = "Email",
-            subjectEntityId = "com.mail:42",
-            tsStart = now,
-            tags = listOf("priority", "gmail"),
-            attributes = buildJsonObject {
-                put("actor", buildJsonObject {
-                    put("appLabel", JsonPrimitive("Mail"))
-                    put("packageName", JsonPrimitive("com.mail"))
-                })
-                put("subject", buildJsonObject {
-                    put("title", JsonPrimitive("Project Apollo"))
-                    put("text", JsonPrimitive("New update from Alex"))
-                    put("conversationTitle", JsonPrimitive("Team chat"))
-                })
-                put("context", buildJsonObject {
-                    put("category", JsonPrimitive("email"))
-                    put("channelId", JsonPrimitive("inbox"))
-                    put("rankingInfo", buildJsonObject {
-                        put("importance", JsonPrimitive(4))
-                        put("isConversation", JsonPrimitive(true))
-                    })
-                })
-                put("traits", buildJsonObject {
-                    put("template", JsonPrimitive("MessagingStyle"))
-                    put("people", buildJsonArray {
-                        add(buildJsonObject { put("name", JsonPrimitive("Alex")) })
-                    })
-                    put("actions", buildJsonArray {
-                        add(buildJsonObject { put("title", JsonPrimitive("Reply")) })
-                        add(buildJsonObject { put("title", JsonPrimitive("Mark read")) })
-                    })
-                })
-                put("refs", buildJsonObject {
-                    put("key", JsonPrimitive("notification-key"))
-                    put("user", JsonPrimitive("UserHandle{0}"))
-                })
-                put("subjectLines", buildJsonArray {
-                    add(JsonPrimitive("Latest update includes timeline adjustments."))
-                })
-            },
-            metrics = buildJsonObject {
-                put("actionsCount", JsonPrimitive(2))
-                put("peopleCount", JsonPrimitive(1))
-            }
-        ),
-        EventEntity(
-            eventId = "evt-2",
-            userId = "u_local",
-            deviceId = "pixel-9",
-            appPkg = "com.spotify.music",
-            component = SourceComponentIds.MEDIA_SOURCE,
-            eventType = SourceEventTypes.MEDIA_STOP,
-            eventCategory = "media",
-            eventAction = "stop",
-            subjectEntity = "track",
-            tsStart = now,
-            tsEnd = now,
-            tags = listOf("music"),
-            attributes = buildJsonObject {
-                put("actor", buildJsonObject {
-                    put("appLabel", JsonPrimitive("Spotify"))
-                    put("packageName", JsonPrimitive("com.spotify.music"))
-                })
-                put("title", JsonPrimitive("Beyond the Sun"))
-                put("artist", JsonPrimitive("Valentina Miras"))
-                put("album", JsonPrimitive("Starlight Echoes"))
-                put("source_app", JsonPrimitive("com.spotify.music"))
-                put("output_route", JsonPrimitive("Pixel Buds"))
-            },
-            metrics = buildJsonObject {
-                put("played_ms", JsonPrimitive(192000))
-            }
-        ),
-        EventEntity(
-            eventId = "evt-3",
-            userId = "u_local",
-            deviceId = "pixel-9",
-            appPkg = "com.phone",
-            component = "call_log",
-            eventType = "call",
-            eventCategory = "Communications",
-            eventAction = "Missed call",
-            subjectEntity = "Carol Micek",
-            tsStart = Instant.fromEpochMilliseconds(now.toEpochMilliseconds() - 3_600_000),
-            tags = listOf("work"),
-            attributes = buildJsonObject {
-                put("actor", buildJsonObject {
-                    put("appLabel", JsonPrimitive("Dialer"))
-                    put("packageName", JsonPrimitive("com.phone"))
-                })
-                put("context", buildJsonObject {
-                    put("category", JsonPrimitive("call"))
-                    put("rankingInfo", buildJsonObject {
-                        put("importance", JsonPrimitive(3))
-                    })
-                })
-            }
-        )
-    )
-
     AlfredTheme {
         EventListScreen(
             state = EventListUiState(
                 query = "",
-                allEvents = sampleEvents,
-                visibleEvents = sampleEvents
+                allEvents = PreviewEvents,
+                visibleEvents = PreviewEvents
             ),
             userInitials = "A",
             themeMode = ThemeMode.SYSTEM,

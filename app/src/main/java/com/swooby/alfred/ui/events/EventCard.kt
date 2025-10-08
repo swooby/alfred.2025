@@ -1051,9 +1051,9 @@ private fun JsonElement.toDisplayString(): String? = when (this) {
     }
 }
 
-private val PreviewTimestamp = Instant.fromEpochMilliseconds(1_700_000_000_000)
+internal val PreviewTimestamp = Instant.fromEpochMilliseconds(1_700_000_000_000)
 
-private val PreviewNotificationEvent = EventEntity(
+internal val PreviewNotificationEvent = EventEntity(
     eventId = "evt_preview_notification",
     userId = "u_local",
     deviceId = "pixel-9",
@@ -1107,7 +1107,7 @@ private val PreviewNotificationEvent = EventEntity(
     }
 )
 
-private val PreviewMediaSessionEvent = EventEntity(
+internal val PreviewMediaSessionEvent = EventEntity(
     eventId = "evt_preview_media",
     userId = "u_local",
     deviceId = "pixel-9",
@@ -1138,7 +1138,7 @@ private val PreviewMediaSessionEvent = EventEntity(
     }
 )
 
-private val PreviewGenericEvent = EventEntity(
+internal val PreviewGenericEvent = EventEntity(
     eventId = "evt_preview_generic",
     userId = "u_local",
     deviceId = "pixel-9",
@@ -1161,6 +1161,12 @@ private val PreviewGenericEvent = EventEntity(
             put("template", JsonPrimitive("Status"))
         })
     }
+)
+
+internal val PreviewEvents = listOf(
+    PreviewNotificationEvent,
+    PreviewMediaSessionEvent,
+    PreviewGenericEvent
 )
 
 @Composable
