@@ -13,7 +13,7 @@ import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSp
 import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
 import com.smartfoo.android.core.media.FooAudioFocusController
 import com.smartfoo.android.core.media.FooAudioUtils
-import com.smartfoo.android.core.notification.FooListenerManager
+import com.smartfoo.android.core.FooListenerManager
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.FooString
 

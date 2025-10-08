@@ -1,16 +1,18 @@
-package com.smartfoo.android.core.notification
+package com.smartfoo.android.core
 
-import com.swooby.alfred.BuildConfig
 import com.smartfoo.android.core.logging.FooLog
-import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.reflection.FooReflectionUtils
+import com.swooby.alfred.BuildConfig
 import java.util.Collections
 
-class FooListenerManager<T>(name: String) {
+open class FooListenerManager<T>(name: String) {
     companion object {
         private val TAG = FooLog.TAG(FooListenerManager::class.java)
 
         private val VERBOSE_LOG = false && BuildConfig.DEBUG
     }
+
+    constructor(name: Any) : this(FooReflectionUtils.getShortClassName(name))
 
     private val mName: String = FooString.quote(name.trim())
     private val mListeners: MutableSet<T> = LinkedHashSet()
@@ -146,6 +148,6 @@ class FooListenerManager<T>(name: String) {
         }
     }
 
-    protected fun onListenersUpdated(listenersSize: Int) {
+    protected open fun onListenersUpdated(listenersSize: Int) {
     }
 }

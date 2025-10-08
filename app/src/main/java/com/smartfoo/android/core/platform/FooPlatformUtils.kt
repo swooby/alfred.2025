@@ -12,6 +12,7 @@ import com.smartfoo.android.core.FooString
 import java.util.Locale
 
 object FooPlatformUtils {
+    @JvmStatic
     fun toString(intent: Intent?): String {
         if (intent == null) return "null"
         val sb = StringBuilder()
@@ -23,6 +24,7 @@ object FooPlatformUtils {
     /**
      * May be unnecessary; [android.os.Bundle]`.toString` output seems almost acceptable nowadays.
      */
+    @JvmStatic
     fun toString(bundle: Bundle?): String {
         if (bundle == null) return "null"
 
@@ -74,6 +76,7 @@ object FooPlatformUtils {
     }
 
     @JvmOverloads
+    @JvmStatic
     fun startActivity(context: Context, intent: Intent, bundle: Bundle? = null) {
         /*
         if (context is Application) {
@@ -123,6 +126,7 @@ object FooPlatformUtils {
      *
      * @param context context
      */
+    @JvmStatic
     fun showDevelopmentSettings(context: Context) {
         val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -145,6 +149,7 @@ object FooPlatformUtils {
      *
      * @param context
      */
+    @JvmStatic
     fun showAdbWirelessSettings(context: Context) {
         /*
 
@@ -190,6 +195,7 @@ object FooPlatformUtils {
         startActivity(context, intent)
     }
 
+    @JvmStatic
     fun showGooglePlay(context: Context, packageName: String?) {
         try {
             val uri = "market://details?id=$packageName".toUri()
@@ -200,16 +206,16 @@ object FooPlatformUtils {
         }
     }
 
-    fun showAppSettings(context: Context, packageName: String?) {
+    @JvmOverloads
+    @JvmStatic
+    fun showAppSettings(context: Context, packageName: String? = null) {
+        val packageName = packageName ?: context.packageName
         val uri = "package:$packageName".toUri()
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri)
         startActivity(context, intent)
     }
 
-    fun showAppSettings(context: Context) {
-        showAppSettings(context, context.packageName)
-    }
-
+    @JvmStatic
     fun showBatterySettings(context: Context) {
         val intent = Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
         val resolveInfo = context.packageManager.resolveActivity(intent, 0)
@@ -223,6 +229,7 @@ object FooPlatformUtils {
             putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
         }
 
+    @JvmStatic
     fun showAppNotificationSettings(ctx: Context) {
         startActivity(ctx, intentAppNotificationSettings(ctx))
     }
