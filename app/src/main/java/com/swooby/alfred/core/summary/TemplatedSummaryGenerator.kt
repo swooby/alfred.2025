@@ -7,7 +7,7 @@ class TemplatedSummaryGenerator(
     templates: List<PhraseTemplate> = listOf(
         SpotifyTemplate(),
         GenericMediaTemplate(),
-        GenericNotifTemplate(),
+        NotificationTemplate(),
         ScreenTemplate()
     )
 ) : SummaryGenerator {
