@@ -22,7 +22,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.swooby.alfred2025"
+        val appId = "com.swooby.alfred2025"
+
+        applicationId = appId
         versionCode = 1
         versionName = "1.0"
 
@@ -30,7 +32,12 @@ android {
         targetSdk = 36
 
         vectorDrawables { useSupportLibrary = true }
+
+        // Used in EventCard
         buildConfigField("boolean", "ENABLE_LABEL_HEURISTICS", enableLabelHeuristics.toString())
+
+        // Used in some Composable Previews
+        buildConfigField("String", "PACKAGE_NAME", "\"$appId\"")
     }
 
     buildTypes {

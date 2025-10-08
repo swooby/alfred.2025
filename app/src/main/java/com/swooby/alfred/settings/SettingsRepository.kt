@@ -17,6 +17,7 @@ private val Context.settingsDataStore by preferencesDataStore("alfred_settings")
 
 class SettingsRepository(private val app: Context) {
     private object K {
+        val PERSISTENT_NOTIFICATION_ACTION_IGNORED = booleanPreferencesKey("persistent_notification_action_ignored")
         val SPEAK_SCREEN_OFF_ONLY = booleanPreferencesKey("speak_screen_off_only")
         val QUIET_START = stringPreferencesKey("quiet_start")
         val QUIET_END   = stringPreferencesKey("quiet_end")
@@ -25,6 +26,7 @@ class SettingsRepository(private val app: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val THEME_SEED = stringPreferencesKey("theme_seed_argb")
     }
+
     private val defaultEnabled = setOf(
         SourceEventTypes.MEDIA_START,
         SourceEventTypes.MEDIA_STOP,
@@ -35,6 +37,7 @@ class SettingsRepository(private val app: Context) {
         SourceEventTypes.NETWORK_WIFI_CONNECT,
         SourceEventTypes.NETWORK_WIFI_DISCONNECT
     )
+
     val rulesConfigFlow: Flow<RulesConfig> =
         app.settingsDataStore.data.map { p ->
             val speakOff = p[K.SPEAK_SCREEN_OFF_ONLY] ?: false
@@ -63,7 +66,13 @@ class SettingsRepository(private val app: Context) {
             )
         }
 
-    val themeModeFlow: Flow<ThemeMode> = themePreferencesFlow.map { it.mode }
+    //val themeModeFlow: Flow<ThemeMode> = themePreferencesFlow.map { it.mode }
+
+    val persistentNotificationActionIgnoredFlow: Flow<Boolean> =
+        app.settingsDataStore.data.map { it[K.PERSISTENT_NOTIFICATION_ACTION_IGNORED] ?: false }
+    suspend fun setPersistentNotificationActionIgnored(ignored: Boolean) {
+        app.settingsDataStore.edit { it[K.PERSISTENT_NOTIFICATION_ACTION_IGNORED] = ignored }
+    }
 
     suspend fun setQuietHours(startHHmm: String?, endHHmm: String?) {
         app.settingsDataStore.edit { e -> e[K.QUIET_START] = startHHmm ?: ""; e[K.QUIET_END] = endHHmm ?: "" }

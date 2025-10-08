@@ -77,6 +77,12 @@ object FooPlatformUtils {
 
     @JvmOverloads
     @JvmStatic
+    fun startActivity(context: Context, activityClass: Class<*>, bundle: Bundle? = null) {
+        startActivity(context, Intent(context, activityClass), bundle)
+    }
+
+    @JvmOverloads
+    @JvmStatic
     fun startActivity(context: Context, intent: Intent, bundle: Bundle? = null) {
         /*
         if (context is Application) {

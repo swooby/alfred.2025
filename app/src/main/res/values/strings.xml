@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Alfred 2025</string>
     <string name="main_top_app_bar_title">Alfred 2025</string>
     <string name="settings_title">Alfred Settings</string>
@@ -15,6 +15,19 @@
     <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
     <string name="pipeline_notification_action_enable">Enable</string>
     <string name="pipeline_notification_action_quit">Quit</string>
+
+    <string name="alfred_notification_action_persistent">Pin</string>
+    <string name="alfred_notification_persistent_dialog_title">Pin Notification To Be Persistent</string>
+    <string name="alfred_notification_persistent_dialog_message">To pin the Notification to be persistent, run the following command from a computer with ADB access to the phone:</string>
+    <string name="alfred_notification_persistent_dialog_message_disable">The notification is already persistent. To make it dismissible again, run the following command from a computer with ADB access to the phone:</string>
+    <string name="alfred_notification_persistent_command_enable" tools:ignore="TypographyDashes">adb shell appops set --uid %1$s SYSTEM_EXEMPT_FROM_DISMISSIBLE_NOTIFICATIONS allow</string>
+    <string name="alfred_notification_persistent_command_disable" tools:ignore="TypographyDashes">adb shell appops set --uid %1$s SYSTEM_EXEMPT_FROM_DISMISSIBLE_NOTIFICATIONS default</string>
+    <string name="alfred_notification_persistent_copy_button">Copy To Clipboard</string>
+    <string name="alfred_notification_persistent_command_copied_to_clipboard">Command copied to clipboard</string>
+    <string name="alfred_notification_persistent_ignore_button">Ignore</string>
+    <string name="alfred_notification_persistent_confirmation">`Pin` action hidden. You can reopen this help from the app menu.</string>
+    <string name="action_show_persistent_notification_help">Persistent Notification</string>
+
     <string name="permissions_title_setup">Alfred 2025 Setup</string>
     <string name="permissions_post_notifications_title">Post Notifications</string>
     <string name="permissions_post_notifications_description">Lets Alfred 2025 speak and show status; required on Android 13+.</string>

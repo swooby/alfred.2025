@@ -114,6 +114,7 @@ fun EventListScreen(
     onDeveloperOptionsRequested: () -> Unit,
     onAdbWirelessRequested: () -> Unit,
     onTextToSpeechSettingsRequested: () -> Unit,
+    onPersistentNotification: () -> Unit,
     onQuitRequested: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onEventSelectionChange: (String, Boolean) -> Unit,
@@ -237,6 +238,17 @@ fun EventListScreen(
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                     }
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerPersistentNotification) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onPersistentNotification()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerQuit) },
                         selected = false,
@@ -1089,6 +1101,9 @@ internal object LocalizedStrings {
     val drawerTextToSpeech: String
         @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech)
 
+    val drawerPersistentNotification: String
+        @Composable get() = stringResource(R.string.action_show_persistent_notification_help)
+
     val drawerQuit: String
         @Composable get() = stringResource(R.string.event_list_drawer_quit)
 
@@ -1371,6 +1386,7 @@ private fun EventListPreview() {
             onDeveloperOptionsRequested = {},
             onAdbWirelessRequested = {},
             onTextToSpeechSettingsRequested = {},
+            onPersistentNotification = {},
             onQuitRequested = {},
             onSelectionModeChange = {},
             onEventSelectionChange = { _, _ -> },

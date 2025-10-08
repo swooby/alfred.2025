@@ -27,22 +27,22 @@ object AppShutdownManager {
     @SuppressLint("ObsoleteSdkInt")
     @RequiresApi(VERSION_CODES.N)
     private fun prepareForShutdown(context: Context) {
-        val appContext = context.applicationContext
         if (!shutdownPrepared.compareAndSet(false, true)) {
             FooLog.d(TAG, "prepareForShutdown: already prepared")
             return
         }
         FooLog.i(TAG, "prepareForShutdown: closing tasks and unbinding listener")
-        val activityManager = appContext.getSystemService(ActivityManager::class.java)
+        val activityManager = context.getSystemService(ActivityManager::class.java)
         activityManager?.appTasks?.forEach {
             runCatching { it.finishAndRemoveTask() }
         }
-        FooNotificationListener.requestNotificationListenerUnbind(appContext, NotificationsSource::class.java)
+        PipelineService.requestNotificationListenerUnbind(context)
     }
 
-    fun onPipelineServiceStarted(context: Context) {
+    fun onPipelineServiceStarted(context: Context): Boolean {
         shutdownPrepared.set(false)
         quitting.set(false)
+        return PipelineService.hasNotificationListenerAccess(context)
     }
 
     fun requestQuit(context: Context) {
