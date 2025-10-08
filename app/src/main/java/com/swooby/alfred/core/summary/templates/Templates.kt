@@ -22,7 +22,7 @@ class GenericMediaTemplate : PhraseTemplate {
                 val s = buildString {
                     append("Now playing")
                     if (!title.isNullOrBlank()) { append(": "); append(title) }
-                    if (!artist.isNullOrBlank()) append(" by " + artist)
+                    if (!artist.isNullOrBlank()) append(" by $artist")
                     append(".")
                 }
                 Utterance.Live(10, s)
@@ -30,7 +30,7 @@ class GenericMediaTemplate : PhraseTemplate {
             SourceEventTypes.MEDIA_STOP -> {
                 val played = e.metrics["played_ms"]?.jsonPrimitive?.intOrNull ?: e.durationMs?.toInt()
                 val s = if (!title.isNullOrBlank() && played != null)
-                    "Finished " + title + " after " + (played/1000) + " seconds."
+                    "Finished $title after ${played / 1000} seconds."
                 else "Playback stopped."
                 Utterance.Live(9, s)
             }
@@ -46,8 +46,8 @@ class SpotifyTemplate : PhraseTemplate {
         if (e.eventType == SourceEventTypes.MEDIA_START) {
             val title = e.attributes["title"]?.jsonPrimitive?.contentOrNull ?: "a track"
             val artist = e.attributes["artist"]?.jsonPrimitive?.contentOrNull
-            val s = if (artist.isNullOrBlank()) "Spotify: " + title + "."
-                    else "Spotify: " + title + " by " + artist + "."
+            val s = if (artist.isNullOrBlank()) "Spotify: $title."
+                    else "Spotify: $title by $artist."
             return Utterance.Live(20, s)
         }
         return null
@@ -72,11 +72,11 @@ class NotificationTemplate : PhraseTemplate {
 
         val spoken = when {
             !title.isNullOrBlank() && !body.isNullOrBlank() ->
-                "Notification from " + (appLabel ?: "an app") + ": " + title + " — " + body
+                "Notification from ${appLabel ?: "an app"}: $title — $body"
             !title.isNullOrBlank() ->
-                "Notification from " + (appLabel ?: "an app") + ": " + title
+                "Notification from ${appLabel ?: "an app"}: $title"
             !body.isNullOrBlank() ->
-                "New notification from " + (appLabel ?: "an app") + ": " + body
+                "New notification from ${appLabel ?: "an app"}: $body"
             else -> "New notification"
         }
         return Utterance.Live(5, spoken.ensureSentenceTerminator())

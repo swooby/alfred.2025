@@ -47,7 +47,7 @@ object FooPlatformUtils {
                 bundle.get(key)
             } catch (e: RuntimeException) {
                 // Known issue if a Bundle (Parcelable) incorrectly implements writeToParcel
-                "[Error retrieving \"" + key + "\" value: " + e.message + "]"
+                "[Error retrieving \"$key\" value: ${e.message}]"
             }
 
             sb.append(FooString.quote(key)).append('=')

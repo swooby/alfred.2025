@@ -68,11 +68,11 @@ object FooString {
         }
 
         if (value is String) {
-            return "\"" + value.toString() + '\"'
+            return "\"$value\""
         }
 
         if (value is CharSequence) {
-            return "\"" + value.toString() + '\"'
+            return "\"$value\""
         }
 
         return value.toString()

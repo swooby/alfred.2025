@@ -19,7 +19,7 @@ class MediaSessionDurationTracker {
     fun onStart(controller: MediaController, state: PlaybackState?): MediaPlaySpan {
         return spans.getOrPut(controller) {
             MediaPlaySpan(
-                sessionId = "MS-" + Ulids.newUlid(),
+                sessionId = "MS-${Ulids.newUlid()}",
                 startWall = Clock.System.now(),
                 startPosMs = state?.position ?: 0L,
                 lastState = state?.state ?: PlaybackState.STATE_PLAYING

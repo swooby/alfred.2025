@@ -101,5 +101,5 @@ private fun Long.toArgbHexString(): String {
     } else {
         this
     }
-    return "#" + "%08X".format(normalized)
+    return "#${"%08X".format(normalized)}"
 }

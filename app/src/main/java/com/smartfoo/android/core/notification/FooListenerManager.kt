@@ -20,7 +20,7 @@ class FooListenerManager<T>(name: String) {
     private var mIsTraversingListeners = false
 
     override fun toString(): String {
-        return "{ mName=" + mName + ", size()=" + size() + " }"
+        return "{ mName=$mName, size()=${size()} }"
     }
 
     fun size(): Int {
