@@ -37,10 +37,12 @@ or possibly make this project eventually better than Alfred2017.
    again so soon at the top of the hour; maybe just summarize things that have changed since
    the last announcement... but that is probably the way top of the hour announcements should
    probably work anyway.
-2. Not regularly announcing Screen On/Off? 
 ... 
 
 ## Done
+* Audio profiles now gate speech output (Always Off / headset-only modes)
+  https://github.com/swooby/alfred.2025/pull/26
+* Properly announces Screen On/Off; more to come... and better organized.
 * Get notification coalesce/dedupe/debound working (better)
   https://github.com/swooby/alfred.2025/pull/25
 * Add Dark/Light/System theme mode

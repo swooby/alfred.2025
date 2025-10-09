@@ -152,6 +152,48 @@ class AudioProfileController(
     val bluetoothPermission: StateFlow<BluetoothPermissionState> = bluetoothPermissionState
     val headsetEvents: SharedFlow<HeadsetEvent> = events
 
+    fun evaluateGate(): AudioProfileGate {
+        val snapshots = profiles.value
+        val selectedId = selectedProfileId.value
+        val resolvedSelected = selectedId?.let(::findProfileById)
+        if (snapshots.isEmpty()) {
+            val allow = resolvedSelected == null || resolvedSelected is AudioProfile.AlwaysOn
+            val reason = when (resolvedSelected) {
+                is AudioProfile.Disabled -> AudioProfileGateReason.PROFILE_DISABLED
+                is AudioProfile.AlwaysOn, null -> AudioProfileGateReason.UNINITIALIZED
+                else -> AudioProfileGateReason.UNINITIALIZED
+            }
+            return AudioProfileGate(
+                allow = allow,
+                reason = if (allow) AudioProfileGateReason.UNINITIALIZED else reason,
+                snapshot = null
+            )
+        }
+        val selectedSnapshot = snapshots.firstOrNull { it.isSelected }
+        if (selectedSnapshot == null) {
+            val effective = effectiveProfile.value
+            val allow = effective != null
+            val reason = if (allow) AudioProfileGateReason.ALLOWED else AudioProfileGateReason.UNINITIALIZED
+            return AudioProfileGate(allow, reason, null)
+        }
+        if (selectedSnapshot.isEffective) {
+            return AudioProfileGate(
+                allow = true,
+                reason = AudioProfileGateReason.ALLOWED,
+                snapshot = selectedSnapshot
+            )
+        }
+        val reason = when (selectedSnapshot.profile) {
+            is AudioProfile.Disabled -> AudioProfileGateReason.PROFILE_DISABLED
+            else -> AudioProfileGateReason.NO_ACTIVE_DEVICES
+        }
+        return AudioProfileGate(
+            allow = false,
+            reason = reason,
+            snapshot = selectedSnapshot
+        )
+    }
+
     init {
         observeStoredSelection()
         startWiredWatcher()

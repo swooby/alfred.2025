@@ -52,6 +52,7 @@
     <string name="event_list_drawer_developer_options">Developer Options</string>
     <string name="event_list_drawer_adb_wireless">ADB Wireless Settings</string>
     <string name="event_list_drawer_text_to_speech">Text-To-Speech</string>
+    <string name="event_list_drawer_text_to_speech_test">Text-To-Speech: Test</string>
     <string name="event_list_drawer_quit">Quit</string>
     <string name="event_list_drawer_theme_mode_title">Theme</string>
     <string name="event_list_theme_mode_dark">Dark</string>
@@ -59,6 +60,10 @@
     <string name="event_list_theme_mode_system">System</string>
     <string name="event_list_theme_shuffle_cd">Shuffle theme colors</string>
     <string name="event_list_menu_cd">Open navigation</string>
+    <string name="event_list_tts_test_phrase">Testing, testing, 1, 2, 3.</string>
+    <string name="event_list_tts_test_blocked_disabled">Speech is disabled by the current audio profile.</string>
+    <string name="event_list_tts_test_blocked_no_device">Connect a compatible audio device for this profile before testing speech.</string>
+    <string name="event_list_tts_test_blocked_generic">Audio profile is not ready for speech.</string>
     <string name="event_list_refresh_cd">Refresh timeline</string>
     <string name="event_list_avatar_cd">Open account menu</string>
     <string name="event_list_search_placeholder">Search events</string>

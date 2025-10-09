@@ -1,8 +1,13 @@
 package com.swooby.alfred
 
 import android.app.Application
+import android.bluetooth.BluetoothManager
+import android.media.AudioManager
 import com.swooby.alfred.core.ingest.EventIngest
 import com.swooby.alfred.core.ingest.EventIngestImpl
+import com.swooby.alfred.core.profile.AndroidAudioProfilePermissionChecker
+import com.swooby.alfred.core.profile.AndroidAudioProfileStore
+import com.swooby.alfred.core.profile.AudioProfileController
 import com.swooby.alfred.core.rules.RulesEngine
 import com.swooby.alfred.core.rules.RulesEngineImpl
 import com.swooby.alfred.core.summary.SummaryGenerator
@@ -29,6 +34,7 @@ class AlfredApp : Application() {
     lateinit var summarizer: SummaryGenerator
     lateinit var settings: SettingsRepository
     lateinit var mediaSource: MediaSessionsSource
+    lateinit var audioProfiles: AudioProfileController
     private val isShutdown = AtomicBoolean(false)
 
     override fun onCreate() {
@@ -41,6 +47,19 @@ class AlfredApp : Application() {
         summarizer = TemplatedSummaryGenerator()
         settings = SettingsRepository(this)
         mediaSource = MediaSessionsSource(this, this)
+        val audioManager = getSystemService(AudioManager::class.java)
+            ?: throw IllegalStateException("AudioManager service unavailable")
+        val bluetoothManager = getSystemService(BluetoothManager::class.java)
+        val bluetoothAdapter = bluetoothManager?.adapter
+        audioProfiles = AudioProfileController(
+            context = this,
+            audioManager = audioManager,
+            bluetoothAdapter = bluetoothAdapter,
+            profileStore = AndroidAudioProfileStore(this),
+            permissionChecker = AndroidAudioProfilePermissionChecker(this),
+            externalScope = appScope,
+            ioDispatcher = Dispatchers.IO
+        )
         FooLog.v(TAG, "-onCreate()")
     }
 
@@ -56,6 +75,10 @@ class AlfredApp : Application() {
             } catch (t: Throwable) {
                 FooLog.w(TAG, "shutdown: mediaSource.stop failed", t)
             }
+        }
+        if (this::audioProfiles.isInitialized) {
+            runCatching { audioProfiles.shutdown() }
+                .onFailure { FooLog.w(TAG, "shutdown: audioProfiles.shutdown failed", it) }
         }
         if (this::appScope.isInitialized) {
             appScope.cancel()

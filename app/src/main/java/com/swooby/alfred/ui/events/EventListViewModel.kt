@@ -12,7 +12,6 @@ import com.swooby.alfred.data.EventEntity
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -52,13 +51,12 @@ class EventListViewModel(
     private val userId: String,
     private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    audioProfileControllerFactory: (CoroutineScope) -> AudioProfileController,
+    private val audioProfileController: AudioProfileController,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
     private val pageLimit = MutableStateFlow(pageSize)
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
-    private val audioProfileController: AudioProfileController = audioProfileControllerFactory(viewModelScope)
 
     init {
         observeEvents()
@@ -343,15 +341,10 @@ class EventListViewModel(
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        audioProfileController.shutdown()
-    }
-
     class Factory(
         private val eventDao: EventDao,
         private val userId: String,
-        private val audioProfileControllerFactory: (CoroutineScope) -> AudioProfileController,
+        private val audioProfileController: AudioProfileController,
         private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
         private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModelProvider.Factory {
@@ -363,10 +356,10 @@ class EventListViewModel(
                     userId = userId,
                     pageSize = pageSize,
                     ioDispatcher = ioDispatcher,
-                    audioProfileControllerFactory = audioProfileControllerFactory
+                    audioProfileController = audioProfileController
                 ) as T
             }
-            throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
+            throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
         }
     }
 

@@ -136,6 +136,17 @@ class PipelineService : Service() {
                     cfg = cfg
                 )
                 if (decision is Decision.Speak) {
+                    val gate = app.audioProfiles.evaluateGate()
+                    if (!gate.allow) {
+                        val selectedId = gate.snapshot?.profile?.id?.value
+                            ?: app.audioProfiles.uiState.value.selectedProfileId?.value
+                            ?: "none"
+                        val devices = gate.snapshot?.activeDevices
+                            ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
+                            ?: "[]"
+                        FooLog.d(TAG, "#PIPELINE audio profile blocked speech; reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
+                        return@collect
+                    }
                     app.summarizer.livePhrase(ev)?.let { utter -> tts.speak(utter.text) }
                 }
             }

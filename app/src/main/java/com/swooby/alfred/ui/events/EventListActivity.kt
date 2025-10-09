@@ -8,7 +8,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.media.AudioManager
 import android.os.Build
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -55,13 +54,12 @@ import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.smartfoo.android.core.platform.FooPlatformUtils
+import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import com.smartfoo.android.core.texttospeech.FooTextToSpeechHelper
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
-import com.swooby.alfred.core.profile.AndroidAudioProfilePermissionChecker
-import com.swooby.alfred.core.profile.AndroidAudioProfileStore
-import com.swooby.alfred.core.profile.AudioProfileController
+import com.swooby.alfred.core.profile.AudioProfileGateReason
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.settings.DefaultThemePreferences
 import com.swooby.alfred.settings.ThemeMode
@@ -100,26 +98,12 @@ class EventListActivity : ComponentActivity() {
         val app = application as AlfredApp
         val activity = this
         val userId = intent.getStringExtra(EXTRA_USER_ID) ?: DEFAULT_USER_ID
-        val audioManager = ContextCompat.getSystemService(app, AudioManager::class.java)
-            ?: throw IllegalStateException("AudioManager service unavailable")
         val bluetoothManager = ContextCompat.getSystemService(app, BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager?.adapter
-        val audioProfileStore = AndroidAudioProfileStore(app)
-        val audioProfilePermissionChecker = AndroidAudioProfilePermissionChecker(app)
         val viewModelFactory = EventListViewModel.Factory(
             eventDao = app.db.events(),
             userId = userId,
-            audioProfileControllerFactory = { scope ->
-                AudioProfileController(
-                    context = app,
-                    audioManager = audioManager,
-                    bluetoothAdapter = bluetoothAdapter,
-                    profileStore = audioProfileStore,
-                    permissionChecker = audioProfilePermissionChecker,
-                    externalScope = scope,
-                    ioDispatcher = Dispatchers.IO
-                )
-            }
+            audioProfileController = app.audioProfiles
         )
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
 
@@ -226,6 +210,9 @@ class EventListActivity : ComponentActivity() {
                     onTextToSpeechSettingsRequested = {
                         FooTextToSpeechHelper.showTextToSpeechSettings(activity)
                     },
+                    onTextToSpeechTestRequested = {
+                        speakTextToSpeechTest()
+                    },
                     onPersistentNotification = {
                         showPersistentNotificationDialog()
                     },
@@ -300,6 +287,24 @@ class EventListActivity : ComponentActivity() {
 
     private fun hidePersistentNotificationDialog() {
         persistentNotificationDialogVisible.value = false
+    }
+
+    private fun speakTextToSpeechTest() {
+        val app = application as AlfredApp
+        val gate = app.audioProfiles.evaluateGate()
+        if (!gate.allow) {
+            val messageId = when (gate.reason) {
+                AudioProfileGateReason.PROFILE_DISABLED -> R.string.event_list_tts_test_blocked_disabled
+                AudioProfileGateReason.NO_ACTIVE_DEVICES -> R.string.event_list_tts_test_blocked_no_device
+                else -> R.string.event_list_tts_test_blocked_generic
+            }
+            Toast.makeText(this, getString(messageId), Toast.LENGTH_LONG).show()
+            FooLog.d(TAG, "speakTextToSpeechTest: blocked reason=${gate.reason}")
+            return
+        }
+        val phrase = getString(R.string.event_list_tts_test_phrase)
+        FooLog.i(TAG, "speakTextToSpeechTest: speaking test phrase")
+        FooTextToSpeech.speak(app, phrase)
     }
 
     private fun copyCommandToClipboard(command: String) {

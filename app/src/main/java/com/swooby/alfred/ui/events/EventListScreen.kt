@@ -137,6 +137,7 @@ fun EventListScreen(
     onDeveloperOptionsRequested: () -> Unit,
     onAdbWirelessRequested: () -> Unit,
     onTextToSpeechSettingsRequested: () -> Unit,
+    onTextToSpeechTestRequested: () -> Unit,
     onPersistentNotification: () -> Unit,
     onQuitRequested: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
@@ -263,6 +264,17 @@ fun EventListScreen(
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                     }
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerTextToSpeechTest) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onTextToSpeechTestRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerPersistentNotification) },
                         selected = false,
@@ -1336,6 +1348,9 @@ internal object LocalizedStrings {
     val drawerTextToSpeech: String
         @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech)
 
+    val drawerTextToSpeechTest: String
+        @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech_test)
+
     val drawerPersistentNotification: String
         @Composable get() = stringResource(R.string.action_show_persistent_notification_help)
 
@@ -1748,6 +1763,7 @@ private fun EventListPreview() {
             onDeveloperOptionsRequested = {},
             onAdbWirelessRequested = {},
             onTextToSpeechSettingsRequested = {},
+            onTextToSpeechTestRequested = {},
             onPersistentNotification = {},
             onQuitRequested = {},
             onSelectionModeChange = {},
