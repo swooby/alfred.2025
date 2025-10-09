@@ -1,7 +1,7 @@
 package com.smartfoo.android.core.reflection;
 
-import com.smartfoo.android.core.logging.FooLog;
 import com.smartfoo.android.core.FooString;
+import com.smartfoo.android.core.logging.FooLog;
 
 import java.lang.reflect.Field;
 

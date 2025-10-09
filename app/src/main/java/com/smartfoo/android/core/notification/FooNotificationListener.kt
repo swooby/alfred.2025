@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Build.VERSION_CODES
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import androidx.annotation.RequiresApi
@@ -61,17 +60,17 @@ object FooNotificationListener {
     }
 
     /**
-     * Usually [Build.VERSION.SDK_INT], but may be used to force a specific OS Version #
-     * **FOR TESTING PURPOSES**.
+     * Usually [Build.VERSION.SDK_INT],
+     * but may be used to force a specific OS Version # **FOR TESTING PURPOSES**.
      */
     private val VERSION_SDK_INT = Build.VERSION.SDK_INT
 
     fun supportsNotificationListenerSettings(): Boolean {
-        return VERSION_SDK_INT >= VERSION_CODES.KITKAT
+        return VERSION_SDK_INT >= Build.VERSION_CODES.KITKAT
     }
 
     /**
-     * Per hidden field [Settings.Secure] `ENABLED_NOTIFICATION_LISTENERS`
+     * Per hidden field [android.provider.Settings.Secure] `ENABLED_NOTIFICATION_LISTENERS`
      */
     private const val ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listeners"
 
@@ -130,7 +129,7 @@ object FooNotificationListener {
     }
 
     @SuppressLint("ObsoleteSdkInt")
-    @RequiresApi(VERSION_CODES.N)
+    @RequiresApi(Build.VERSION_CODES.N)
     fun requestNotificationListenerUnbind(
         context: Context,
         notificationListenerServiceClass: Class<out NotificationListenerService>
@@ -146,7 +145,7 @@ object FooNotificationListener {
     }
 
     @SuppressLint("ObsoleteSdkInt")
-    @RequiresApi(VERSION_CODES.N)
+    @RequiresApi(Build.VERSION_CODES.N)
     fun requestNotificationListenerRebind(
         context: Context,
         notificationListenerServiceClass: Class<out NotificationListenerService>
@@ -160,5 +159,4 @@ object FooNotificationListener {
             FooLog.w(TAG, "requestNotificationListenerRebind: failed", throwable)
         }
     }
-
 }

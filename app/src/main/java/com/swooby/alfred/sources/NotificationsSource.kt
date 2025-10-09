@@ -16,7 +16,7 @@ import com.swooby.alfred.data.Sensitivity
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.smartfoo.android.core.platform.FooPlatformUtils
-import com.smartfoo.android.core.crypto.FooSha256
+import com.smartfoo.android.core.crypto.FooCrypto
 import com.smartfoo.android.core.FooString
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.JsonArray
@@ -212,7 +212,7 @@ class NotificationsSource : NotificationListenerService() {
         )
         if (parts.all { it.isNullOrBlank() }) return null
         val normalized = parts.joinToString(separator = "|") { it ?: "" }
-        return FooSha256.sha256(normalized)
+        return FooCrypto.SHA256(normalized)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {

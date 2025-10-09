@@ -19,7 +19,10 @@ import java.util.concurrent.atomic.AtomicLong
 class FooAudioFocusController private constructor() {
     companion object {
         private val TAG = FooLog.TAG(FooAudioFocusController::class.java)
+
+        @JvmStatic
         val instance = FooAudioFocusController()
+
         var VERBOSE = true
     }
 

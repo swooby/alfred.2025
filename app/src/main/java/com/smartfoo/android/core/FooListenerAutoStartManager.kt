@@ -12,8 +12,8 @@ class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name
         fun onLastDetach(): Boolean
     }
 
-    private val autoStartListeners: FooListenerManager<FooListenerAutoStartManagerCallbacks?> =
-        FooListenerManager<FooListenerAutoStartManagerCallbacks?>(this)
+    private val autoStartListeners: FooListenerManager<FooListenerAutoStartManagerCallbacks> =
+        FooListenerManager<FooListenerAutoStartManagerCallbacks>(this)
 
     private var isStarted = false
 
@@ -34,7 +34,7 @@ class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name
             if (listenersSize == 0) {
                 isStarted = false
                 for (callbacks in autoStartListeners.beginTraversing()) {
-                    if (callbacks!!.onLastDetach()) {
+                    if (callbacks.onLastDetach()) {
                         //mAutoStartListeners.detach(callbacks);
                     }
                 }
@@ -44,7 +44,7 @@ class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name
             if (listenersSize > 0) {
                 isStarted = true
                 for (callbacks in autoStartListeners.beginTraversing()) {
-                    callbacks!!.onFirstAttach()
+                    callbacks.onFirstAttach()
                 }
                 autoStartListeners.endTraversing()
             }

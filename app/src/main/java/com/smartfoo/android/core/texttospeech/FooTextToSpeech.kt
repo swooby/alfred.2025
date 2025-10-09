@@ -28,7 +28,7 @@ import com.smartfoo.android.core.FooString
  *  * https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/speech/tts/
  *  * https://cs.android.com/android/platform/superproject/main/+/main:packages/apps/Settings/src/com/android/settings/tts/
  */
-class FooTextToSpeech {
+class FooTextToSpeech private constructor() {
     companion object {
         private val TAG = FooLog.TAG(FooTextToSpeech::class.java)
 
@@ -83,7 +83,7 @@ class FooTextToSpeech {
     private var audioFocusControllerHandle: FooAudioFocusController.FocusHandle? = null
 
     /**
-     * Audio‑focus acquisition strategy:
+     * Audio-focus acquisition strategy:
      *  - Read/assign `audioFocusControllerHandle` only while holding `syncLock`.
      *  - Perform the potentially blocking framework `acquire(...)` call *outside* the lock.
      *  - Use double‑checked publication under `syncLock`; if another thread wins the race,

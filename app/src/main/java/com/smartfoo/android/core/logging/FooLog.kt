@@ -3,6 +3,7 @@ package com.smartfoo.android.core.logging
 import android.util.Log
 import com.smartfoo.android.core.reflection.FooReflectionUtils
 
+@Suppress("unused")
 object FooLog {
     @JvmStatic
     fun TAG(o: Any?): String {
@@ -37,13 +38,11 @@ object FooLog {
         return tag
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun v(tag: String?, msg: String?) {
         v(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun v(tag: String?, e: Throwable?) {
         v(tag, "Throwable", e)
@@ -54,13 +53,11 @@ object FooLog {
         Log.v(tag, msg, e)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun d(tag: String?, msg: String?) {
         d(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun d(tag: String?, e: Throwable?) {
         d(tag, "Throwable", e)
@@ -71,13 +68,11 @@ object FooLog {
         Log.d(tag, msg, e)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun i(tag: String?, msg: String?) {
         i(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun i(tag: String?, e: Throwable?) {
         i(tag, "Throwable", e)
@@ -88,13 +83,11 @@ object FooLog {
         Log.i(tag, msg, e)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun w(tag: String?, msg: String?) {
         w(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun w(tag: String?, e: Throwable?) {
         w(tag, "Throwable", e)
@@ -105,13 +98,11 @@ object FooLog {
         Log.w(tag, msg, e)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun e(tag: String?, msg: String?) {
         e(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun e(tag: String?, e: Throwable?) {
         e(tag, "Throwable", e)
@@ -122,13 +113,11 @@ object FooLog {
         Log.e(tag, msg, e)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun f(tag: String?, msg: String?) {
         f(tag, msg, null)
     }
 
-    @Suppress("unused")
     @JvmStatic
     fun f(tag: String?, e: Throwable?) {
         f(tag, "Throwable", e)

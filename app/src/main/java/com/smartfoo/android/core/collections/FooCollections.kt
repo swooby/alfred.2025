@@ -55,8 +55,8 @@ object FooCollections {
             //return a.containsAll(b) && b.containsAll(a);
             //return new TreeSet<>(a).equals(new TreeSet<>(b));
         } else {
-            val a2: Set<T> = LinkedHashSet(a)
-            val b2: Set<T> = LinkedHashSet(b)
+            val a2 = LinkedHashSet(a)
+            val b2 = LinkedHashSet(b)
             val result = a2 == b2
             return result
         }

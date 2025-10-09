@@ -5,13 +5,17 @@ import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
-import com.swooby.alfred.R
 import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.logging.FooLog
+import com.swooby.alfred.R
 import kotlin.math.roundToInt
 
 @Suppress("unused")
 object FooAudioUtils {
-    val audioStreamTypes: IntArray = intArrayOf(
+    private val TAG = FooLog.TAG(FooAudioUtils::class.java)
+
+    @JvmStatic
+    val audioStreamTypes = intArrayOf(
         AudioManager.STREAM_VOICE_CALL,
         AudioManager.STREAM_SYSTEM,
         AudioManager.STREAM_RING,
@@ -20,10 +24,12 @@ object FooAudioUtils {
         AudioManager.STREAM_NOTIFICATION
     )
 
+    @JvmStatic
     fun audioStreamTypeToString(audioStreamType: Int): String {
         return audioStreamTypeToString(null, audioStreamType)
     }
 
+    @JvmStatic
     fun audioStreamTypeToString(context: Context?, audioStreamType: Int): String {
         val s = when (audioStreamType) {
             AudioManager.STREAM_VOICE_CALL -> context?.getString(R.string.audio_stream_voice_call) ?: "STREAM_VOICE_CALL"
@@ -44,6 +50,7 @@ object FooAudioUtils {
         return if (context != null) s else "$s($audioStreamType)"
     }
 
+    @JvmStatic
     fun audioFocusGainLossToString(audioFocusGainLoss: Int): String {
         val s = when (audioFocusGainLoss) {
             AudioManager.AUDIOFOCUS_NONE -> "AUDIOFOCUS_NONE"
@@ -59,6 +66,7 @@ object FooAudioUtils {
         return "$s($audioFocusGainLoss)"
     }
 
+    @JvmStatic
     fun audioFocusRequestToString(audioFocusRequest: Int): String {
         val s = when (audioFocusRequest) {
             AudioManager.AUDIOFOCUS_REQUEST_FAILED -> "AUDIOFOCUS_REQUEST_FAILED"
@@ -69,6 +77,7 @@ object FooAudioUtils {
         return "$s($audioFocusRequest)"
     }
 
+    @JvmStatic
     fun getVolumePercentFromAbsolute(
         audioManager: AudioManager,
         audioStreamType: Int,
@@ -78,6 +87,7 @@ object FooAudioUtils {
         return volume / volumeMax.toFloat()
     }
 
+    @JvmStatic
     fun getVolumeAbsoluteFromPercent(
         audioManager: AudioManager,
         audioStreamType: Int,
@@ -87,15 +97,18 @@ object FooAudioUtils {
         return (volumeMax * volumePercent).roundToInt()
     }
 
+    @JvmStatic
     fun getVolumeAbsolute(audioManager: AudioManager, audioStreamType: Int): Int {
         return audioManager.getStreamVolume(audioStreamType)
     }
 
+    @JvmStatic
     fun getVolumePercent(audioManager: AudioManager, audioStreamType: Int): Float {
         val volume = getVolumeAbsolute(audioManager, audioStreamType)
         return getVolumePercentFromAbsolute(audioManager, audioStreamType, volume)
     }
 
+    @JvmStatic
     fun getRingtone(context: Context?, ringtoneUri: Uri?): Ringtone? {
         if (FooString.isNullOrEmpty(FooString.toString(ringtoneUri))) {
             return null

@@ -11,6 +11,7 @@ import androidx.core.net.toUri
 import com.smartfoo.android.core.FooString
 import java.util.Locale
 
+@Suppress("unused")
 object FooPlatformUtils {
     @JvmStatic
     fun toString(intent: Intent?): String {
@@ -214,8 +215,7 @@ object FooPlatformUtils {
 
     @JvmOverloads
     @JvmStatic
-    fun showAppSettings(context: Context, packageName: String? = null) {
-        val packageName = packageName ?: context.packageName
+    fun showAppSettings(context: Context, packageName: String? = context.packageName) {
         val uri = "package:$packageName".toUri()
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri)
         startActivity(context, intent)

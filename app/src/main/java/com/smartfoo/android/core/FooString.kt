@@ -25,20 +25,12 @@ object FooString {
     }
 
     /**
-     * @param str1 str1
-     * @param str2 str2
-     * @return str1 != null ? str1.equals(str2) : str2 == null
-     */
-    fun equals(str1: String?, str2: String?): Boolean {
-        return if (str1 != null) (str1 == str2) else str2 == null
-    }
-
-    /**
      * Identical to [repr], but grammatically intended for Strings.
      *
      * @param value value
      * @return "null", or '\"' + value.toString + '\"', or value.toString()
      */
+    @JvmStatic
     fun quote(value: Any?): String {
         return repr(value, false)
     }
@@ -46,19 +38,13 @@ object FooString {
     /**
      * Identical to [quote], but grammatically intended for Objects.
      *
-     * @param value value
-     * @return "null", or '\"' + value.toString + '\"', or value.toString()
-     */
-    fun repr(value: Any?): String {
-        return repr(value, false)
-    }
-
-    /**
      * @param value    value
      * @param typeOnly typeOnly
      * @return "null", or '\"' + value.toString + '\"', or value.toString(), or getShortClassName(value)
      */
-    fun repr(value: Any?, typeOnly: Boolean): String {
+    @JvmOverloads
+    @JvmStatic
+    fun repr(value: Any?, typeOnly: Boolean = false): String {
         if (value == null) {
             return "null"
         }
@@ -76,5 +62,15 @@ object FooString {
         }
 
         return value.toString()
+    }
+
+    /**
+     * @param str1 str1
+     * @param str2 str2
+     * @return str1 != null ? str1.equals(str2) : str2 == null
+     */
+    @JvmStatic
+    fun equals(str1: String?, str2: String?): Boolean {
+        return if (str1 != null) (str1 == str2) else str2 == null
     }
 }

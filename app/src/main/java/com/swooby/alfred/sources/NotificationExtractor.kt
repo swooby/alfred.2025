@@ -16,15 +16,13 @@ import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.util.SparseArray
 import androidx.core.app.NotificationCompat
-import com.smartfoo.android.core.crypto.FooSha256
+import com.smartfoo.android.core.crypto.FooCrypto
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import java.security.MessageDigest
 
 /**
  * High-level envelope that coalesces cleanly with a "universal event" table.
@@ -144,7 +142,7 @@ object NotificationExtractor {
         )
 
         val integrity = mutableMapOf<String, Any?>()
-        integrity.putMeaningful("snapshotHash", FooSha256.sha256(rawExtras.toString()))
+        integrity.putMeaningful("snapshotHash", FooCrypto.SHA256(rawExtras.toString()))
         integrity.putMeaningful("fieldsPresent", rawExtras.keys.toList())
 
         return EventEnvelope(
