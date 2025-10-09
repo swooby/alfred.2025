@@ -18,6 +18,8 @@ value class AudioProfileId(val value: String) {
         fun random(): AudioProfileId = AudioProfileId(UUID.randomUUID().toString())
 
         fun static(value: String): AudioProfileId = AudioProfileId(value)
+
+        private fun device(token: String): AudioProfileId = AudioProfileId("profile.headset.bluetooth.$token")
     }
 }
 
@@ -90,11 +92,6 @@ sealed interface AudioProfile {
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.device(deviceToken)
         override val category: ProfileCategory = ProfileCategory.BLUETOOTH_DEVICE
-
-        companion object {
-            private fun AudioProfileId.Companion.device(token: String): AudioProfileId =
-                AudioProfileId("profile.headset.bluetooth.$token")
-        }
     }
 
     data class AnyHeadset(
