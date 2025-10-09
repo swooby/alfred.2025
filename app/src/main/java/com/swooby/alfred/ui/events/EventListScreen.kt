@@ -1,5 +1,6 @@
 package com.swooby.alfred.ui.events
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -33,7 +34,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Headset
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
@@ -42,8 +47,11 @@ import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +72,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
@@ -82,16 +92,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
+import com.swooby.alfred.core.profile.AudioProfile
+import com.swooby.alfred.core.profile.AudioProfileId
+import com.swooby.alfred.core.profile.AudioProfileSnapshot
+import com.swooby.alfred.core.profile.AudioProfileUiState
+import com.swooby.alfred.core.profile.ConnectedHeadsets
+import com.swooby.alfred.core.profile.EffectiveAudioProfile
+import com.swooby.alfred.core.profile.HeadsetDevice
+import com.swooby.alfred.core.profile.HeadsetId
+import com.swooby.alfred.core.profile.ProfileCategory
+import com.swooby.alfred.core.profile.ProfileMetadata
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.settings.ThemeMode
 import com.swooby.alfred.sources.SourceComponentIds
@@ -114,6 +137,7 @@ fun EventListScreen(
     onDeveloperOptionsRequested: () -> Unit,
     onAdbWirelessRequested: () -> Unit,
     onTextToSpeechSettingsRequested: () -> Unit,
+    onTextToSpeechTestRequested: () -> Unit,
     onPersistentNotification: () -> Unit,
     onQuitRequested: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
@@ -122,6 +146,8 @@ fun EventListScreen(
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onLoadMore: () -> Unit,
+    onAudioProfileSelect: (AudioProfileId) -> Unit,
+    onEnsureBluetoothPermission: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onShuffleThemeRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -239,6 +265,17 @@ fun EventListScreen(
                         )
                     }
                     NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerTextToSpeechTest) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onTextToSpeechTestRequested()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                    NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerPersistentNotification) },
                         selected = false,
                         onClick = {
@@ -291,6 +328,8 @@ fun EventListScreen(
                     }
                 },
                 onLoadMore = onLoadMore,
+                onAudioProfileSelect = onAudioProfileSelect,
+                onEnsureBluetoothPermission = onEnsureBluetoothPermission,
                 onEventSelectionChange = { event, isSelected ->
                     onEventSelectionChange(event.eventId, isSelected)
                 },
@@ -401,6 +440,8 @@ private fun EventListScaffold(
     onUnselectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onLoadMore: () -> Unit,
+    onAudioProfileSelect: (AudioProfileId) -> Unit,
+    onEnsureBluetoothPermission: () -> Unit,
     onEventSelectionChange: (EventEntity, Boolean) -> Unit,
     onEventLongPress: (EventEntity) -> Unit,
     modifier: Modifier = Modifier,
@@ -408,6 +449,8 @@ private fun EventListScaffold(
     val colorScheme = MaterialTheme.colorScheme
     val actionsEnabled = !state.isPerformingAction
     val listState = rememberLazyListState()
+    val audioProfileState = state.audioProfileUiState
+    val showAudioProfiles = audioProfileState.shouldShowAudioDropdown()
     val visibleRange by remember(listState, state.visibleEvents.size) {
         derivedStateOf {
             val visibleIndices = listState.layoutInfo.visibleItemsInfo
@@ -470,6 +513,16 @@ private fun EventListScaffold(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (showAudioProfiles) {
+                AudioProfileDropdownRow(
+                    uiState = audioProfileState,
+                    onProfileSelect = onAudioProfileSelect,
+                    onEnsureBluetoothPermission = onEnsureBluetoothPermission,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
@@ -707,6 +760,201 @@ private fun Avatar(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AudioProfileDropdownRow(
+    uiState: AudioProfileUiState,
+    onProfileSelect: (AudioProfileId) -> Unit,
+    onEnsureBluetoothPermission: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val profiles = uiState.profiles
+    val missingBluetooth = uiState.missingPermissions.contains(Manifest.permission.BLUETOOTH_CONNECT)
+    val selectedSnapshot = profiles.firstOrNull { it.isSelected }
+        ?: profiles.firstOrNull { it.profile.category == ProfileCategory.ALWAYS_ON }
+        ?: profiles.firstOrNull()
+    val effectiveId = uiState.effectiveProfile?.profile?.id
+    val fieldText = buildString {
+        val base = selectedSnapshot?.profile?.displayName ?: LocalizedStrings.audioProfileAlwaysOnLabel
+        append(base)
+    }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = LocalizedStrings.audioProfileTitle,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = {
+                if (profiles.isNotEmpty()) {
+                    expanded = !expanded
+                }
+            },
+            modifier = Modifier.weight(1f)
+        ) {
+            TextField(
+                value = fieldText,
+                onValueChange = {},
+                readOnly = true,
+                enabled = profiles.isNotEmpty(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                profiles.forEach { snapshot ->
+                    val requiresBluetooth = snapshot.profile.category in bluetoothMenuCategories()
+                    val showPermissionIndicator = missingBluetooth && requiresBluetooth
+                    val availability = when (snapshot.profile.category) {
+                        ProfileCategory.BLUETOOTH_DEVICE,
+                        ProfileCategory.BLUETOOTH_ANY -> snapshot.isActive
+                        else -> null
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = snapshot.profile.displayName,
+                                    fontWeight = if (snapshot.isEffective) FontWeight.Medium else FontWeight.Normal,
+                                    textDecoration = if (showPermissionIndicator) TextDecoration.LineThrough else TextDecoration.None
+                                )
+                                availability?.let { available ->
+                                    AvailabilityChip(available = available)
+                                }
+                            }
+                        },
+                        onClick = {
+                            expanded = false
+                            if (requiresBluetooth && missingBluetooth) {
+                                onEnsureBluetoothPermission()
+                            }
+                            onProfileSelect(snapshot.id)
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = iconForCategory(snapshot.profile.category),
+                                contentDescription = null
+                            )
+                        },
+                        trailingIcon = when {
+                            showPermissionIndicator -> {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Warning,
+                                        contentDescription = LocalizedStrings.audioProfilePermissionAction,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            snapshot.isEffective -> {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            snapshot.isSelected -> {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            else -> null
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun bluetoothMenuCategories(): Set<ProfileCategory> = setOf(
+    ProfileCategory.BLUETOOTH_ANY,
+    ProfileCategory.BLUETOOTH_DEVICE
+)
+
+@Composable
+private fun AvailabilityChip(
+    available: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val (label, containerColor, contentColor) = if (available) {
+        Triple(
+            LocalizedStrings.audioProfileStatusAvailable,
+            colorScheme.tertiaryContainer,
+            colorScheme.onTertiaryContainer
+        )
+    } else {
+        Triple(
+            LocalizedStrings.audioProfileStatusUnavailable,
+            colorScheme.errorContainer,
+            colorScheme.onErrorContainer
+        )
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        contentColor = contentColor,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
+
+private fun iconForCategory(category: ProfileCategory): ImageVector = when (category) {
+    ProfileCategory.DISABLED -> Icons.Outlined.Close
+    ProfileCategory.ALWAYS_ON -> Icons.Outlined.CheckCircle
+    ProfileCategory.WIRED_ONLY -> Icons.Outlined.Headset
+    ProfileCategory.BLUETOOTH_ANY,
+    ProfileCategory.BLUETOOTH_DEVICE -> Icons.Outlined.Bluetooth
+    ProfileCategory.ANY_HEADSET -> Icons.Outlined.Headset
+}
+
+private fun AudioProfileUiState.shouldShowAudioDropdown(): Boolean {
+    return profiles.isNotEmpty() || missingPermissions.isNotEmpty()
+}
+
 @Composable
 private fun EventListContent(
     state: EventListUiState,
@@ -726,7 +974,6 @@ private fun EventListContent(
     val shouldLoadMore = remember(listState, state.visibleEvents, state.canLoadMore, state.isLoadingMore) {
         derivedStateOf {
             if (!state.canLoadMore || state.isLoadingMore) return@derivedStateOf false
-            if (state.visibleEvents.isEmpty()) return@derivedStateOf false
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
                 ?: return@derivedStateOf false
             val triggerIndex = (state.visibleEvents.lastIndex - LOAD_MORE_PREFETCH_THRESHOLD).coerceAtLeast(0)
@@ -1101,6 +1348,9 @@ internal object LocalizedStrings {
     val drawerTextToSpeech: String
         @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech)
 
+    val drawerTextToSpeechTest: String
+        @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech_test)
+
     val drawerPersistentNotification: String
         @Composable get() = stringResource(R.string.action_show_persistent_notification_help)
 
@@ -1211,6 +1461,53 @@ internal object LocalizedStrings {
             )
         }
     }
+
+    val audioProfileTitle: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_title)
+
+    val audioProfileSubtitle: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_subtitle)
+
+    @Composable
+    fun audioProfileEffective(name: String) =
+        stringResource(R.string.event_list_audio_profiles_effective, name)
+
+    val audioProfileEffectiveNone: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_effective_none)
+
+    val audioProfileAlwaysOnLabel: String
+        @Composable get() = stringResource(R.string.audio_profile_always_on_name)
+
+    @Composable
+    fun audioProfileActiveDevices(devices: String) =
+        stringResource(R.string.event_list_audio_profiles_active_devices, devices)
+
+    val audioProfileConnectedTitle: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_connected_title)
+
+    val audioProfileConnectedNone: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_connected_none)
+
+    val audioProfileConnectedPermissionLimited: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_connected_permission_limited)
+
+    val audioProfilePermissionTitle: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_permission_title)
+
+    val audioProfilePermissionBody: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_permission_body)
+
+    val audioProfilePermissionAction: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_permission_action)
+
+    val audioProfilePermissionDenied: String
+        @Composable get() = stringResource(R.string.event_list_audio_profiles_permission_denied)
+
+    val audioProfileStatusAvailable: String
+        @Composable get() = stringResource(R.string.audio_profile_status_available)
+
+    val audioProfileStatusUnavailable: String
+        @Composable get() = stringResource(R.string.audio_profile_status_unavailable)
 
     @Composable
     fun selectionCountLabel(count: Int) = stringResource(R.string.event_list_selection_count, count)
@@ -1367,6 +1664,85 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
+private val PreviewBluetoothDevice = HeadsetDevice.Bluetooth(
+    id = HeadsetId("bt:preview"),
+    displayName = "Swooby Buds",
+    supportsMicrophone = true,
+    supportsOutput = true,
+    rawName = "Swooby Buds",
+    address = "00:11:22:33:44:55",
+    isLeAudio = false
+)
+
+private val PreviewWiredDevice = HeadsetDevice.Wired(
+    id = HeadsetId("wired:preview"),
+    displayName = "USB-C Headset",
+    supportsMicrophone = true,
+    supportsOutput = true,
+    rawName = "USB-C Headset",
+    portAddress = "usb:1"
+)
+
+private val PreviewConnectedHeadsetsState = ConnectedHeadsets(
+    wired = setOf(PreviewWiredDevice),
+    bluetooth = setOf(PreviewBluetoothDevice)
+)
+
+private val PreviewAlwaysOnProfile = AudioProfile.AlwaysOn(
+    displayName = "Always on",
+    metadata = ProfileMetadata(description = "Applies regardless of connected devices.")
+)
+private val PreviewBluetoothProfile = AudioProfile.BluetoothAny(
+    displayName = "Bluetooth headset",
+    metadata = ProfileMetadata(description = "Activates when any Bluetooth audio device is connected.")
+)
+private val PreviewAnyHeadsetProfile = AudioProfile.AnyHeadset(
+    displayName = "Any headset",
+    metadata = ProfileMetadata(description = "Activates when any wired or Bluetooth headset is connected.")
+)
+
+private val PreviewAudioProfileState = AudioProfileUiState(
+    profiles = listOf(
+        AudioProfileSnapshot(
+            profile = AudioProfile.Disabled(
+                displayName = "Off",
+                metadata = ProfileMetadata(description = "Disable Alfred reactions for connected devices.")
+            ),
+            isSelected = false,
+            isActive = false,
+            isEffective = false,
+            activeDevices = emptySet()
+        ),
+        AudioProfileSnapshot(
+            profile = PreviewAlwaysOnProfile,
+            isSelected = false,
+            isActive = true,
+            isEffective = false,
+            activeDevices = PreviewConnectedHeadsetsState.all
+        ),
+        AudioProfileSnapshot(
+            profile = PreviewBluetoothProfile,
+            isSelected = true,
+            isActive = true,
+            isEffective = true,
+            activeDevices = PreviewConnectedHeadsetsState.bluetooth
+        ),
+        AudioProfileSnapshot(
+            profile = PreviewAnyHeadsetProfile,
+            isSelected = false,
+            isActive = PreviewConnectedHeadsetsState.all.isNotEmpty(),
+            isEffective = false,
+            activeDevices = PreviewConnectedHeadsetsState.all
+        )
+    ),
+    selectedProfileId = PreviewBluetoothProfile.id,
+    effectiveProfile = EffectiveAudioProfile(
+        profile = PreviewBluetoothProfile,
+        activeDevices = PreviewConnectedHeadsetsState.bluetooth
+    ),
+    connectedHeadsets = PreviewConnectedHeadsetsState
+)
+
 @Preview(showBackground = true)
 @Composable
 private fun EventListPreview() {
@@ -1375,7 +1751,8 @@ private fun EventListPreview() {
             state = EventListUiState(
                 query = "",
                 allEvents = PreviewEvents,
-                visibleEvents = PreviewEvents
+                visibleEvents = PreviewEvents,
+                audioProfileUiState = PreviewAudioProfileState
             ),
             userInitials = "A",
             themeMode = ThemeMode.SYSTEM,
@@ -1386,6 +1763,7 @@ private fun EventListPreview() {
             onDeveloperOptionsRequested = {},
             onAdbWirelessRequested = {},
             onTextToSpeechSettingsRequested = {},
+            onTextToSpeechTestRequested = {},
             onPersistentNotification = {},
             onQuitRequested = {},
             onSelectionModeChange = {},
@@ -1394,6 +1772,8 @@ private fun EventListPreview() {
             onUnselectAll = {},
             onDeleteSelected = {},
             onLoadMore = {},
+            onAudioProfileSelect = {},
+            onEnsureBluetoothPermission = {},
             onThemeModeChange = {},
             onShuffleThemeRequest = {}
         )

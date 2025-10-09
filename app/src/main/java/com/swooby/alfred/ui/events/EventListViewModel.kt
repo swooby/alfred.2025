@@ -3,6 +3,10 @@ package com.swooby.alfred.ui.events
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swooby.alfred.core.profile.AudioProfileController
+import com.swooby.alfred.core.profile.AudioProfileId
+import com.swooby.alfred.core.profile.AudioProfileUiState
+import com.swooby.alfred.core.profile.HeadsetEvent
 import com.swooby.alfred.data.EventDao
 import com.swooby.alfred.data.EventEntity
 import java.util.Locale
@@ -10,6 +14,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +43,7 @@ data class EventListUiState(
     val isAllSelected: Boolean = false,
     val isLoadingMore: Boolean = false,
     val canLoadMore: Boolean = false,
+    val audioProfileUiState: AudioProfileUiState = AudioProfileUiState(),
 )
 
 class EventListViewModel(
@@ -45,6 +51,7 @@ class EventListViewModel(
     private val userId: String,
     private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val audioProfileController: AudioProfileController,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
@@ -55,6 +62,7 @@ class EventListViewModel(
         observeEvents()
         observeEventCount()
         refresh()
+        observeAudioProfiles()
     }
 
     fun onQueryChange(value: String) {
@@ -181,6 +189,18 @@ class EventListViewModel(
         }
     }
 
+    fun selectAudioProfile(profileId: AudioProfileId) {
+        viewModelScope.launch {
+            audioProfileController.selectProfile(profileId)
+        }
+    }
+
+    fun refreshAudioProfilePermissions() {
+        audioProfileController.refreshBluetoothPermission()
+    }
+
+    fun headsetEvents(): Flow<HeadsetEvent> = audioProfileController.headsetEvents
+
     private fun observeEvents() {
         viewModelScope.launch {
             pageLimit
@@ -241,6 +261,16 @@ class EventListViewModel(
                             canLoadMore = canLoadMore
                         )
                     }
+                }
+        }
+    }
+
+    private fun observeAudioProfiles() {
+        viewModelScope.launch {
+            audioProfileController.uiState.collect { profileState ->
+                _state.update { current ->
+                    current.copy(audioProfileUiState = profileState)
+                }
             }
         }
     }
@@ -314,6 +344,7 @@ class EventListViewModel(
     class Factory(
         private val eventDao: EventDao,
         private val userId: String,
+        private val audioProfileController: AudioProfileController,
         private val pageSize: Int = DEFAULT_EVENT_PAGE_SIZE,
         private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModelProvider.Factory {
@@ -324,10 +355,11 @@ class EventListViewModel(
                     eventDao = eventDao,
                     userId = userId,
                     pageSize = pageSize,
-                    ioDispatcher = ioDispatcher
+                    ioDispatcher = ioDispatcher,
+                    audioProfileController = audioProfileController
                 ) as T
             }
-            throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
+            throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
         }
     }
 
