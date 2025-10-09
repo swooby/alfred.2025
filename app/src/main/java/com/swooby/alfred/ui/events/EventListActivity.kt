@@ -1,15 +1,22 @@
 package com.swooby.alfred.ui.events
 
+import android.Manifest
 import android.app.ComponentCaller
+import android.bluetooth.BluetoothManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.media.AudioManager
+import android.os.Build
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +59,9 @@ import com.smartfoo.android.core.texttospeech.FooTextToSpeechHelper
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
+import com.swooby.alfred.core.profile.AndroidAudioProfilePermissionChecker
+import com.swooby.alfred.core.profile.AndroidAudioProfileStore
+import com.swooby.alfred.core.profile.AudioProfileController
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.settings.DefaultThemePreferences
 import com.swooby.alfred.settings.ThemeMode
@@ -90,7 +100,27 @@ class EventListActivity : ComponentActivity() {
         val app = application as AlfredApp
         val activity = this
         val userId = intent.getStringExtra(EXTRA_USER_ID) ?: DEFAULT_USER_ID
-        val viewModelFactory = EventListViewModel.Factory(app.db.events(), userId)
+        val audioManager = ContextCompat.getSystemService(app, AudioManager::class.java)
+            ?: throw IllegalStateException("AudioManager service unavailable")
+        val bluetoothManager = ContextCompat.getSystemService(app, BluetoothManager::class.java)
+        val bluetoothAdapter = bluetoothManager?.adapter
+        val audioProfileStore = AndroidAudioProfileStore(app)
+        val audioProfilePermissionChecker = AndroidAudioProfilePermissionChecker(app)
+        val viewModelFactory = EventListViewModel.Factory(
+            eventDao = app.db.events(),
+            userId = userId,
+            audioProfileControllerFactory = { scope ->
+                AudioProfileController(
+                    context = app,
+                    audioManager = audioManager,
+                    bluetoothAdapter = bluetoothAdapter,
+                    profileStore = audioProfileStore,
+                    permissionChecker = audioProfilePermissionChecker,
+                    externalScope = scope,
+                    ioDispatcher = Dispatchers.IO
+                )
+            }
+        )
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
 
         ContextCompat.startForegroundService(
@@ -146,6 +176,30 @@ class EventListActivity : ComponentActivity() {
                 }
 
                 val viewModel: EventListViewModel = viewModel(factory = viewModelFactory)
+                val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    viewModel.refreshAudioProfilePermissions()
+                    if (!granted) {
+                        Toast.makeText(
+                            activity,
+                            activity.getString(R.string.event_list_audio_profiles_permission_denied),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                val handleBluetoothPermissionRequest: () -> Unit = {
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || bluetoothAdapter == null) {
+                        viewModel.refreshAudioProfilePermissions()
+                    } else {
+                        val permission = Manifest.permission.BLUETOOTH_CONNECT
+                        if (ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_GRANTED) {
+                            viewModel.refreshAudioProfilePermissions()
+                        } else {
+                            bluetoothPermissionLauncher.launch(permission)
+                        }
+                    }
+                }
                 val uiState by viewModel.state.collectAsState()
                 val settingsScope = rememberCoroutineScope()
 
@@ -186,6 +240,8 @@ class EventListActivity : ComponentActivity() {
                     onUnselectAll = viewModel::unselectAll,
                     onDeleteSelected = viewModel::deleteSelected,
                     onLoadMore = viewModel::loadMore,
+                    onAudioProfileSelect = viewModel::selectAudioProfile,
+                    onEnsureBluetoothPermission = handleBluetoothPermissionRequest,
                     onThemeModeChange = { mode ->
                         settingsScope.launch { app.settings.setThemeMode(mode) }
                     },
