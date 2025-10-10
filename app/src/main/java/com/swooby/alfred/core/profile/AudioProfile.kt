@@ -19,7 +19,7 @@ value class AudioProfileId(val value: String) {
 
         fun static(value: String): AudioProfileId = AudioProfileId(value)
 
-        private fun device(token: String): AudioProfileId = AudioProfileId("profile.headset.bluetooth.$token")
+        fun device(token: String): AudioProfileId = AudioProfileId("profile.headset.bluetooth.$token")
     }
 }
 
