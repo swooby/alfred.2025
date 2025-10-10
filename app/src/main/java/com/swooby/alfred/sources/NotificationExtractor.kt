@@ -17,6 +17,7 @@ import android.service.notification.StatusBarNotification
 import android.util.SparseArray
 import androidx.core.app.NotificationCompat
 import com.smartfoo.android.core.crypto.FooCrypto
+import com.smartfoo.android.core.logging.FooLog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -45,6 +46,8 @@ data class EventEnvelope(
 
 /** Main API */
 object NotificationExtractor {
+    private val TAG = FooLog.TAG(NotificationExtractor::class.java)
+
     const val PARSER_VERSION = "notification_extractor_v1"
 
     @JvmStatic
@@ -419,9 +422,14 @@ object NotificationExtractor {
         if (bundle == null) return JsonObject(emptyMap())
         return buildJsonObject {
             for (key in bundle.keySet()) {
-                val value = bundle.get(key)
-                valueToJsonElement(value, includeFalse = true, includeBlank = true)?.let { element ->
-                    put(key, element)
+                try {
+                    val value = bundle.get(key)
+                    valueToJsonElement(value, includeFalse = true, includeBlank = true)?.let { element ->
+                        put(key, element)
+                    }
+                } catch (e: Exception) {
+                    FooLog.w(TAG, "bundleToJson: $key", e)
+                    //put(key, JsonPrimitive("Unreadable value: ${e.javaClass.simpleName}"))
                 }
             }
         }
