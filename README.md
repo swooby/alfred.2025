@@ -6,9 +6,35 @@ or possibly make this project eventually better than Alfred2017.
 
 ## TODO
 
-NOTE: Regularly consolidate with Keep notes.
+NOTE: Regularly check Keep notes and move to here.
 
 **NOT PRIORITIZED**
+1. Lower volume for X minutes/hours (aka: Attenuate)
+1. Do Not Disturb for X minutes/hours (aka: Snooze)
+1. Detect and honor "Do Not Disturb" hours
+1. Notification Mute, Snooze, Stop
+1. Notification Media Controls
+1. Friendly don't say "Greater Than" for ">" prefixed quoted lines
+1. Friendly don't say "Underscore" for "FOO_BAR"
+1. "Smart Switch" (or any similar) Notification of "Backing Up" progress causes annoying repeats
+1. Dictionary to change way words are pronounced; ex: Friendlier name for LOCKLY app
+1. Detect when phone in pocket and Always On and go to 100% volume https://www.google.com/search?q=Android+detect+if+phone+is+in+pocket
+1. Detect when removed from pocket and restore to previous volume
+1. "Lock after screen timeout" is a useful device setting to detect screen locked
+1. Event commands:
+   * Copy to clipboard
+   * Share
+   * Speak
+   * ...
+1. Gmail notification needs better reading.
+1. "Android System: Data warning - You've used 2.38 GB of data" is repeating a lot...basically not deduping at all!
+   What is very interesting (clue?) is that peer "Wireless debugging connected" is not repeating.
+1. Coalesce similar duplicate Media and Notifications
+1. TTS audio needs to route to selected audio device
+1. Future option to show Media Playing info directly in app as if it was actually playing in the app, perhaps with even Pause, Stop, Next, Like, Favorite, Playlist, etc.
+1. Future option to show history on map similar to Google Maps
+1. Future option to show tasks similar to Google Keep or Google Tasks
+1. Future option to show list view of events as a calendar similar to Google Calendar
 1. Improve EventCard; simplify for non-Dev user
 1. Improve media playing logic to better announce song stop/start transitions.
 1. Add detailed logging of event parsing result.  
@@ -27,7 +53,15 @@ NOTE: Regularly consolidate with Keep notes.
     1. Toggle showing mUtteranceCallbacks contents (to help debug anything that may look like a "leak")
 1. Consider elevating the code to a first class Accessibility Service and so what possibilities that opens up.
 1. Understand how this app can launch to listen when app is in background, but Alfred.2017 can't
+1. Screen on total time (for day?) announcement
+1. Add "Screen on, wes off for XX minutes" and "Screen off, was on for XX minutes"
+   Repeat for: 
+   * charging
+   * network
+   * ...
 1. Speak time durations/intervals in more human understandable expanded "1 hour, 27 minutes, 14 seconds"
+1. ...
+1. YouGPT: Summarize Alfred data in a GPT config file
 1. ...
 
 ## BUGS
@@ -42,6 +76,7 @@ NOTE: Regularly consolidate with Keep notes.
 ... 
 
 ## Done
+* Add notification PendingIntent that launches app.
 * Audio profiles now gate speech output (Always Off / headset-only modes)
   https://github.com/swooby/alfred.2025/pull/26
 * Properly announces Screen On/Off; more to come... and better organized.
