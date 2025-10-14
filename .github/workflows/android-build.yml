@@ -14,6 +14,9 @@ env:
   JAVA_VERSION: '21'
   ANDROID_PLATFORM_API: '36'
   ANDROID_BUILD_TOOLS: '36.0.0-rc1'
+  GRADLE_CACHE_DISABLED_FLAGS: >-
+    -Dorg.gradle.configuration-cache=false
+    -Dorg.gradle.configuration-cache.parallel=false
 
 jobs:
   build:
@@ -21,44 +24,51 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # hhttps://github.com/actions/checkout/blob/main/action.yml
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        # https://github.com/actions/setup-java/blob/main/action.yml
+        uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: jetbrains
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
+      - name: Setup Gradle
+        # https://github.com/gradle/actions/blob/main/setup-gradle/action.yml
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-overwrite-existing: true
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
       - name: Install Android SDK
+        # https://github.com/android-actions/setup-android/blob/main/action.yml
         uses: android-actions/setup-android@v3
         with:
+          log-accepted-android-sdk-licenses: false
           cmdline-tools-version: latest
           packages: |-
             platform-tools
 
       - name: Install Android SDK components
-        run: |
-          yes | sdkmanager --licenses
+        run: >-
           yes | sdkmanager --channel=3 "platforms;android-${ANDROID_PLATFORM_API}" "build-tools;${ANDROID_BUILD_TOOLS}"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: github.ref != 'refs/heads/main'
+      - name: Build Debug APK (non-main)
+        if: github.ref != 'refs/heads/main'
+        run: >-
+          ./gradlew assembleDebug ${GRADLE_CACHE_DISABLED_FLAGS}
 
-      - name: Build debug APK
-        # if non-main branch: not writing to Gradle cache.
-        # if main branch: writing to Gradle cache.
-        run: |
+      - name: Build Debug APK (main)
+        if: github.ref == 'refs/heads/main'
+        run: >-
           ./gradlew assembleDebug
 
-      - name: Build release APK
+      - name: Build Release APK (main)
         if: github.ref == 'refs/heads/main'
-        # main branch, last build step: stop writing to Gradle cache.
-        run: |
-          echo "org.gradle.configuration-cache.read-only=true" >> gradle.properties
-          ./gradlew assembleRelease
+        run: >-
+          ./gradlew assembleRelease ${GRADLE_CACHE_DISABLED_FLAGS}
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
