@@ -1,13 +1,10 @@
 package com.smartfoo.android.core.crypto
 
-import java.security.InvalidKeyException
 import java.security.MessageDigest
-import java.security.NoSuchAlgorithmException
 import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-@Suppress("FunctionName", "unused")
 object FooCrypto {
     /**
      * Needs to match https://docs.oracle.com/javase/6/docs/technotes/guides/security/StandardNames.html#KeyGenerator
@@ -19,11 +16,17 @@ object FooCrypto {
      */
     const val SHA256 = "SHA-256"
 
-    fun HMACSHA256(key: ByteArray, buffer: ByteArray): ByteArray {
-        return HMACSHA256(key, buffer, 0, buffer.size)
-    }
+    fun HMACSHA256(
+        key: ByteArray,
+        buffer: ByteArray,
+    ): ByteArray = HMACSHA256(key, buffer, 0, buffer.size)
 
-    fun HMACSHA256(key: ByteArray, buffer: ByteArray, offset: Int, length: Int): ByteArray {
+    fun HMACSHA256(
+        key: ByteArray,
+        buffer: ByteArray,
+        offset: Int,
+        length: Int,
+    ): ByteArray {
         val signingKey = SecretKeySpec(key, HMACSHA256)
         val mac = Mac.getInstance(signingKey.algorithm)
         mac.init(signingKey)

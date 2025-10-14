@@ -1,0 +1,29 @@
+
+# https://pinterest.github.io/ktlint/latest/rules/configuration-ktlint/
+
+root = true
+
+[*]
+insert_final_newline = true
+
+[{*.kt,*.kts}]
+# https://pinterest.github.io/ktlint/latest/rules/experimental/
+ktlint_experimental=enabled
+
+# https://pinterest.github.io/ktlint/latest/rules/standard/
+
+# Turn off things based on personal preference
+ktlint_standard_function-naming = disabled # ex: FooLog.TAG(...)
+ktlint_standard_property-naming = disabled # ex: val VERBOSE_LOG = ...
+ktlint_standard_max-line-length = disabled # I am fine with lines extending off the end on modern IDEs
+ktlint_standard_comment-spacing = disabled # I like to have the option to "//code" and not **have** to "// code
+ktlint_standard_no-blank-line-in-list = disabled # I like being able to white space groups of items
+ktlint_standard_spacing-between-declarations-with-comments = disabled
+ktlint_standard_blank-line-between-when-conditions = disabled
+ktlint_standard_when-entry-bracing = disabled
+ktlint_standard_kdoc = disabled
+
+#  Disable wildcard imports entirely
+ij_kotlin_name_count_to_use_star_import = 2147483647
+ij_kotlin_name_count_to_use_star_import_for_members = 2147483647
+ij_kotlin_packages_to_use_import_on_demand = unset

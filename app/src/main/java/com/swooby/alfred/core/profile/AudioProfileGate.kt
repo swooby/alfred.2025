@@ -6,12 +6,12 @@ import androidx.compose.runtime.Immutable
 data class AudioProfileGate(
     val allow: Boolean,
     val reason: AudioProfileGateReason,
-    val snapshot: AudioProfileSnapshot?
+    val snapshot: AudioProfileSnapshot?,
 )
 
 enum class AudioProfileGateReason {
     ALLOWED,
     PROFILE_DISABLED,
     NO_ACTIVE_DEVICES,
-    UNINITIALIZED
+    UNINITIALIZED,
 }

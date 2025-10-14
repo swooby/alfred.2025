@@ -16,27 +16,23 @@ import kotlin.time.Instant
         Index("eventType", "tsStart"),
         Index("deviceId", "tsStart"),
         Index("sessionId"),
-    ]
+    ],
 )
 @Serializable
 data class EventEntity(
     @PrimaryKey val eventId: String,
     val schemaVer: Int = 1,
-
     val userId: String,
     val deviceId: String,
     val appPkg: String? = null,
     val component: String? = null,
     val parserVer: String? = null,
-
     val eventType: String,
     val eventCategory: String,
     val eventAction: String,
-
     val subjectEntity: String,
     val subjectEntityId: String? = null,
     val subjectParentId: String? = null,
-
     @field:TypeConverters(RoomConverters::class)
     @Contextual
     val tsStart: Instant,
@@ -88,19 +84,22 @@ data class EventEntity(
     @field:TypeConverters(RoomConverters::class)
     val attachments: List<AttachmentRef> = emptyList(),
 
-    val integritySig: String? = null
+    val integritySig: String? = null,
 )
 
 @Serializable
 enum class Sensitivity { NONE, METADATA, CONTENT }
 
 @Serializable
-data class EventRef(val rel: String, val eventId: String)
+data class EventRef(
+    val rel: String,
+    val eventId: String,
+)
 
 @Serializable
 data class AttachmentRef(
     val kind: String,
     val uri: String,
     val mime: String? = null,
-    val sizeBytes: Long? = null
+    val sizeBytes: Long? = null,
 )

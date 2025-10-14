@@ -7,16 +7,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
-import android.os.Build
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -38,14 +37,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -69,9 +68,9 @@ import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import com.swooby.alfred.ui.theme.ThemeSeedGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableStateFlow
 
 class EventListActivity : ComponentActivity() {
     companion object {
@@ -83,7 +82,11 @@ class EventListActivity : ComponentActivity() {
 
         private const val ACTION_PIN = "com.swooby.alfred.ui.events.EventListActivity.action.PIN"
 
-        fun pinIntent(context: Context): Intent =
+        fun intentShow(context: Context): Intent =
+            Intent(context, EventListActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        fun intentPin(context: Context): Intent =
             Intent(context, EventListActivity::class.java)
                 .setAction(ACTION_PIN)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -100,16 +103,17 @@ class EventListActivity : ComponentActivity() {
         val userId = intent.getStringExtra(EXTRA_USER_ID) ?: DEFAULT_USER_ID
         val bluetoothManager = ContextCompat.getSystemService(app, BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager?.adapter
-        val viewModelFactory = EventListViewModel.Factory(
-            eventDao = app.db.events(),
-            userId = userId,
-            audioProfileController = app.audioProfiles
-        )
+        val viewModelFactory =
+            EventListViewModel.Factory(
+                eventDao = app.db.events(),
+                userId = userId,
+                audioProfileController = app.audioProfiles,
+            )
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
 
         ContextCompat.startForegroundService(
             this,
-            Intent(this, PipelineService::class.java)
+            Intent(this, PipelineService::class.java),
         )
 
         setContent {
@@ -118,62 +122,68 @@ class EventListActivity : ComponentActivity() {
             val shouldShowPersistentNotificationDialog by persistentNotificationDialogVisible
                 .collectAsState()
             val themeMode = themePreferences.mode
-            val darkTheme = when (themeMode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.DARK -> true
-                ThemeMode.LIGHT -> false
-            }
+            val darkTheme =
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.DARK -> true
+                    ThemeMode.LIGHT -> false
+                }
 
             val paletteSeed = themePreferences.seedArgb
 
             AlfredTheme(
                 darkTheme = darkTheme,
-                customSeedArgb = paletteSeed
+                customSeedArgb = paletteSeed,
             ) {
-                val surfaceColor = MaterialTheme.colorScheme.surface
-                val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+                val colorScheme = MaterialTheme.colorScheme
+                val surfaceColor = colorScheme.surface
+                val surfaceVariantColor = colorScheme.surfaceVariant
                 val useLightSystemIcons = surfaceColor.luminance() > 0.5f
 
                 SideEffect {
                     val transparent = Color.Transparent.toArgb()
                     val surfaceVariantArgb = surfaceVariantColor.toArgb()
-                    val statusBarStyle = if (useLightSystemIcons) {
-                        SystemBarStyle.light(
-                            scrim = transparent,
-                            darkScrim = surfaceVariantArgb
-                        )
-                    } else {
-                        SystemBarStyle.dark(transparent)
-                    }
-                    val navigationBarStyle = if (useLightSystemIcons) {
-                        SystemBarStyle.light(
-                            scrim = transparent,
-                            darkScrim = surfaceVariantArgb
-                        )
-                    } else {
-                        SystemBarStyle.dark(transparent)
-                    }
+                    val statusBarStyle =
+                        if (useLightSystemIcons) {
+                            SystemBarStyle.light(
+                                scrim = transparent,
+                                darkScrim = surfaceVariantArgb,
+                            )
+                        } else {
+                            SystemBarStyle.dark(transparent)
+                        }
+                    val navigationBarStyle =
+                        if (useLightSystemIcons) {
+                            SystemBarStyle.light(
+                                scrim = transparent,
+                                darkScrim = surfaceVariantArgb,
+                            )
+                        } else {
+                            SystemBarStyle.dark(transparent)
+                        }
                     enableEdgeToEdge(
                         statusBarStyle = statusBarStyle,
-                        navigationBarStyle = navigationBarStyle
+                        navigationBarStyle = navigationBarStyle,
                     )
                 }
 
                 val viewModel: EventListViewModel = viewModel(factory = viewModelFactory)
-                val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { granted ->
-                    viewModel.refreshAudioProfilePermissions()
-                    if (!granted) {
-                        Toast.makeText(
-                            activity,
-                            activity.getString(R.string.event_list_audio_profiles_permission_denied),
-                            Toast.LENGTH_LONG
-                        ).show()
+                val bluetoothPermissionLauncher =
+                    rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) { granted ->
+                        viewModel.refreshAudioProfilePermissions()
+                        if (!granted) {
+                            Toast
+                                .makeText(
+                                    activity,
+                                    activity.getString(R.string.event_list_audio_profiles_permission_denied),
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                        }
                     }
-                }
                 val handleBluetoothPermissionRequest: () -> Unit = {
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || bluetoothAdapter == null) {
+                    if (bluetoothAdapter == null) {
                         viewModel.refreshAudioProfilePermissions()
                     } else {
                         val permission = Manifest.permission.BLUETOOTH_CONNECT
@@ -243,7 +253,7 @@ class EventListActivity : ComponentActivity() {
                             }
                             app.settings.setCustomThemeSeed(newSeed)
                         }
-                    }
+                    },
                 )
 
                 if (shouldShowPersistentNotificationDialog) {
@@ -255,7 +265,7 @@ class EventListActivity : ComponentActivity() {
                         onDismiss = { ignoreChoice ->
                             hidePersistentNotificationDialog()
                             handlePersistentNotificationResult(ignoreChoice)
-                        }
+                        },
                     )
                 }
             }
@@ -267,7 +277,10 @@ class EventListActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent, caller: ComponentCaller) {
+    override fun onNewIntent(
+        intent: Intent,
+        caller: ComponentCaller,
+    ) {
         super.onNewIntent(intent, caller)
         if (intent.action == ACTION_PIN) {
             showPersistentNotificationDialog()
@@ -293,11 +306,12 @@ class EventListActivity : ComponentActivity() {
         val app = application as AlfredApp
         val gate = app.audioProfiles.evaluateGate()
         if (!gate.allow) {
-            val messageId = when (gate.reason) {
-                AudioProfileGateReason.PROFILE_DISABLED -> R.string.event_list_tts_test_blocked_disabled
-                AudioProfileGateReason.NO_ACTIVE_DEVICES -> R.string.event_list_tts_test_blocked_no_device
-                else -> R.string.event_list_tts_test_blocked_generic
-            }
+            val messageId =
+                when (gate.reason) {
+                    AudioProfileGateReason.PROFILE_DISABLED -> R.string.event_list_tts_test_blocked_disabled
+                    AudioProfileGateReason.NO_ACTIVE_DEVICES -> R.string.event_list_tts_test_blocked_no_device
+                    else -> R.string.event_list_tts_test_blocked_generic
+                }
             Toast.makeText(this, getString(messageId), Toast.LENGTH_LONG).show()
             FooLog.d(TAG, "speakTextToSpeechTest: blocked reason=${gate.reason}")
             return
@@ -316,8 +330,8 @@ class EventListActivity : ComponentActivity() {
             clipboard.setPrimaryClip(
                 ClipData.newPlainText(
                     "Persistent notification command",
-                    command
-                )
+                    command,
+                ),
             )
         }
     }
@@ -332,19 +346,18 @@ class EventListActivity : ComponentActivity() {
         val app = application as AlfredApp
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
-
                 app.settings.setPersistentNotificationActionIgnored(ignore)
 
                 withContext(Dispatchers.Main) {
-
                     // Refresh the Notification to remove the "Pin" action
                     PipelineService.refreshNotification(this@EventListActivity)
 
-                    Toast.makeText(
-                        this@EventListActivity,
-                        R.string.alfred_notification_persistent_confirmation,
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    Toast
+                        .makeText(
+                            this@EventListActivity,
+                            R.string.alfred_notification_persistent_confirmation,
+                            Toast.LENGTH_LONG,
+                        ).show()
                 }
             }
         }
@@ -359,25 +372,28 @@ private fun PersistentNotificationDialog(
     onDismiss: (Boolean?) -> Unit,
 ) {
     val title = stringResource(R.string.alfred_notification_persistent_dialog_title)
-    val messageRes = if (isNotificationPinned) {
-        R.string.alfred_notification_persistent_dialog_message_disable
-    } else {
-        R.string.alfred_notification_persistent_dialog_message
-    }
-    val commandRes = if (isNotificationPinned) {
-        R.string.alfred_notification_persistent_command_disable
-    } else {
-        R.string.alfred_notification_persistent_command_enable
-    }
+    val messageRes =
+        if (isNotificationPinned) {
+            R.string.alfred_notification_persistent_dialog_message_disable
+        } else {
+            R.string.alfred_notification_persistent_dialog_message
+        }
+    val commandRes =
+        if (isNotificationPinned) {
+            R.string.alfred_notification_persistent_command_disable
+        } else {
+            R.string.alfred_notification_persistent_command_enable
+        }
     val message = stringResource(messageRes)
     val command = stringResource(commandRes, packageName)
     val copyLabel = stringResource(R.string.alfred_notification_persistent_copy_button)
     val ignoreLabel = stringResource(R.string.alfred_notification_persistent_ignore_button)
 
     AlertDialog(
-        properties = DialogProperties(
-            dismissOnClickOutside = false
-        ),
+        properties =
+            DialogProperties(
+                dismissOnClickOutside = false,
+            ),
         onDismissRequest = { onDismiss(null) },
         title = { Text(text = title) },
         text = {
@@ -388,18 +404,19 @@ private fun PersistentNotificationDialog(
                     Text(
                         text = command,
                         style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { onCopyCommand(command) }
-                            .padding(vertical = 12.dp, horizontal = 16.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onCopyCommand(command) }
+                                .padding(vertical = 12.dp, horizontal = 16.dp),
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 FilledTonalButton(
                     onClick = { onCopyCommand(command) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = copyLabel)
                 }
@@ -410,12 +427,16 @@ private fun PersistentNotificationDialog(
                 Text(text = stringResource(android.R.string.ok))
             }
         },
-        dismissButton = if (isNotificationPinned) null else { {
-                TextButton(onClick = { onDismiss(true) }) {
-                    Text(text = ignoreLabel)
+        dismissButton =
+            if (isNotificationPinned) {
+                null
+            } else {
+                {
+                    TextButton(onClick = { onDismiss(true) }) {
+                        Text(text = ignoreLabel)
+                    }
                 }
-            }
-        }
+            },
     )
 }
 
@@ -427,7 +448,7 @@ private fun PersistentNotificationDialogNotPinnedPreview() {
             packageName = BuildConfig.PACKAGE_NAME,
             isNotificationPinned = false,
             onCopyCommand = {},
-            onDismiss = {}
+            onDismiss = {},
         )
     }
 }
@@ -440,7 +461,7 @@ private fun PersistentNotificationDialogPinnedPreview() {
             packageName = BuildConfig.PACKAGE_NAME,
             isNotificationPinned = true,
             onCopyCommand = {},
-            onDismiss = {}
+            onDismiss = {},
         )
     }
 }

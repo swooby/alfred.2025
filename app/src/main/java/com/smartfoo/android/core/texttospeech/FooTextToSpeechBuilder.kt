@@ -2,11 +2,12 @@ package com.smartfoo.android.core.texttospeech
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
-import com.smartfoo.android.core.collections.FooCollections
 import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.collections.FooCollections
 import com.smartfoo.android.core.logging.FooLog
 import java.util.LinkedList
 
+@Suppress("unused")
 class FooTextToSpeechBuilder {
     companion object {
         private val TAG = FooLog.TAG(FooTextToSpeechBuilder::class.java)
@@ -25,43 +26,47 @@ class FooTextToSpeechBuilder {
 
     abstract class FooTextToSpeechPart
 
-    class FooTextToSpeechPartSpeech(text: String) : FooTextToSpeechPart() {
+    class FooTextToSpeechPartSpeech(
+        text: String,
+    ) : FooTextToSpeechPart() {
         companion object {
             private val TAG = FooTextToSpeechPartSpeech::class.java.simpleName
         }
 
-        val text = if (text.length > MAX_SPEECH_INPUT_LENGTH) {
-            FooLog.w(TAG, "FooTextToSpeechPartSpeech: text > $MAX_SPEECH_INPUT_LENGTH; trimming text to $MAX_SPEECH_INPUT_LENGTH characters")
-            text.substring(0, MAX_SPEECH_INPUT_LENGTH)
-        } else {
-            text
-        }
-            // Remove any unspeakable/unprintable characters
-            //noinspection TrimLambda
-            .trim { it <= ' ' }
+        val text =
+            if (text.length > MAX_SPEECH_INPUT_LENGTH) {
+                FooLog.w(TAG, "FooTextToSpeechPartSpeech: text > $MAX_SPEECH_INPUT_LENGTH; trimming text to $MAX_SPEECH_INPUT_LENGTH characters")
+                text.substring(0, MAX_SPEECH_INPUT_LENGTH)
+            } else {
+                text
+            }
+                // Remove any unspeakable/unprintable characters
+                //noinspection TrimLambda
+                .trim { it <= ' ' }
 
         override fun toString() = "text=${FooString.quote(text)}"
 
-        override fun equals(other: Any?) =
-            other is FooTextToSpeechPartSpeech && FooString.equals(text, other.text)
+        override fun equals(other: Any?) = other is FooTextToSpeechPartSpeech && FooString.equals(text, other.text)
 
         override fun hashCode() = text.hashCode()
     }
 
-    class FooTextToSpeechPartSilence(val durationMillis: Int) : FooTextToSpeechPart() {
+    class FooTextToSpeechPartSilence(
+        val durationMillis: Int,
+    ) : FooTextToSpeechPart() {
         override fun toString() = "durationMillis=$durationMillis"
 
-        override fun equals(other: Any?) =
-            other is FooTextToSpeechPartSilence && durationMillis == other.durationMillis
+        override fun equals(other: Any?) = other is FooTextToSpeechPartSilence && durationMillis == other.durationMillis
 
         override fun hashCode() = durationMillis.hashCode()
     }
 
-    class FooTextToSpeechPartEarcon(val earcon: String) : FooTextToSpeechPart() {
+    class FooTextToSpeechPartEarcon(
+        val earcon: String,
+    ) : FooTextToSpeechPart() {
         override fun toString() = "earcon=$earcon"
 
-        override fun equals(other: Any?) =
-            other is FooTextToSpeechPartEarcon && FooString.equals(earcon, other.earcon)
+        override fun equals(other: Any?) = other is FooTextToSpeechPartEarcon && FooString.equals(earcon, other.earcon)
 
         override fun hashCode() = earcon.hashCode()
     }
@@ -69,10 +74,8 @@ class FooTextToSpeechBuilder {
     private var context: Context? = null
     private val parts = mutableListOf<FooTextToSpeechPart>()
 
-    @Suppress("unused")
     constructor()
 
-    @Suppress("unused")
     constructor(context: Context) {
         this.context = context
     }
@@ -81,19 +84,16 @@ class FooTextToSpeechBuilder {
         appendSpeech(text)
     }
 
-    @Suppress("unused")
     constructor(context: Context, text: String) {
         this.context = context
         appendSpeech(text)
     }
 
-    @Suppress("unused")
     constructor(context: Context, textResId: Int, vararg formatArgs: Any?) {
         this.context = context
         appendSpeech(context, textResId, *formatArgs)
     }
 
-    @Suppress("unused")
     constructor(builder: FooTextToSpeechBuilder) {
         append(builder)
     }
@@ -113,78 +113,67 @@ class FooTextToSpeechBuilder {
         return sb.toString()
     }
 
-    override fun equals(other: Any?): Boolean {
-        return other is FooTextToSpeechBuilder && FooCollections.identical(parts, other.parts)
-    }
+    override fun equals(other: Any?): Boolean = other is FooTextToSpeechBuilder && FooCollections.identical(parts, other.parts)
 
-    override fun hashCode(): Int {
-        return FooCollections.hashCode(parts)
-    }
+    override fun hashCode(): Int = FooCollections.hashCode(parts)
 
-    @Suppress("unused")
     val isEmpty: Boolean
         get() = parts.isEmpty()
 
-    @Suppress("unused")
     val numberOfParts: Int
         get() = parts.size
 
-    @Suppress("unused")
-    fun appendSpeech(context: Context, textResId: Int, vararg formatArgs: Any?): FooTextToSpeechBuilder {
+    fun appendSpeech(
+        context: Context,
+        textResId: Int,
+        vararg formatArgs: Any?,
+    ): FooTextToSpeechBuilder {
         this.context = context
         return appendSpeech(textResId, formatArgs)
     }
 
-    fun appendSpeech(textResId: Int, vararg formatArgs: Any?): FooTextToSpeechBuilder {
-        val context = this.context ?: throw IllegalStateException("Must first call FooTextToSpeechBuilder(context, ...) or appendSpeech(context, ...)")
+    fun appendSpeech(
+        textResId: Int,
+        vararg formatArgs: Any?,
+    ): FooTextToSpeechBuilder {
+        val context =
+            this.context
+                ?: throw IllegalStateException("Must first call FooTextToSpeechBuilder(context, ...) or appendSpeech(context, ...)")
         return appendSpeech(context.getString(textResId, *formatArgs))
     }
 
-    @Suppress("unused")
-    fun appendSpeech(text: CharSequence): FooTextToSpeechBuilder {
-        return appendSpeech(text.toString())
-    }
+    fun appendSpeech(text: CharSequence): FooTextToSpeechBuilder = appendSpeech(text.toString())
 
-    fun appendSpeech(text: String): FooTextToSpeechBuilder {
-        return append(FooTextToSpeechPartSpeech(text))
-    }
+    fun appendSpeech(text: String): FooTextToSpeechBuilder = append(FooTextToSpeechPartSpeech(text))
 
-    @Suppress("unused")
-    fun appendSilenceWordBreak(): FooTextToSpeechBuilder {
-        return appendSilence(SILENCE_WORD_BREAK_MILLIS)
-    }
+    fun appendSilenceWordBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_WORD_BREAK_MILLIS)
 
-    fun appendSilenceSentenceBreak(): FooTextToSpeechBuilder {
-        return appendSilence(SILENCE_SENTENCE_BREAK_MILLIS)
-    }
+    fun appendSilenceSentenceBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_SENTENCE_BREAK_MILLIS)
 
-    @Suppress("unused")
-    fun appendSilenceParagraphBreak(): FooTextToSpeechBuilder {
-        return appendSilence(SILENCE_PARAGRAPH_BREAK_MILLIS)
-    }
+    fun appendSilenceParagraphBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_PARAGRAPH_BREAK_MILLIS)
 
-    @Suppress("MemberVisibilityCanBePrivate")
-    fun appendSilence(durationInMs: Int): FooTextToSpeechBuilder {
-        return append(FooTextToSpeechPartSilence(durationInMs))
-    }
+    fun appendSilence(durationInMs: Int): FooTextToSpeechBuilder = append(FooTextToSpeechPartSilence(durationInMs))
 
     fun append(part: FooTextToSpeechPart): FooTextToSpeechBuilder {
         when (part) {
-            is FooTextToSpeechPartSpeech -> if (part.text.isNotBlank()) {
-                parts.add(part)
-            } else {
-                FooLog.w(TAG, "append: part.text.isBlank(); ignoring")
-            }
-            is FooTextToSpeechPartSilence -> if (part.durationMillis > 0) {
-                parts.add(part)
-            } else {
-                FooLog.w(TAG, "append: part.durationMillis <= 0; ignoring")
-            }
-            is FooTextToSpeechPartEarcon -> if (part.earcon.isNotBlank()) {
-                parts.add(part)
-            } else {
-                FooLog.w(TAG, "append: part.earcon.isBlank(); ignoring")
-            }
+            is FooTextToSpeechPartSpeech ->
+                if (part.text.isNotBlank()) {
+                    parts.add(part)
+                } else {
+                    FooLog.w(TAG, "append: part.text.isBlank(); ignoring")
+                }
+            is FooTextToSpeechPartSilence ->
+                if (part.durationMillis > 0) {
+                    parts.add(part)
+                } else {
+                    FooLog.w(TAG, "append: part.durationMillis <= 0; ignoring")
+                }
+            is FooTextToSpeechPartEarcon ->
+                if (part.earcon.isNotBlank()) {
+                    parts.add(part)
+                } else {
+                    FooLog.w(TAG, "append: part.earcon.isBlank(); ignoring")
+                }
         }
         return this
     }

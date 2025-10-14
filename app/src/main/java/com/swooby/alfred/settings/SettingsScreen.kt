@@ -37,7 +37,7 @@ import com.swooby.alfred.ui.theme.AlfredTheme
 fun SettingsScreen(
     app: AlfredApp,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues()
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     val vm = settingsViewModel(app)
     val rules by vm.rules.collectAsState()
@@ -96,55 +96,55 @@ fun SettingsContent(
             .padding(contentPadding)
             .padding(16.dp)
             .fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             stringResource(id = R.string.settings_quiet_hours_label),
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = quietStart,
                 onValueChange = onLocalQuietStartChange,
                 label = { Text(stringResource(id = R.string.settings_quiet_hours_start_label)) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = quietEnd,
                 onValueChange = onLocalQuietEndChange,
                 label = { Text(stringResource(id = R.string.settings_quiet_hours_end_label)) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             Button(
                 onClick = {
                     onSaveQuietHours(
                         quietStart.ifBlank { null },
-                        quietEnd.ifBlank { null }
+                        quietEnd.ifBlank { null },
                     )
-                }
+                },
             ) { Text(stringResource(id = R.string.settings_save)) }
         }
 
         Row {
             Checkbox(
                 checked = speakScreenOff,
-                onCheckedChange = { onSpeakScreenOffChange(it) }
+                onCheckedChange = { onSpeakScreenOffChange(it) },
             )
             Text(
                 stringResource(id = R.string.settings_speak_screen_off),
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 8.dp),
             )
         }
 
         Spacer(Modifier.height(8.dp))
         Text(
             stringResource(id = R.string.settings_disabled_apps_label),
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
         )
         OutlinedTextField(
             value = disabledAppsCsv,
             onValueChange = onLocalDisabledAppsChange,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
         Button(onClick = { onSaveDisabledApps(disabledAppsCsv) }) {
             Text(stringResource(id = R.string.settings_save))
@@ -153,12 +153,12 @@ fun SettingsContent(
         Spacer(Modifier.height(8.dp))
         Text(
             stringResource(id = R.string.settings_enabled_event_types_label),
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
         )
         OutlinedTextField(
             value = enabledTypesCsv,
             onValueChange = onLocalEnabledTypesChange,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
         Button(onClick = { onSaveEnabledTypes(enabledTypesCsv) }) {
             Text(stringResource(id = R.string.settings_save))
@@ -183,8 +183,8 @@ private fun SettingsContent_Preview() {
                 SourceEventTypes.NOTIFICATION_POST,
                 SourceEventTypes.DISPLAY_ON,
                 SourceEventTypes.DISPLAY_OFF,
-                SourceEventTypes.DEVICE_UNLOCK
-            ).joinToString(",")
+                SourceEventTypes.DEVICE_UNLOCK,
+            ).joinToString(","),
         )
     }
     var speakScreenOff by remember { mutableStateOf(false) }
@@ -194,14 +194,16 @@ private fun SettingsContent_Preview() {
             topBar = {
                 TopAppBar(
                     title = { Text("Alfred Settings") },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                 )
             },
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ) { padding ->
+            @Suppress("ktlint:standard:comment-wrapping")
             SettingsContent(
                 quietStart = quietStart,
                 quietEnd = quietEnd,

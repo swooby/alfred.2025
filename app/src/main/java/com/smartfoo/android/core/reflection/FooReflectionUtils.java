@@ -1,5 +1,8 @@
 package com.smartfoo.android.core.reflection;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.smartfoo.android.core.FooString;
 import com.smartfoo.android.core.logging.FooLog;
 
@@ -13,48 +16,57 @@ public class FooReflectionUtils
     {
     }
 
-    public static Class<?> getClass(Object o)
+    @Nullable
+    public static Class<?> getClass(@Nullable Object o)
     {
         return (o instanceof Class<?>) ? (Class<?>) o : (o != null ? o.getClass() : null);
     }
 
-    public static String getClassName(Object o)
+    @Nullable
+    public static String getClassName(@Nullable Object o)
     {
         return getClassName(getClass(o));
     }
 
-    public static String getClassName(Class c)
+    @Nullable
+    public static <T> String getClassName(@Nullable Class<T> c)
     {
         return getClassName(c == null ? null : c.getName(), true);
     }
 
-    public static String getClassName(String className, boolean shortClassName)
+    @Nullable
+    public static String getClassName(@Nullable String className, boolean shortClassName)
     {
         if (FooString.isNullOrEmpty(className))
         {
             className = "null";
         }
+        //noinspection DataFlowIssue
         return shortClassName ? className.substring(className.lastIndexOf('.') + 1) : className;
     }
 
-    public static String getShortClassName(String className)
+    @Nullable
+    public static String getShortClassName(@Nullable String className)
     {
         return getClassName(className, true);
     }
 
-    public static String getShortClassName(Object o)
+    @Nullable
+    public static String getShortClassName(@Nullable Object o)
     {
-        Class c = (o == null) ? null : o.getClass();
+        Class<?> c = (o == null) ? null : o.getClass();
         return getShortClassName(c);
     }
 
-    public static String getShortClassName(Class c)
+    @Nullable
+    public static <T> String getShortClassName(@Nullable Class<T> c)
     {
         String className = (c == null) ? null : c.getName();
         return getShortClassName(className);
     }
 
-    public static String getMethodName(String methodName)
+    @NonNull
+    public static String getMethodName(@Nullable String methodName)
     {
         if (methodName == null)
         {
@@ -67,12 +79,14 @@ public class FooReflectionUtils
         return methodName;
     }
 
-    public static String getShortClassAndMethodName(Object o, String methodName)
+    @NonNull
+    public static String getShortClassAndMethodName(@Nullable Object o, @Nullable String methodName)
     {
         return getShortClassName(o) + getMethodName(methodName);
     }
 
-    public static <T> String getInstanceSignature(T instance)
+    @NonNull
+    public static <T> String getInstanceSignature(@NonNull T instance)
     {
         //FooRun.throwIllegalArgumentExceptionIfNull(instance, "instance");
 
@@ -115,18 +129,21 @@ public class FooReflectionUtils
         return sb.toString().trim();
     }
 
-    public static boolean isAssignableFrom(Object instanceExpected, Object instanceActual)
+    public static boolean isAssignableFrom(@Nullable Object instanceExpected, @Nullable Object instanceActual)
     {
         //FooRun.throwIllegalArgumentExceptionIfNull(instanceExpected, "instanceExpected");
 
-        if (instanceActual == null)
+        Class<?> expectedInstanceClass = getClass(instanceExpected);
+        if (expectedInstanceClass == null)
         {
             return false;
         }
 
-        Class<?> expectedInstanceClass = getClass(instanceExpected);
-
         Class<?> actualInstanceClass = getClass(instanceActual);
+        if (actualInstanceClass == null)
+        {
+            return false;
+        }
 
         //
         // Verify that actualInstanceClass is an instance of all subclasses and interfaces of expectedClass…
@@ -156,7 +173,8 @@ public class FooReflectionUtils
         return true;
     }
 
-    public static Object getFieldValue(Object o, String fieldName)
+    @Nullable
+    public static Object getFieldValue(@Nullable Object o, @NonNull String fieldName)
     {
         Object fieldValue = null;
 
@@ -186,7 +204,8 @@ public class FooReflectionUtils
         return fieldValue;
     }
 
-    public static String getFieldValueString(Object o, String fieldName)
+    @Nullable
+    public static String getFieldValueString(@Nullable Object o, @NonNull String fieldName)
     {
         return (String) getFieldValue(o, fieldName);
     }

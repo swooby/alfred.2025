@@ -1,16 +1,11 @@
 package com.swooby.alfred.support
 
-import android.annotation.SuppressLint
-import android.content.Context
 import android.app.ActivityManager
-import android.os.Build.VERSION_CODES
-import androidx.annotation.RequiresApi
+import android.content.Context
 import androidx.core.content.ContextCompat
+import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
-import com.swooby.alfred.sources.NotificationsSource
-import com.smartfoo.android.core.logging.FooLog
-import com.smartfoo.android.core.notification.FooNotificationListener
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 
@@ -24,8 +19,6 @@ object AppShutdownManager {
     private val quitting = AtomicBoolean(false)
     private val shutdownPrepared = AtomicBoolean(false)
 
-    @SuppressLint("ObsoleteSdkInt")
-    @RequiresApi(VERSION_CODES.N)
     private fun prepareForShutdown(context: Context) {
         if (!shutdownPrepared.compareAndSet(false, true)) {
             FooLog.d(TAG, "prepareForShutdown: already prepared")
@@ -56,7 +49,7 @@ object AppShutdownManager {
         val appContext = context.applicationContext
         ContextCompat.startForegroundService(
             appContext,
-            PipelineService.quitIntent(appContext)
+            PipelineService.intentQuit(appContext),
         )
     }
 

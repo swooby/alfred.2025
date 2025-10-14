@@ -7,15 +7,18 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.androidx.room)
+    id("org.jlleitschuh.gradle.ktlint") version "13.1.0"
 }
 
-val enableLabelHeuristicsProperty = (project.findProperty("alfred.enableLabelHeuristics") as? String)
-    ?.trim()
-    ?.lowercase()
-val enableLabelHeuristics = when (enableLabelHeuristicsProperty) {
-    "1", "true", "on", "yes" -> true
-    else -> false
-}
+val enableLabelHeuristicsProperty =
+    (project.findProperty("alfred.enableLabelHeuristics") as? String)
+        ?.trim()
+        ?.lowercase()
+val enableLabelHeuristics =
+    when (enableLabelHeuristicsProperty) {
+        "1", "true", "on", "yes" -> true
+        else -> false
+    }
 
 android {
     namespace = "com.swooby.alfred"
@@ -45,7 +48,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -57,7 +60,28 @@ android {
     kotlin {
         compilerOptions {
             jvmTarget = JvmTarget.JVM_21
-            freeCompilerArgs.add("-opt-in=kotlin.time.ExperimentalTime")
+            optIn.add("kotlin.time.ExperimentalTime")
+            optIn.add("kotlinx.coroutines.ExperimentalCoroutinesApi")
+
+            val forceCompilerWarningsAsErrors = false
+            if (forceCompilerWarningsAsErrors) {
+                extraWarnings.set(true)
+                allWarningsAsErrors.set(true)
+                verbose.set(true)
+
+                if (true) {
+                    // Temporarily disable to get past warnings`build/generated/ksp` code
+                    freeCompilerArgs.add("-Xwarning-level=REDUNDANT_VISIBILITY_MODIFIER:disabled")
+                    freeCompilerArgs.add("-Xwarning-level=CAN_BE_VAL:disabled")
+                }
+
+                // https://youtrack.jetbrains.com/issue/KT-78881 Fixed in Kotlin 2.3
+                freeCompilerArgs.add("-Xwarning-level=ASSIGNED_VALUE_IS_NEVER_READ:disabled") // SettingsScreen.kt
+            }
+
+            // Our own overrides
+            // https://youtrack.jetbrains.com/issue/KT-80399/ Fixed in Kotlin 2.3
+            freeCompilerArgs.add("-Xwarning-level=OVERRIDE_DEPRECATION:disabled") // FooTextToSpeech.kt
         }
     }
 
@@ -65,6 +89,34 @@ android {
         compose = true
         buildConfig = true
     }
+
+    //
+    // Run with `./gradlew lint` after a successful build/assembleDebug/assembleRelease.
+    //
+    lint {
+        val forceLintWarningsAsError = false
+        if (forceLintWarningsAsError) {
+            checkAllWarnings = true
+            textReport = true
+            explainIssues = true
+            absolutePaths = false
+            warningsAsErrors = true
+        }
+
+        // Suppress "Access to private method getAudioProfileDataStore of class {X} requires synthetic accessor"
+        disable += "SyntheticAccessor"
+    }
+}
+
+//
+// Run with `./gradlew ktlintCheck` after a successful build.
+// Fix with `./gradlew ktlintFormat`.
+//
+ktlint {
+    filter {
+        exclude("**/build/**") // avoid build/generated
+    }
+    verbose = true // display the corresponding rule
 }
 
 room {

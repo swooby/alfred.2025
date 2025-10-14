@@ -1,6 +1,9 @@
 package com.swooby.alfred.data
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Instant
 
@@ -16,15 +19,18 @@ interface EventDao {
         """
         DELETE FROM events
         WHERE userId = :userId AND eventId IN (:eventIds)
-        """
+        """,
     )
-    suspend fun deleteByIds(userId: String, eventIds: List<String>)
+    suspend fun deleteByIds(
+        userId: String,
+        eventIds: List<String>,
+    )
 
     @Query(
         """
         DELETE FROM events
         WHERE userId = :userId
-        """
+        """,
     )
     suspend fun clearAllForUser(userId: String)
 
@@ -35,13 +41,13 @@ interface EventDao {
           AND COALESCE(ingestAt, tsStart) BETWEEN :fromTs AND :toTs
         ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-        """
+        """,
     )
     suspend fun listByTime(
         userId: String,
         fromTs: Instant,
         toTs: Instant,
-        limit: Int = 500
+        limit: Int = 500,
     ): List<EventEntity>
 
     @Query(
@@ -50,11 +56,11 @@ interface EventDao {
         WHERE userId = :userId
         ORDER BY COALESCE(ingestAt, tsStart) DESC
         LIMIT :limit
-        """
+        """,
     )
     fun observeRecent(
         userId: String,
-        limit: Int = 500
+        limit: Int = 500,
     ): Flow<List<EventEntity>>
 
     @Query(
@@ -66,20 +72,20 @@ interface EventDao {
               AND subjectEntityId = :subjectEntityId
               AND tsStart = :tsStart
         )
-        """
+        """,
     )
     suspend fun existsNotification(
         userId: String,
         component: String,
         subjectEntityId: String,
-        tsStart: Instant
+        tsStart: Instant,
     ): Boolean
 
     @Query(
         """
         SELECT COUNT(*) FROM events
         WHERE userId = :userId
-        """
+        """,
     )
     fun observeCount(userId: String): Flow<Long>
 }

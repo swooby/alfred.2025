@@ -2,7 +2,9 @@ package com.swooby.alfred.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,10 +19,10 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
-import androidx.core.view.WindowCompat
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
 import com.swooby.alfred.settings.DefaultThemePreferences
@@ -32,54 +34,81 @@ import com.swooby.alfred.ui.theme.AlfredTheme
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         val app = application as AlfredApp
 
         setContent {
             val themePreferences: ThemePreferences by app.settings.themePreferencesFlow
                 .collectAsState(initial = DefaultThemePreferences)
             val themeMode = themePreferences.mode
-            val darkTheme = when (themeMode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.DARK -> true
-                ThemeMode.LIGHT -> false
-            }
+            val darkTheme =
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.DARK -> true
+                    ThemeMode.LIGHT -> false
+                }
 
             val paletteSeed = themePreferences.seedArgb
 
             AlfredTheme(
                 darkTheme = darkTheme,
-                customSeedArgb = paletteSeed
+                customSeedArgb = paletteSeed,
             ) {
                 val colorScheme = MaterialTheme.colorScheme
-                val useLightStatusIcons = colorScheme.primary.luminance() > 0.5f
+                val surfaceColor = colorScheme.surface
+                val surfaceVariantColor = colorScheme.surfaceVariant
+                val useLightSystemIcons = surfaceColor.luminance() > 0.5f
 
                 SideEffect {
-                    window.statusBarColor = colorScheme.primary.toArgb()
-                    WindowCompat
-                        .getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = useLightStatusIcons
+                    val transparent = Color.Transparent.toArgb()
+                    val surfaceVariantArgb = surfaceVariantColor.toArgb()
+                    val statusBarStyle =
+                        if (useLightSystemIcons) {
+                            SystemBarStyle.light(
+                                scrim = transparent,
+                                darkScrim = surfaceVariantArgb,
+                            )
+                        } else {
+                            SystemBarStyle.dark(transparent)
+                        }
+                    val navigationBarStyle =
+                        if (useLightSystemIcons) {
+                            SystemBarStyle.light(
+                                scrim = transparent,
+                                darkScrim = surfaceVariantArgb,
+                            )
+                        } else {
+                            SystemBarStyle.dark(transparent)
+                        }
+                    enableEdgeToEdge(
+                        statusBarStyle = statusBarStyle,
+                        navigationBarStyle = navigationBarStyle,
+                    )
                 }
 
                 Scaffold(
                     topBar = {
                         TopAppBar(
                             title = { Text(text = stringResource(R.string.main_top_app_bar_title)) },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = colorScheme.primary,
-                                titleContentColor = colorScheme.onPrimary,
-                                navigationIconContentColor = colorScheme.onPrimary,
-                                actionIconContentColor = colorScheme.onPrimary
-                            )
+                            colors =
+                                TopAppBarDefaults.topAppBarColors(
+                                    containerColor = colorScheme.primary,
+                                    titleContentColor = colorScheme.onPrimary,
+                                    navigationIconContentColor = colorScheme.onPrimary,
+                                    actionIconContentColor = colorScheme.onPrimary,
+                                ),
                         )
                     },
-                    containerColor = colorScheme.surfaceVariant
+                    containerColor = colorScheme.surfaceVariant,
                 ) { innerPadding ->
                     Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        color = colorScheme.surfaceVariant
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        color = colorScheme.surfaceVariant,
                     ) {
                         SettingsScreen(app, modifier = Modifier.fillMaxSize())
                     }

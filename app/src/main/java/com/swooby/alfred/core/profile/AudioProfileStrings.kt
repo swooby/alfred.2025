@@ -3,7 +3,9 @@ package com.swooby.alfred.core.profile
 import android.content.Context
 import com.swooby.alfred.R
 
-class AudioProfileStrings(private val context: Context) {
+class AudioProfileStrings(
+    private val context: Context,
+) {
     val disabledName: String
         get() = context.getString(R.string.audio_profile_disabled_name)
 

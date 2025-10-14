@@ -1,20 +1,18 @@
 package com.smartfoo.android.core.notification
 
-import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
-import androidx.annotation.RequiresApi
 import com.smartfoo.android.core.logging.FooLog
 
+@Suppress("unused")
 object FooNotificationListener {
     private val TAG = FooLog.TAG(FooNotificationListener::class.java)
 
-    fun notificationCancelReasonToString(reason: Int): String {
-        return when (reason) {
+    fun notificationCancelReasonToString(reason: Int): String =
+        when (reason) {
             NotificationListenerService.REASON_CLICK -> "REASON_CLICK"
             NotificationListenerService.REASON_CANCEL -> "REASON_CANCEL"
             NotificationListenerService.REASON_CANCEL_ALL -> "REASON_CANCEL_ALL"
@@ -40,7 +38,6 @@ object FooNotificationListener {
             NotificationListenerService.REASON_LOCKDOWN -> "REASON_LOCKDOWN"
             else -> "UNKNOWN"
         }.let { "$it($reason)" }
-    }
 
     /**
      * Needs to be reasonably longer than the app startup time.
@@ -49,24 +46,12 @@ object FooNotificationListener {
      *
      * NOTE2 that this will time out if paused too long at a debug breakpoint while launching.
      */
-    @Suppress("ClassName", "MemberVisibilityCanBePrivate")
+    @Suppress("ClassName")
     object NOTIFICATION_LISTENER_SERVICE_CONNECTED_TIMEOUT_MILLIS {
         const val NORMAL: Int = 1500
         const val SLOW: Int = 6000
 
-        fun getRecommendedTimeout(slow: Boolean): Int {
-            return if (slow) SLOW else NORMAL
-        }
-    }
-
-    /**
-     * Usually [Build.VERSION.SDK_INT],
-     * but may be used to force a specific OS Version # **FOR TESTING PURPOSES**.
-     */
-    private val VERSION_SDK_INT = Build.VERSION.SDK_INT
-
-    fun supportsNotificationListenerSettings(): Boolean {
-        return VERSION_SDK_INT >= Build.VERSION_CODES.KITKAT
+        fun getRecommendedTimeout(slow: Boolean): Int = if (slow) SLOW else NORMAL
     }
 
     /**
@@ -77,24 +62,22 @@ object FooNotificationListener {
     @JvmStatic
     fun hasNotificationListenerAccess(
         context: Context,
-        notificationListenerServiceClass: Class<out NotificationListenerService>
+        notificationListenerServiceClass: Class<out NotificationListenerService>,
     ): Boolean {
-        if (supportsNotificationListenerSettings()) {
-            val notificationListenerServiceLookingFor =
-                ComponentName(context, notificationListenerServiceClass)
-            FooLog.d(TAG, "hasNotificationListenerAccess: notificationListenerServiceLookingFor=$notificationListenerServiceLookingFor")
+        val notificationListenerServiceLookingFor =
+            ComponentName(context, notificationListenerServiceClass)
+        FooLog.d(TAG, "hasNotificationListenerAccess: notificationListenerServiceLookingFor=$notificationListenerServiceLookingFor")
 
-            val notificationListenersString =
-                Settings.Secure.getString(context.contentResolver, ENABLED_NOTIFICATION_LISTENERS)
-            if (notificationListenersString != null) {
-                val notificationListeners = notificationListenersString.split(':').dropLastWhile { it.isEmpty() }.toTypedArray()
-                for (i in notificationListeners.indices) {
-                    val notificationListener = ComponentName.unflattenFromString(notificationListeners[i])
-                    FooLog.d(TAG, "hasNotificationListenerAccess: notificationListeners[$i]=$notificationListener")
-                    if (notificationListenerServiceLookingFor == notificationListener) {
-                        FooLog.i(TAG, "hasNotificationListenerAccess: found match; return true")
-                        return true
-                    }
+        val notificationListenersString =
+            Settings.Secure.getString(context.contentResolver, ENABLED_NOTIFICATION_LISTENERS)
+        if (notificationListenersString != null) {
+            val notificationListeners = notificationListenersString.split(':').dropLastWhile { it.isEmpty() }.toTypedArray()
+            for (i in notificationListeners.indices) {
+                val notificationListener = ComponentName.unflattenFromString(notificationListeners[i])
+                FooLog.d(TAG, "hasNotificationListenerAccess: notificationListeners[$i]=$notificationListener")
+                if (notificationListenerServiceLookingFor == notificationListener) {
+                    FooLog.i(TAG, "hasNotificationListenerAccess: found match; return true")
+                    return true
                 }
             }
         }
@@ -103,36 +86,18 @@ object FooNotificationListener {
         return false
     }
 
-    @Suppress("LocalVariableName")
     @JvmStatic
-    @get:SuppressLint("InlinedApi")
-    val intentNotificationListenerSettings: Intent?
-        /**
-         * @return null if [supportsNotificationListenerSettings] == false
-         */
-        get() {
-            var intent: Intent? = null
-            if (supportsNotificationListenerSettings()) {
-                val ACTION_NOTIFICATION_LISTENER_SETTINGS = if (VERSION_SDK_INT >= 22) {
-                    Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
-                } else {
-                    "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"
-                }
-                intent = Intent(ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            }
-            return intent
-        }
+    val intentNotificationListenerSettings: Intent
+        get() = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
 
     @JvmStatic
     fun startActivityNotificationListenerSettings(context: Context) {
         context.startActivity(intentNotificationListenerSettings)
     }
 
-    @SuppressLint("ObsoleteSdkInt")
-    @RequiresApi(Build.VERSION_CODES.N)
     fun requestNotificationListenerUnbind(
         context: Context,
-        notificationListenerServiceClass: Class<out NotificationListenerService>
+        notificationListenerServiceClass: Class<out NotificationListenerService>,
     ) {
         runCatching {
             val componentName = ComponentName(context, notificationListenerServiceClass)
@@ -144,11 +109,9 @@ object FooNotificationListener {
         }
     }
 
-    @SuppressLint("ObsoleteSdkInt")
-    @RequiresApi(Build.VERSION_CODES.N)
     fun requestNotificationListenerRebind(
         context: Context,
-        notificationListenerServiceClass: Class<out NotificationListenerService>
+        notificationListenerServiceClass: Class<out NotificationListenerService>,
     ) {
         runCatching {
             val componentName = ComponentName(context, notificationListenerServiceClass)

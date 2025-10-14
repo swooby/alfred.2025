@@ -10,9 +10,8 @@ import kotlinx.coroutines.flow.map
 private val Context.audioProfileDataStore by preferencesDataStore("audio_profile_preferences")
 
 class AndroidAudioProfileStore(
-    private val context: Context
+    private val context: Context,
 ) : AudioProfileStore {
-
     private object Keys {
         val SELECTED_PROFILE = stringPreferencesKey("selected_audio_profile")
         val SELECTED_PROFILE_NAME = stringPreferencesKey("selected_audio_profile_name")
@@ -24,15 +23,16 @@ class AndroidAudioProfileStore(
         context.audioProfileDataStore.data.map { prefs ->
             val id = AudioProfileId.from(prefs[Keys.SELECTED_PROFILE]) ?: return@map null
             val name = prefs[Keys.SELECTED_PROFILE_NAME]
-            val category = prefs[Keys.SELECTED_PROFILE_CATEGORY]?.let { raw ->
-                runCatching { ProfileCategory.valueOf(raw) }.getOrNull()
-            }
+            val category =
+                prefs[Keys.SELECTED_PROFILE_CATEGORY]?.let { raw ->
+                    runCatching { ProfileCategory.valueOf(raw) }.getOrNull()
+                }
             val address = prefs[Keys.SELECTED_PROFILE_ADDRESS]
             StoredAudioProfile(
                 id = id,
                 displayName = name,
                 category = category,
-                deviceAddress = address
+                deviceAddress = address,
             )
         }
 

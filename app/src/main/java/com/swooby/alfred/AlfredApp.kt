@@ -3,6 +3,7 @@ package com.swooby.alfred
 import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.media.AudioManager
+import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.core.ingest.EventIngest
 import com.swooby.alfred.core.ingest.EventIngestImpl
 import com.swooby.alfred.core.profile.AndroidAudioProfilePermissionChecker
@@ -15,7 +16,6 @@ import com.swooby.alfred.core.summary.TemplatedSummaryGenerator
 import com.swooby.alfred.data.AlfredDb
 import com.swooby.alfred.settings.SettingsRepository
 import com.swooby.alfred.sources.MediaSessionsSource
-import com.smartfoo.android.core.logging.FooLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,19 +47,21 @@ class AlfredApp : Application() {
         summarizer = TemplatedSummaryGenerator()
         settings = SettingsRepository(this)
         mediaSource = MediaSessionsSource(this, this)
-        val audioManager = getSystemService(AudioManager::class.java)
-            ?: throw IllegalStateException("AudioManager service unavailable")
+        val audioManager =
+            getSystemService(AudioManager::class.java)
+                ?: throw IllegalStateException("AudioManager service unavailable")
         val bluetoothManager = getSystemService(BluetoothManager::class.java)
         val bluetoothAdapter = bluetoothManager?.adapter
-        audioProfiles = AudioProfileController(
-            context = this,
-            audioManager = audioManager,
-            bluetoothAdapter = bluetoothAdapter,
-            profileStore = AndroidAudioProfileStore(this),
-            permissionChecker = AndroidAudioProfilePermissionChecker(this),
-            externalScope = appScope,
-            ioDispatcher = Dispatchers.IO
-        )
+        audioProfiles =
+            AudioProfileController(
+                context = this,
+                audioManager = audioManager,
+                bluetoothAdapter = bluetoothAdapter,
+                profileStore = AndroidAudioProfileStore(this),
+                permissionChecker = AndroidAudioProfilePermissionChecker(this),
+                externalScope = appScope,
+                ioDispatcher = Dispatchers.IO,
+            )
         FooLog.v(TAG, "-onCreate()")
     }
 

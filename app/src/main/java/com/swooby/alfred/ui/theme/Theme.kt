@@ -1,6 +1,5 @@
 package com.swooby.alfred.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -13,75 +12,76 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamicColorScheme
 
-private val LightColors = lightColorScheme(
-    primary = BrandPrimaryLight,
-    onPrimary = BrandOnPrimaryLight,
-    primaryContainer = BrandPrimaryContainerLight,
-    onPrimaryContainer = BrandOnPrimaryContainerLight,
-    secondary = BrandSecondaryLight,
-    onSecondary = BrandOnSecondaryLight,
-    secondaryContainer = BrandSecondaryContainerLight,
-    onSecondaryContainer = BrandOnSecondaryContainerLight,
-    tertiary = BrandTertiaryLight,
-    onTertiary = BrandOnTertiaryLight,
-    tertiaryContainer = BrandTertiaryContainerLight,
-    onTertiaryContainer = BrandOnTertiaryContainerLight,
-    error = BrandErrorLight,
-    onError = BrandOnErrorLight,
-    errorContainer = BrandErrorContainerLight,
-    onErrorContainer = BrandOnErrorContainerLight,
-    background = BrandBackgroundLight,
-    onBackground = BrandOnBackgroundLight,
-    surface = BrandSurfaceLight,
-    onSurface = BrandOnSurfaceLight,
-    surfaceVariant = BrandSurfaceVariantLight,
-    onSurfaceVariant = BrandOnSurfaceVariantLight,
-    outline = BrandOutlineLight,
-    outlineVariant = BrandOutlineVariantLight,
-    scrim = BrandScrimLight,
-    inverseSurface = BrandInverseSurfaceLight,
-    inverseOnSurface = BrandInverseOnSurfaceLight,
-    inversePrimary = BrandInversePrimaryLight,
-    surfaceTint = BrandSurfaceTintLight
-)
+private val LightColors =
+    lightColorScheme(
+        primary = BrandPrimaryLight,
+        onPrimary = BrandOnPrimaryLight,
+        primaryContainer = BrandPrimaryContainerLight,
+        onPrimaryContainer = BrandOnPrimaryContainerLight,
+        secondary = BrandSecondaryLight,
+        onSecondary = BrandOnSecondaryLight,
+        secondaryContainer = BrandSecondaryContainerLight,
+        onSecondaryContainer = BrandOnSecondaryContainerLight,
+        tertiary = BrandTertiaryLight,
+        onTertiary = BrandOnTertiaryLight,
+        tertiaryContainer = BrandTertiaryContainerLight,
+        onTertiaryContainer = BrandOnTertiaryContainerLight,
+        error = BrandErrorLight,
+        onError = BrandOnErrorLight,
+        errorContainer = BrandErrorContainerLight,
+        onErrorContainer = BrandOnErrorContainerLight,
+        background = BrandBackgroundLight,
+        onBackground = BrandOnBackgroundLight,
+        surface = BrandSurfaceLight,
+        onSurface = BrandOnSurfaceLight,
+        surfaceVariant = BrandSurfaceVariantLight,
+        onSurfaceVariant = BrandOnSurfaceVariantLight,
+        outline = BrandOutlineLight,
+        outlineVariant = BrandOutlineVariantLight,
+        scrim = BrandScrimLight,
+        inverseSurface = BrandInverseSurfaceLight,
+        inverseOnSurface = BrandInverseOnSurfaceLight,
+        inversePrimary = BrandInversePrimaryLight,
+        surfaceTint = BrandSurfaceTintLight,
+    )
 
-private val DarkColors = darkColorScheme(
-    primary = BrandPrimaryDark,
-    onPrimary = BrandOnPrimaryDark,
-    primaryContainer = BrandPrimaryContainerDark,
-    onPrimaryContainer = BrandOnPrimaryContainerDark,
-    secondary = BrandSecondaryDark,
-    onSecondary = BrandOnSecondaryDark,
-    secondaryContainer = BrandSecondaryContainerDark,
-    onSecondaryContainer = BrandOnSecondaryContainerDark,
-    tertiary = BrandTertiaryDark,
-    onTertiary = BrandOnTertiaryDark,
-    tertiaryContainer = BrandTertiaryContainerDark,
-    onTertiaryContainer = BrandOnTertiaryContainerDark,
-    error = BrandErrorDark,
-    onError = BrandOnErrorDark,
-    errorContainer = BrandErrorContainerDark,
-    onErrorContainer = BrandOnErrorContainerDark,
-    background = BrandBackgroundDark,
-    onBackground = BrandOnBackgroundDark,
-    surface = BrandSurfaceDark,
-    onSurface = BrandOnSurfaceDark,
-    surfaceVariant = BrandSurfaceVariantDark,
-    onSurfaceVariant = BrandOnSurfaceVariantDark,
-    outline = BrandOutlineDark,
-    outlineVariant = BrandOutlineVariantDark,
-    scrim = BrandScrimDark,
-    inverseSurface = BrandInverseSurfaceDark,
-    inverseOnSurface = BrandInverseOnSurfaceDark,
-    inversePrimary = BrandInversePrimaryDark,
-    surfaceTint = BrandSurfaceTintDark
-)
+private val DarkColors =
+    darkColorScheme(
+        primary = BrandPrimaryDark,
+        onPrimary = BrandOnPrimaryDark,
+        primaryContainer = BrandPrimaryContainerDark,
+        onPrimaryContainer = BrandOnPrimaryContainerDark,
+        secondary = BrandSecondaryDark,
+        onSecondary = BrandOnSecondaryDark,
+        secondaryContainer = BrandSecondaryContainerDark,
+        onSecondaryContainer = BrandOnSecondaryContainerDark,
+        tertiary = BrandTertiaryDark,
+        onTertiary = BrandOnTertiaryDark,
+        tertiaryContainer = BrandTertiaryContainerDark,
+        onTertiaryContainer = BrandOnTertiaryContainerDark,
+        error = BrandErrorDark,
+        onError = BrandOnErrorDark,
+        errorContainer = BrandErrorContainerDark,
+        onErrorContainer = BrandOnErrorContainerDark,
+        background = BrandBackgroundDark,
+        onBackground = BrandOnBackgroundDark,
+        surface = BrandSurfaceDark,
+        onSurface = BrandOnSurfaceDark,
+        surfaceVariant = BrandSurfaceVariantDark,
+        onSurfaceVariant = BrandOnSurfaceVariantDark,
+        outline = BrandOutlineDark,
+        outlineVariant = BrandOutlineVariantDark,
+        scrim = BrandScrimDark,
+        inverseSurface = BrandInverseSurfaceDark,
+        inverseOnSurface = BrandInverseOnSurfaceDark,
+        inversePrimary = BrandInversePrimaryDark,
+        surfaceTint = BrandSurfaceTintDark,
+    )
 
 private val AppTypography = Typography()
 private val AppShapes = Shapes()
@@ -92,34 +92,35 @@ fun AlfredTheme(
     dynamicColor: Boolean = false,
     customSeedArgb: Long? = null,
     paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val colorScheme = remember(darkTheme, dynamicColor, customSeedArgb, paletteStyle, context) {
-        val fallback = if (darkTheme) DarkColors else LightColors
-        when {
-            customSeedArgb != null -> {
-                val seedColor = customSeedArgb.toComposeColor()
-                dynamicColorScheme(
-                    seedColor = seedColor,
-                    isDark = darkTheme,
-                    style = paletteStyle
-                ).stabilize(fallback)
+    val colorScheme =
+        remember(darkTheme, dynamicColor, customSeedArgb, paletteStyle, context) {
+            val fallback = if (darkTheme) DarkColors else LightColors
+            when {
+                customSeedArgb != null -> {
+                    val seedColor = customSeedArgb.toComposeColor()
+                    dynamicColorScheme(
+                        seedColor = seedColor,
+                        isDark = darkTheme,
+                        style = paletteStyle,
+                    ).stabilize(fallback)
+                }
+                dynamicColor -> {
+                    val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                    scheme.stabilize(fallback)
+                }
+                darkTheme -> DarkColors
+                else -> LightColors
             }
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-                scheme.stabilize(fallback)
-            }
-            darkTheme -> DarkColors
-            else -> LightColors
         }
-    }
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
         shapes = AppShapes,
-        content = content
+        content = content,
     )
 }
 
@@ -133,13 +134,12 @@ private fun Long.toComposeColor(): Color {
 }
 
 private fun ColorScheme.stabilize(fallback: ColorScheme): ColorScheme {
-    fun Color.fix(fallbackColor: Color): Color {
-        return when {
+    fun Color.fix(fallbackColor: Color): Color =
+        when {
             !isSpecified -> fallbackColor
             alpha <= 0f -> fallbackColor
             else -> this
         }
-    }
 
     val safeScrim = if (scrim.alpha <= 0f) fallback.scrim else scrim
 
@@ -179,6 +179,6 @@ private fun ColorScheme.stabilize(fallback: ColorScheme): ColorScheme {
         surfaceContainerLow = surfaceContainerLow.fix(fallback.surfaceContainerLow),
         surfaceContainer = surfaceContainer.fix(fallback.surfaceContainer),
         surfaceContainerHigh = surfaceContainerHigh.fix(fallback.surfaceContainerHigh),
-        surfaceContainerHighest = surfaceContainerHighest.fix(fallback.surfaceContainerHighest)
+        surfaceContainerHighest = surfaceContainerHighest.fix(fallback.surfaceContainerHighest),
     )
 }

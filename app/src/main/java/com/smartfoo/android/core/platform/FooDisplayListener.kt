@@ -6,14 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.DisplayManager
-import android.os.PowerManager
 import android.view.Display
 import com.smartfoo.android.core.FooListenerAutoStartManager
 import com.smartfoo.android.core.FooListenerAutoStartManager.FooListenerAutoStartManagerCallbacks
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.platform.FooPlatformUtils.toString
 
-class FooDisplayListener(private val context: Context) {
+class FooDisplayListener(
+    private val context: Context,
+) {
     companion object {
         private val TAG = FooLog.TAG(FooDisplayListener::class.java)
     }
@@ -39,7 +40,10 @@ class FooDisplayListener(private val context: Context) {
         /**
          * Fires on [android.content.Intent.ACTION_SCREEN_ON] broadcast.
          */
-        fun onDisplayOn(displayId: Int, isDeviceLocked: Boolean)
+        fun onDisplayOn(
+            displayId: Int,
+            isDeviceLocked: Boolean,
+        )
 
         /**
          * Fires on [android.content.Intent.ACTION_USER_PRESENT] broadcast.
@@ -51,37 +55,45 @@ class FooDisplayListener(private val context: Context) {
     private val screenBroadcastReceiver: FooScreenBroadcastReceiver
 
     init {
-        listenerManager.attach(object : FooListenerAutoStartManagerCallbacks {
-            override fun onFirstAttach() {
-                screenBroadcastReceiver.start(context, object : FooDisplayListenerCallbacks {
-                    override fun onDisplayOff(displayId: Int) {
-                        for (callbacks in listenerManager.beginTraversing()) {
-                            callbacks!!.onDisplayOff(displayId)
-                        }
-                        listenerManager.endTraversing()
-                    }
+        listenerManager.attach(
+            object : FooListenerAutoStartManagerCallbacks {
+                override fun onFirstAttach() {
+                    screenBroadcastReceiver.start(
+                        context,
+                        object : FooDisplayListenerCallbacks {
+                            override fun onDisplayOff(displayId: Int) {
+                                for (callbacks in listenerManager.beginTraversing()) {
+                                    callbacks!!.onDisplayOff(displayId)
+                                }
+                                listenerManager.endTraversing()
+                            }
 
-                    override fun onDisplayOn(displayId: Int, isDeviceLocked: Boolean) {
-                        for (callbacks in listenerManager.beginTraversing()) {
-                            callbacks!!.onDisplayOn(displayId, isDeviceLocked)
-                        }
-                        listenerManager.endTraversing()
-                    }
+                            override fun onDisplayOn(
+                                displayId: Int,
+                                isDeviceLocked: Boolean,
+                            ) {
+                                for (callbacks in listenerManager.beginTraversing()) {
+                                    callbacks!!.onDisplayOn(displayId, isDeviceLocked)
+                                }
+                                listenerManager.endTraversing()
+                            }
 
-                    override fun onDeviceUnlocked() {
-                        for (callbacks in listenerManager.beginTraversing()) {
-                            callbacks!!.onDeviceUnlocked()
-                        }
-                        listenerManager.endTraversing()
-                    }
-                })
-            }
+                            override fun onDeviceUnlocked() {
+                                for (callbacks in listenerManager.beginTraversing()) {
+                                    callbacks!!.onDeviceUnlocked()
+                                }
+                                listenerManager.endTraversing()
+                            }
+                        },
+                    )
+                }
 
-            override fun onLastDetach(): Boolean {
-                screenBroadcastReceiver.stop(context)
-                return false
-            }
-        })
+                override fun onLastDetach(): Boolean {
+                    screenBroadcastReceiver.stop(context)
+                    return false
+                }
+            },
+        )
         screenBroadcastReceiver = FooScreenBroadcastReceiver(context)
     }
 
@@ -99,7 +111,9 @@ class FooDisplayListener(private val context: Context) {
         listenerManager.detach(callbacks)
     }
 
-    private class FooScreenBroadcastReceiver(context: Context) : BroadcastReceiver() {
+    private class FooScreenBroadcastReceiver(
+        context: Context,
+    ) : BroadcastReceiver() {
         companion object {
             private val TAG = FooLog.TAG(FooScreenBroadcastReceiver::class.java)
         }
@@ -113,12 +127,11 @@ class FooDisplayListener(private val context: Context) {
 
         fun isDisplayOn(displayId: Int): Boolean = !isDisplayOff(displayId)
 
-        fun isDisplayOff(displayId: Int): Boolean {
-            return displayManager.displays
+        fun isDisplayOff(displayId: Int): Boolean =
+            displayManager.displays
                 .firstOrNull { it.displayId == displayId }
                 ?.let { it.state == Display.STATE_OFF }
                 ?: false
-        }
 
         val isDeviceLocked: Boolean
             get() {
@@ -139,7 +152,10 @@ class FooDisplayListener(private val context: Context) {
                 }
             }
 
-        fun start(context: Context, callbacks: FooDisplayListenerCallbacks) {
+        fun start(
+            context: Context,
+            callbacks: FooDisplayListenerCallbacks,
+        ) {
             FooLog.v(TAG, "+start(...)")
             synchronized(syncLock) {
                 if (!isStarted) {
@@ -172,7 +188,10 @@ class FooDisplayListener(private val context: Context) {
             FooLog.v(TAG, "-stop()")
         }
 
-        override fun onReceive(context: Context?, intent: Intent) {
+        override fun onReceive(
+            context: Context?,
+            intent: Intent,
+        ) {
             FooLog.v(TAG, "onReceive: intent == " + toString(intent))
             val action = intent.action
             when (action) {

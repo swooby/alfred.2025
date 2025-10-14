@@ -5,14 +5,18 @@ import com.smartfoo.android.core.reflection.FooReflectionUtils
 import com.swooby.alfred.BuildConfig
 import java.util.Collections
 
-open class FooListenerManager<T>(name: String) {
+@Suppress("unused")
+open class FooListenerManager<T>(
+    name: String,
+) {
     companion object {
         private val TAG = FooLog.TAG(FooListenerManager::class.java)
 
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions", "RedundantSuppression", "UNREACHABLE_CODE")
         private val VERBOSE_LOG = false && BuildConfig.DEBUG
     }
 
-    constructor(name: Any) : this(FooReflectionUtils.getShortClassName(name))
+    constructor(name: Any) : this(FooReflectionUtils.getShortClassName(name)!!)
 
     private val mName: String = FooString.quote(name.trim())
     private val mListeners: MutableSet<T> = LinkedHashSet()
@@ -21,9 +25,7 @@ open class FooListenerManager<T>(name: String) {
 
     private var mIsTraversingListeners = false
 
-    override fun toString(): String {
-        return "{ mName=$mName, size()=${size()} }"
-    }
+    override fun toString(): String = "{ mName=$mName, size()=${size()} }"
 
     fun size(): Int {
         val size: Int
@@ -38,7 +40,7 @@ open class FooListenerManager<T>(name: String) {
         {
             FooLog.v(TAG, mName + " size() == " + size);
         }
-        */
+         */
         return size
     }
 
@@ -47,9 +49,11 @@ open class FooListenerManager<T>(name: String) {
 
     fun hasListener(listener: T): Boolean {
         synchronized(mListeners) {
-            return mListenersToAdd.contains(listener) || mListeners.contains(listener) || mListenersToRemove.contains(
-                listener
-            )
+            return mListenersToAdd.contains(listener) ||
+                mListeners.contains(listener) ||
+                mListenersToRemove.contains(
+                    listener,
+                )
         }
     }
 

@@ -1,17 +1,20 @@
 package com.swooby.alfred.core.summary
 
-import com.swooby.alfred.core.summary.templates.*
+import com.swooby.alfred.core.summary.templates.GenericMediaTemplate
+import com.swooby.alfred.core.summary.templates.NotificationTemplate
+import com.swooby.alfred.core.summary.templates.ScreenTemplate
+import com.swooby.alfred.core.summary.templates.SpotifyTemplate
 import com.swooby.alfred.data.EventEntity
 
 class TemplatedSummaryGenerator(
-    templates: List<PhraseTemplate> = listOf(
-        SpotifyTemplate(),
-        GenericMediaTemplate(),
-        NotificationTemplate(),
-        ScreenTemplate()
-    )
+    templates: List<PhraseTemplate> =
+        listOf(
+            SpotifyTemplate(),
+            GenericMediaTemplate(),
+            NotificationTemplate(),
+            ScreenTemplate(),
+        ),
 ) : SummaryGenerator {
-
     private val ordered = templates.sortedByDescending { it.priority }
 
     override fun livePhrase(e: EventEntity): Utterance.Live? {
@@ -22,7 +25,10 @@ class TemplatedSummaryGenerator(
         return null
     }
 
-    override fun digest(title: String, events: List<EventEntity>): Utterance.Digest {
+    override fun digest(
+        title: String,
+        events: List<EventEntity>,
+    ): Utterance.Digest {
         val base = SummaryGeneratorImpl()
         return base.digest(title, events)
     }

@@ -3,10 +3,13 @@ package com.swooby.alfred.settings
 import java.util.Locale
 
 /** Represents the theme preference selected by the user. */
-enum class ThemeMode(private val storageValue: String) {
+enum class ThemeMode(
+    private val storageValue: String,
+) {
     SYSTEM("system"),
     LIGHT("light"),
-    DARK("dark");
+    DARK("dark"),
+    ;
 
     override fun toString(): String = storageValue
 

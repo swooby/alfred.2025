@@ -1,8 +1,8 @@
-//@file:Suppress("DEPRECATION")
-
 package com.swooby.alfred.sources
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Person
 import android.app.RemoteInput
 import android.content.Context
@@ -15,9 +15,10 @@ import android.service.notification.NotificationListenerService.Ranking
 import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.util.SparseArray
-import androidx.core.app.NotificationCompat
+import androidx.core.util.size
 import com.smartfoo.android.core.crypto.FooCrypto
 import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.platform.FooPlatformUtils
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -41,7 +42,7 @@ data class EventEnvelope(
     val refs: Map<String, Any?>,
     val attachments: List<Map<String, Any?>>, // icon/picture references (no blobs)
     val integrity: Map<String, Any?>,
-    val rawExtrasJson: JsonObject
+    val rawExtrasJson: JsonObject,
 )
 
 /** Main API */
@@ -49,6 +50,15 @@ object NotificationExtractor {
     private val TAG = FooLog.TAG(NotificationExtractor::class.java)
 
     const val PARSER_VERSION = "notification_extractor_v1"
+
+    fun getNotificationChannel(
+        context: Context,
+        notification: Notification,
+    ): NotificationChannel? {
+        val channelId = notification.channelId ?: return null
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        return notificationManager.getNotificationChannel(channelId)
+    }
 
     @JvmStatic
     fun extract(
@@ -58,7 +68,8 @@ object NotificationExtractor {
         rankingMap: RankingMap? = null,
     ): EventEnvelope {
         val notification = sbn.notification
-        val extras = NotificationCompat.getExtras(notification) ?: Bundle.EMPTY
+        val notificationChannel = getNotificationChannel(context, notification)
+        val extras = notification.extras ?: Bundle.EMPTY
         val template = extras.getString("android.template")
         val rawExtras = bundleToJson(extras)
 
@@ -75,7 +86,7 @@ object NotificationExtractor {
 
         val contextMap = mutableMapOf<String, Any?>()
         contextMap.putMeaningful("category", notification.category)
-        contextMap.putMeaningful("priority", notification.priority)
+        contextMap.putMeaningful("priority", notificationChannel?.importance ?: NotificationManager.IMPORTANCE_UNSPECIFIED)
         contextMap.putMeaningful("visibility", notification.visibility)
         contextMap.putMeaningful("when", notification.`when`.takeIf { it > 0 })
         notification.color.takeIf { it != Notification.COLOR_DEFAULT }?.let {
@@ -113,7 +124,7 @@ object NotificationExtractor {
 
         val actions = buildActions(notification)
         val people = buildPeople(notification, extras)
-        val attachments = buildAttachments(notification, extras)
+        val attachments = buildAttachments(notificationChannel, notification, extras)
         val styleBlock = buildStyleBlock(extras, template)
         val intents = pendingIntentStubs(notification)
         val bubble = bubbleStub(notification)
@@ -121,7 +132,10 @@ object NotificationExtractor {
         val attributeMap = mutableMapOf<String, Any?>()
         attributeMap.putMeaningful("template", template ?: "Base")
         notification.shortcutId.takeUnless { it.isNullOrBlank() }?.let { attributeMap["shortcutId"] = it }
-        notification.locusId?.id.takeUnless { it.isNullOrBlank() }?.let { attributeMap["locusId"] = it }
+        notification.locusId
+            ?.id
+            .takeUnless { it.isNullOrBlank() }
+            ?.let { attributeMap["locusId"] = it }
         if (people.isNotEmpty()) attributeMap["people"] = people
         if (actions.isNotEmpty()) attributeMap["actions"] = actions
         if (styleBlock.isNotEmpty()) attributeMap["style"] = styleBlock
@@ -139,10 +153,11 @@ object NotificationExtractor {
         }
         metrics.putMeaningful("extrasFieldCount", rawExtras.size)
 
-        val source = mapOf(
-            "source" to "android.notification",
-            "api" to Build.VERSION.SDK_INT
-        )
+        val source =
+            mapOf(
+                "source" to "android.notification",
+                "api" to Build.VERSION.SDK_INT,
+            )
 
         val integrity = mutableMapOf<String, Any?>()
         integrity.putMeaningful("snapshotHash", FooCrypto.SHA256(rawExtras.toString()))
@@ -160,28 +175,21 @@ object NotificationExtractor {
             refs = refs,
             attachments = attachments,
             integrity = integrity,
-            rawExtrasJson = rawExtras
+            rawExtrasJson = rawExtras,
         )
     }
 
     // --- Helpers ------------------------------------------------------------------------------
 
-    private fun appIdentity(context: Context, sbn: StatusBarNotification): Map<String, Any?> {
-        val pm = context.packageManager
-        val pkg = sbn.packageName
-        val appLabel = try {
-            val ai = pm.getApplicationInfo(pkg, 0)
-            pm.getApplicationLabel(ai)?.toString()
-        } catch (_: Exception) {
-            null
-        }
-        val uid = try {
-            pm.getApplicationInfo(pkg, 0).uid
-        } catch (_: Exception) {
-            null
-        }
+    private fun appIdentity(
+        context: Context,
+        sbn: StatusBarNotification,
+    ): Map<String, Any?> {
+        val packageName = sbn.packageName
+        val appLabel = FooPlatformUtils.getApplicationName(context, packageName)
+        val uid = FooPlatformUtils.getApplicationUserId(context, packageName)
         return buildMap {
-            putMeaningful("packageName", pkg)
+            putMeaningful("packageName", packageName)
             putMeaningful("appLabel", appLabel)
             putMeaningful("uid", uid)
         }
@@ -189,7 +197,7 @@ object NotificationExtractor {
 
     private fun rankingMapInfo(
         rankingMap: RankingMap?,
-        key: String
+        key: String,
     ): Pair<Map<String, Any?>, Map<String, Any?>?> {
         if (rankingMap == null) return Pair(emptyMap(), null)
         val ranking = Ranking()
@@ -206,40 +214,52 @@ object NotificationExtractor {
         }
         ranking.isConversation.takeIfTrue()?.let { info["isConversation"] = true }
 
-        val channel = ranking.channel?.let { ch ->
-            mutableMapOf<String, Any?>().apply {
-                putMeaningful("id", ch.id)
-                putMeaningful("name", ch.name?.toString())
-                putMeaningful("importance", ch.importance)
-                putMeaningful("group", ch.group)
+        val channel =
+            ranking.channel?.let { ch ->
+                mutableMapOf<String, Any?>().apply {
+                    putMeaningful("id", ch.id)
+                    putMeaningful("name", ch.name?.toString())
+                    putMeaningful("importance", ch.importance)
+                    putMeaningful("group", ch.group)
+                }
             }
-        }
 
         return Pair(info, channel)
     }
 
-    private fun buildSubjectFromTemplate(extras: Bundle, template: String?): Map<String, Any?> {
-        return when (template) {
+    private fun buildSubjectFromTemplate(
+        extras: Bundle,
+        template: String?,
+    ): Map<String, Any?> =
+        when (template) {
             "android.app.Notification\$MessagingStyle" -> {
-                val messages = (extras.getParcelableArray("android.messages") ?: emptyArray())
-                    .mapNotNull { parcel ->
-                        (parcel as? Bundle)?.let { bundle ->
-                            val text = bundle.getCharSequence("text")?.toString()
-                            val sender = bundle.getCharSequence("sender")?.toString()
-                                ?: (bundle.getParcelable<Parcelable>("sender_person") as? Person)?.name?.toString()
-                            val timestamp = bundle.getLong("time")
-                            mutableMapOf<String, Any?>().apply {
-                                putMeaningful("text", text)
-                                putMeaningful("sender", sender)
-                                putMeaningful("timestamp", timestamp.takeIf { it > 0 })
-                            }.takeIf { it.isNotEmpty() }
+                val messages =
+                    (extras.getParcelableArray("android.messages", Parcelable::class.java) ?: emptyArray())
+                        .mapNotNull { parcel ->
+                            (parcel as? Bundle)?.let { bundle ->
+                                val text = bundle.getCharSequence("text")?.toString()
+                                val sender =
+                                    bundle.getCharSequence("sender")?.toString()
+                                        ?: (
+                                            bundle.getParcelable(
+                                                "sender_person",
+                                                Parcelable::class.java,
+                                            ) as? Person
+                                        )?.name?.toString()
+                                val timestamp = bundle.getLong("time")
+                                mutableMapOf<String, Any?>()
+                                    .apply {
+                                        putMeaningful("text", text)
+                                        putMeaningful("sender", sender)
+                                        putMeaningful("timestamp", timestamp.takeIf { it > 0 })
+                                    }.takeIf { it.isNotEmpty() }
+                            }
                         }
-                    }
                 mutableMapOf<String, Any?>().apply {
                     putMeaningful("template", "MessagingStyle")
                     putMeaningful(
                         "conversationTitle",
-                        extras.getCharSequence("android.conversationTitle")?.toString()
+                        extras.getCharSequence("android.conversationTitle")?.toString(),
                     )
                     extras.getBoolean("android.isGroupConversation").takeIfTrue()?.let {
                         this["isGroupConversation"] = true
@@ -248,46 +268,54 @@ object NotificationExtractor {
                     putMeaningful("title", extras.getCharSequence("android.title")?.toString())
                 }
             }
-            "android.app.Notification\$InboxStyle" -> mutableMapOf<String, Any?>().apply {
-                putMeaningful("template", "InboxStyle")
-                val lines = extras.getCharSequenceArray("android.textLines")
-                    ?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
-                if (!lines.isNullOrEmpty()) this["lines"] = lines
-                putMeaningful("title", extras.getCharSequence("android.title")?.toString())
-                putMeaningful(
-                    "summaryText",
-                    extras.getCharSequence("android.summaryText")?.toString()
-                )
-            }
-            "android.app.Notification\$BigTextStyle" -> mutableMapOf<String, Any?>().apply {
-                putMeaningful("template", "BigTextStyle")
-                putMeaningful("title", extras.getCharSequence("android.title")?.toString())
-                putMeaningful("text", extras.getCharSequence("android.bigText")?.toString())
-                putMeaningful("subText", extras.getCharSequence("android.subText")?.toString())
-            }
-            "android.app.Notification\$BigPictureStyle" -> mutableMapOf<String, Any?>().apply {
-                putMeaningful("template", "BigPictureStyle")
-                putMeaningful("title", extras.getCharSequence("android.title")?.toString())
-                putMeaningful("text", extras.getCharSequence("android.text")?.toString())
-                extras.getParcelable<Parcelable>("android.picture")?.let {
-                    this["hasPicture"] = true
+            "android.app.Notification\$InboxStyle" ->
+                mutableMapOf<String, Any?>().apply {
+                    putMeaningful("template", "InboxStyle")
+                    val lines =
+                        extras
+                            .getCharSequenceArray("android.textLines")
+                            ?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
+                    if (!lines.isNullOrEmpty()) this["lines"] = lines
+                    putMeaningful("title", extras.getCharSequence("android.title")?.toString())
+                    putMeaningful(
+                        "summaryText",
+                        extras.getCharSequence("android.summaryText")?.toString(),
+                    )
                 }
-            }
-            else -> mutableMapOf<String, Any?>().apply {
-                putMeaningful("template", template ?: "Base")
-                putMeaningful("title", extras.getCharSequence("android.title")?.toString())
-                putMeaningful("text", extras.getCharSequence("android.text")?.toString())
-                putMeaningful("subText", extras.getCharSequence("android.subText")?.toString())
-                putMeaningful("infoText", extras.getCharSequence("android.infoText")?.toString())
-            }
+            "android.app.Notification\$BigTextStyle" ->
+                mutableMapOf<String, Any?>().apply {
+                    putMeaningful("template", "BigTextStyle")
+                    putMeaningful("title", extras.getCharSequence("android.title")?.toString())
+                    putMeaningful("text", extras.getCharSequence("android.bigText")?.toString())
+                    putMeaningful("subText", extras.getCharSequence("android.subText")?.toString())
+                }
+            "android.app.Notification\$BigPictureStyle" ->
+                mutableMapOf<String, Any?>().apply {
+                    putMeaningful("template", "BigPictureStyle")
+                    putMeaningful("title", extras.getCharSequence("android.title")?.toString())
+                    putMeaningful("text", extras.getCharSequence("android.text")?.toString())
+                    extras.getParcelable("android.picture", Parcelable::class.java)?.let {
+                        this["hasPicture"] = true
+                    }
+                }
+            else ->
+                mutableMapOf<String, Any?>().apply {
+                    putMeaningful("template", template ?: "Base")
+                    putMeaningful("title", extras.getCharSequence("android.title")?.toString())
+                    putMeaningful("text", extras.getCharSequence("android.text")?.toString())
+                    putMeaningful("subText", extras.getCharSequence("android.subText")?.toString())
+                    putMeaningful("infoText", extras.getCharSequence("android.infoText")?.toString())
+                }
         }
-    }
 
-    private fun buildStyleBlock(extras: Bundle, template: String?): Map<String, Any?> {
+    private fun buildStyleBlock(
+        extras: Bundle,
+        template: String?,
+    ): Map<String, Any?> {
         val base = mutableMapOf<String, Any?>()
         base.putMeaningful("template", template ?: "Base")
         if (template == "android.app.Notification\$MediaStyle") {
-            extras.getParcelable<Parcelable>("android.mediaSession")?.let {
+            extras.getParcelable("android.mediaSession", Parcelable::class.java)?.let {
                 base["hasMediaSession"] = true
             }
             extras.getIntArray("android.compactActions")?.takeIf { it.isNotEmpty() }?.let {
@@ -298,7 +326,7 @@ object NotificationExtractor {
             base["isCall"] = true
             base.putMeaningful("callType", extras.getInt("android.callType", -1).takeIf { it >= 0 })
             extras.getBoolean("android.callIsOngoing").takeIfTrue()?.let { base["isOngoing"] = true }
-            extras.getParcelable<Person>("android.callPerson")?.name?.toString()?.takeUnless(String::isBlank)?.let {
+            extras.getParcelable("android.callPerson", Person::class.java)?.name?.toString()?.takeUnless(String::isBlank)?.let {
                 base["caller"] = it
             }
         }
@@ -309,34 +337,43 @@ object NotificationExtractor {
         val actions = notification.actions ?: emptyArray()
         if (actions.isEmpty()) return emptyList()
         return actions.mapNotNull { action ->
-            val remoteInputs = action.remoteInputs?.mapNotNull { ri ->
-                mutableMapOf<String, Any?>().apply {
-                    putMeaningful("resultKey", ri.resultKey)
-                    ri.allowFreeFormInput.takeIfTrue()?.let { this["allowFreeForm"] = true }
-                    ri.choices?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
-                        ?.takeIf { it.isNotEmpty() }
-                        ?.let { this["choices"] = it }
+            val remoteInputs =
+                action.remoteInputs?.mapNotNull { ri ->
+                    mutableMapOf<String, Any?>()
+                        .apply {
+                            putMeaningful("resultKey", ri.resultKey)
+                            ri.allowFreeFormInput.takeIfTrue()?.let { this["allowFreeForm"] = true }
+                            ri.choices
+                                ?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
+                                ?.takeIf { it.isNotEmpty() }
+                                ?.let { this["choices"] = it }
+                        }.takeIf { it.isNotEmpty() }
+                } ?: emptyList()
+            mutableMapOf<String, Any?>()
+                .apply {
+                    putMeaningful("title", action.title?.toString())
+                    val semantic = action.semanticAction
+                    if (semantic != Notification.Action.SEMANTIC_ACTION_NONE) {
+                        this["semanticAction"] = semantic
+                    }
+                    action.isContextual.takeIfTrue()?.let { this["isContextual"] = true }
+                    if (remoteInputs.isNotEmpty()) {
+                        this["remoteInputs"] = remoteInputs
+                    }
                 }.takeIf { it.isNotEmpty() }
-            } ?: emptyList()
-            mutableMapOf<String, Any?>().apply {
-                putMeaningful("title", action.title?.toString())
-                val semantic = action.semanticAction
-                if (semantic != Notification.Action.SEMANTIC_ACTION_NONE) {
-                    this["semanticAction"] = semantic
-                }
-                action.isContextual.takeIfTrue()?.let { this["isContextual"] = true }
-                if (remoteInputs.isNotEmpty()) {
-                    this["remoteInputs"] = remoteInputs
-                }
-            }.takeIf { it.isNotEmpty() }
         }
     }
 
-    private fun buildPeople(notification: Notification, extras: Bundle): List<Map<String, Any?>> {
+    private fun buildPeople(
+        notification: Notification,
+        extras: Bundle,
+    ): List<Map<String, Any?>> {
         val people = mutableListOf<Map<String, Any?>>()
-        val persons = extras.getParcelableArrayList("android.people.list", Person::class.java)
-                    ?.filterNotNull()
-                    ?: emptyList()
+        val persons =
+            extras
+                .getParcelableArrayList("android.people.list", Person::class.java)
+                ?.filterNotNull()
+                ?: emptyList()
         persons.forEach { person ->
             val stub = personStub(person)
             if (stub.isNotEmpty()) people += stub
@@ -354,7 +391,11 @@ object NotificationExtractor {
         return people
     }
 
-    private fun buildAttachments(notification: Notification, extras: Bundle): List<Map<String, Any?>> {
+    private fun buildAttachments(
+        notificationChannel: NotificationChannel?,
+        notification: Notification,
+        extras: Bundle,
+    ): List<Map<String, Any?>> {
         val result = mutableListOf<Map<String, Any?>>()
         notification.smallIcon?.let { icon ->
             iconStub("smallIcon", icon)?.let { result += it }
@@ -362,25 +403,27 @@ object NotificationExtractor {
         notification.getLargeIcon()?.let { icon ->
             iconStub("largeIcon", icon)?.let { result += it }
         }
-        (extras.getParcelable<Parcelable>("android.picture") as? Icon)?.let { icon ->
+        (extras.getParcelable("android.picture", Parcelable::class.java) as? Icon)?.let { icon ->
             iconStub("bigPicture", icon)?.let { result += it }
         }
-        notification.sound?.let { uri ->
+        notificationChannel?.sound?.let { uri ->
             result += mapOf("type" to "sound", "uri" to uri.toString())
         }
-        notification.vibrate?.takeIf { it.isNotEmpty() }?.let { pattern ->
-            result += mapOf("type" to "vibration", "patternSize" to pattern.size)
+        notificationChannel?.vibrationPattern?.takeIf { it.isNotEmpty() }?.let { pattern ->
+            result += mapOf("type" to "vibrationPattern", "patternSize" to pattern.size)
         }
+        // TODO: notificationChannel.vibrationEffect...
         return result
     }
 
     private fun pendingIntentStubs(notification: Notification): Map<String, Any?> {
         fun stub(pi: android.app.PendingIntent?): Map<String, Any?>? {
             if (pi == null) return null
-            return mutableMapOf<String, Any?>().apply {
-                putMeaningful("creatorPackage", pi.creatorPackage)
-                pi.isImmutable.takeIfTrue()?.let { this["isImmutable"] = true }
-            }.takeIf { it.isNotEmpty() }
+            return mutableMapOf<String, Any?>()
+                .apply {
+                    putMeaningful("creatorPackage", pi.creatorPackage)
+                    pi.isImmutable.takeIfTrue()?.let { this["isImmutable"] = true }
+                }.takeIf { it.isNotEmpty() }
         }
         val map = mutableMapOf<String, Any?>()
         stub(notification.contentIntent)?.let { map["contentIntent"] = it }
@@ -391,26 +434,31 @@ object NotificationExtractor {
 
     private fun bubbleStub(notification: Notification): Map<String, Any?>? {
         val bubble = notification.bubbleMetadata ?: return null
-        return mutableMapOf<String, Any?>().apply {
-            putMeaningful("desiredHeight", bubble.desiredHeight.takeIf { it > 0 })
-            bubble.autoExpandBubble.takeIfTrue()?.let { this["autoExpand"] = true }
-            bubble.isNotificationSuppressed.takeIfTrue()?.let { this["suppressNotif"] = true }
-        }.takeIf { it.isNotEmpty() }
+        return mutableMapOf<String, Any?>()
+            .apply {
+                putMeaningful("desiredHeight", bubble.desiredHeight.takeIf { it > 0 })
+                bubble.autoExpandBubble.takeIfTrue()?.let { this["autoExpand"] = true }
+                bubble.isNotificationSuppressed.takeIfTrue()?.let { this["suppressNotif"] = true }
+            }.takeIf { it.isNotEmpty() }
     }
 
-    private fun personStub(person: Person): Map<String, Any?> = mutableMapOf<String, Any?>().apply {
-        putMeaningful("name", person.name?.toString())
-        putMeaningful("uri", person.uri)
-        putMeaningful("key", person.key)
-    }
+    private fun personStub(person: Person): Map<String, Any?> =
+        mutableMapOf<String, Any?>().apply {
+            putMeaningful("name", person.name?.toString())
+            putMeaningful("uri", person.uri)
+            putMeaningful("key", person.key)
+        }
 
-    private fun iconStub(kind: String, icon: Icon): Map<String, Any?>? {
+    private fun iconStub(
+        kind: String,
+        icon: Icon,
+    ): Map<String, Any?>? {
         val map = mutableMapOf<String, Any?>()
         map["type"] = kind
         map["iconType"] = icon.type
         tryOrNull { icon.resId }?.let { map["resId"] = it }
         tryOrNull { icon.resPackage }?.let { map["resPkg"] = it }
-        tryOrNull { icon.uri?.toString() }?.takeUnless { it.isNullOrBlank() }?.let {
+        tryOrNull { icon.uri.toString() }?.takeUnless { it.isBlank() }?.let {
             map["uri"] = it
         }
         return map.takeIf { it.isNotEmpty() }
@@ -423,13 +471,14 @@ object NotificationExtractor {
         return buildJsonObject {
             for (key in bundle.keySet()) {
                 try {
+                    @Suppress("DEPRECATION")
                     val value = bundle.get(key)
                     valueToJsonElement(value, includeFalse = true, includeBlank = true)?.let { element ->
                         put(key, element)
                     }
                 } catch (e: Exception) {
                     FooLog.w(TAG, "bundleToJson: $key", e)
-                    //put(key, JsonPrimitive("Unreadable value: ${e.javaClass.simpleName}"))
+                    put(key, JsonPrimitive("Unreadable value: ${e.javaClass.simpleName}"))
                 }
             }
         }
@@ -438,88 +487,103 @@ object NotificationExtractor {
     private fun valueToJsonElement(
         value: Any?,
         includeFalse: Boolean = false,
-        includeBlank: Boolean = false
-    ): JsonElement? = when (value) {
-        null -> null
-        is Boolean -> if (value || includeFalse) JsonPrimitive(value) else null
-        is Int -> JsonPrimitive(value)
-        is Long -> JsonPrimitive(value)
-        is Double -> JsonPrimitive(value)
-        is Float -> JsonPrimitive(value.toDouble())
-        is CharSequence -> {
-            val text = value.toString()
-            if (text.isBlank() && !includeBlank) null else JsonPrimitive(text)
+        includeBlank: Boolean = false,
+    ): JsonElement? =
+        when (value) {
+            null -> null
+            is Boolean -> if (value || includeFalse) JsonPrimitive(value) else null
+            is Int -> JsonPrimitive(value)
+            is Long -> JsonPrimitive(value)
+            is Double -> JsonPrimitive(value)
+            is Float -> JsonPrimitive(value.toDouble())
+            is CharSequence -> {
+                val text = value.toString()
+                if (text.isBlank() && !includeBlank) null else JsonPrimitive(text)
+            }
+            is Bundle -> bundleToJson(value)
+            is Uri -> JsonPrimitive(value.toString())
+            is Number -> JsonPrimitive(value.toDouble())
+            is Enum<*> -> JsonPrimitive(value.name)
+            is Array<*> ->
+                buildJsonArray {
+                    value.forEach { item ->
+                        valueToJsonElement(item, includeFalse, includeBlank)?.let { add(it) }
+                    }
+                }.takeUnless(JsonArray::isEmpty)
+            is List<*> ->
+                buildJsonArray {
+                    value.forEach { item ->
+                        valueToJsonElement(item, includeFalse, includeBlank)?.let { add(it) }
+                    }
+                }.takeUnless(JsonArray::isEmpty)
+            is SparseArray<*> ->
+                buildJsonArray {
+                    for (i in 0 until value.size) {
+                        valueToJsonElement(value.valueAt(i), includeFalse, includeBlank)?.let { add(it) }
+                    }
+                }.takeUnless(JsonArray::isEmpty)
+            is Map<*, *> ->
+                buildJsonObject {
+                    value.entries.forEach { (k, v) ->
+                        val key = k?.toString() ?: return@forEach
+                        valueToJsonElement(v, includeFalse, includeBlank)?.let { put(key, it) }
+                    }
+                }.takeUnless(JsonObject::isEmpty)
+            is Parcelable -> parcelableToStubJson(value)
+            else -> JsonPrimitive(value.toString())
         }
-        is Bundle -> bundleToJson(value)
-        is Parcelable -> parcelableToStubJson(value)
-        is Array<*> -> buildJsonArray {
-            value.forEach { item ->
-                valueToJsonElement(item, includeFalse, includeBlank)?.let { add(it) }
-            }
-        }.takeUnless(JsonArray::isEmpty)
-        is List<*> -> buildJsonArray {
-            value.forEach { item ->
-                valueToJsonElement(item, includeFalse, includeBlank)?.let { add(it) }
-            }
-        }.takeUnless(JsonArray::isEmpty)
-        is SparseArray<*> -> buildJsonArray {
-            for (i in 0 until value.size()) {
-                valueToJsonElement(value.valueAt(i), includeFalse, includeBlank)?.let { add(it) }
-            }
-        }.takeUnless(JsonArray::isEmpty)
-        is Map<*, *> -> buildJsonObject {
-            value.entries.forEach { (k, v) ->
-                val key = k?.toString() ?: return@forEach
-                valueToJsonElement(v, includeFalse, includeBlank)?.let { put(key, it) }
-            }
-        }.takeUnless(JsonObject::isEmpty)
-        is Uri -> JsonPrimitive(value.toString())
-        is Number -> JsonPrimitive(value.toDouble())
-        is Enum<*> -> JsonPrimitive(value.name)
-        else -> JsonPrimitive(value.toString())
-    }
 
-    private fun parcelableToStubJson(parcelable: Parcelable): JsonObject = when (parcelable) {
-        is Icon -> buildJsonObject {
-            put("type", JsonPrimitive("Icon"))
-            put("iconType", JsonPrimitive(parcelable.type))
-            tryOrNull { parcelable.resId }?.let { put("resId", JsonPrimitive(it)) }
-            tryOrNull { parcelable.resPackage }?.let { put("resPkg", JsonPrimitive(it)) }
-            tryOrNull { parcelable.uri?.toString() }?.takeUnless { it.isNullOrBlank() }?.let {
-                put("uri", JsonPrimitive(it))
-            }
-        }
-        is Person -> buildJsonObject {
-            personStub(parcelable).forEach { (k, v) ->
-                valueToJsonElement(v, includeFalse = true, includeBlank = true)?.let { put(k, it) }
-            }
-        }
-        is RemoteInput -> buildJsonObject {
-            put("type", JsonPrimitive("RemoteInput"))
-            put("resultKey", JsonPrimitive(parcelable.resultKey))
-            parcelable.allowFreeFormInput.takeIfTrue()?.let { put("allowFreeForm", JsonPrimitive(true)) }
-            parcelable.choices?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { list ->
-                    put("choices", buildJsonArray { list.forEach { add(JsonPrimitive(it)) } })
+    private fun parcelableToStubJson(parcelable: Parcelable): JsonObject =
+        when (parcelable) {
+            is Icon ->
+                buildJsonObject {
+                    put("type", JsonPrimitive("Icon"))
+                    put("iconType", JsonPrimitive(parcelable.type))
+                    tryOrNull { parcelable.resId }?.let { put("resId", JsonPrimitive(it)) }
+                    tryOrNull { parcelable.resPackage }?.let { put("resPkg", JsonPrimitive(it)) }
+                    tryOrNull { parcelable.uri.toString() }?.takeUnless { it.isBlank() }?.let {
+                        put("uri", JsonPrimitive(it))
+                    }
+                }
+            is Person ->
+                buildJsonObject {
+                    personStub(parcelable).forEach { (k, v) ->
+                        valueToJsonElement(v, includeFalse = true, includeBlank = true)?.let { put(k, it) }
+                    }
+                }
+            is RemoteInput ->
+                buildJsonObject {
+                    put("type", JsonPrimitive("RemoteInput"))
+                    put("resultKey", JsonPrimitive(parcelable.resultKey))
+                    parcelable.allowFreeFormInput.takeIfTrue()?.let { put("allowFreeForm", JsonPrimitive(true)) }
+                    parcelable.choices
+                        ?.mapNotNull { it?.toString()?.takeUnless(String::isBlank) }
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { list ->
+                            put("choices", buildJsonArray { list.forEach { add(JsonPrimitive(it)) } })
+                        }
+                }
+            else ->
+                buildJsonObject {
+                    put("type", JsonPrimitive(parcelable.javaClass.name))
                 }
         }
-        else -> buildJsonObject {
-            put("type", JsonPrimitive(parcelable.javaClass.name))
-        }
-    }
 
     // --- Utils --------------------------------------------------------------------------------
 
-    private inline fun Boolean.takeIfTrue(): Boolean? = if (this) this else null
+    private fun Boolean.takeIfTrue(): Boolean? = if (this) true else null
 
-    private inline fun <T> tryOrNull(block: () -> T): T? = try {
-        block()
-    } catch (_: Throwable) {
-        null
-    }
+    private inline fun <T> tryOrNull(block: () -> T): T? =
+        try {
+            block()
+        } catch (_: Throwable) {
+            null
+        }
 
-    private fun MutableMap<String, Any?>.putMeaningful(key: String, value: Any?) {
+    private fun MutableMap<String, Any?>.putMeaningful(
+        key: String,
+        value: Any?,
+    ) {
         when (value) {
             null -> return
             is Boolean -> if (value) this[key] = true
@@ -532,6 +596,6 @@ object NotificationExtractor {
     }
 }
 
-private fun JsonObject.isEmpty(): Boolean = this.size == 0
+//private fun JsonObject.isEmpty(): Boolean = this.size == 0
 
-private fun JsonArray.isEmpty(): Boolean = this.size == 0
+//private fun JsonArray.isEmpty(): Boolean = this.size == 0

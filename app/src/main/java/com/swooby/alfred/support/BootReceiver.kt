@@ -7,8 +7,15 @@ import com.swooby.alfred.pipeline.HourlyDigestWorker
 import com.swooby.alfred.pipeline.PipelineService
 
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        context.startForegroundService(Intent(context, PipelineService::class.java))
-        HourlyDigestWorker.schedule(context)
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED -> {
+                context.startForegroundService(Intent(context, PipelineService::class.java))
+                HourlyDigestWorker.schedule(context)
+            }
+        }
     }
 }

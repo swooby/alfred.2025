@@ -9,8 +9,8 @@ import com.smartfoo.android.core.logging.FooLog
  * References:
  * http://developer.android.com/guide/topics/ui/notifiers/notifications.html
  * http://developer.android.com/design/patterns/notifications.html
- * @noinspection unused
  */
+@Suppress("unused")
 class FooNotification private constructor() {
     companion object {
         private val TAG = FooLog.TAG(FooNotification::class.java)
@@ -18,23 +18,26 @@ class FooNotification private constructor() {
         /**
          * Non-hidden duplicate of [android.app.Notification.FLAG_NO_DISMISS]
          */
+        @Suppress("KDocUnresolvedReference")
         const val FLAG_NO_DISMISS = 0x00002000
 
         @JvmStatic
-        fun hasFlags(notification: Notification?, flags: Int): Boolean {
-            return notification != null && (notification.flags and flags) != 0
-        }
+        fun hasFlags(
+            notification: Notification?,
+            flags: Int,
+        ): Boolean = notification != null && (notification.flags and flags) != 0
 
         /**
          * Similar to [androidx.core.app.NotificationCompat.getOngoing]
          */
         @JvmStatic
-        fun getNoDismiss(notification: Notification?): Boolean {
-            return hasFlags(notification, FLAG_NO_DISMISS)
-        }
+        fun getNoDismiss(notification: Notification?): Boolean = hasFlags(notification, FLAG_NO_DISMISS)
 
         @JvmStatic
-        fun findCallingAppNotification(context: Context, notificationId: Int): Notification? {
+        fun findCallingAppNotification(
+            context: Context,
+            notificationId: Int,
+        ): Notification? {
             val notificationManager = context.getSystemService(NotificationManager::class.java)
             if (notificationManager != null) {
                 val activeNotifications = notificationManager.activeNotifications
@@ -72,7 +75,10 @@ class FooNotification private constructor() {
          * `adb shell appops set --uid ${packageName} SYSTEM_EXEMPT_FROM_DISMISSIBLE_NOTIFICATIONS default`
          */
         @JvmStatic
-        fun isCallingAppNotificationNoDismiss(context: Context, notificationId: Int): Boolean {
+        fun isCallingAppNotificationNoDismiss(
+            context: Context,
+            notificationId: Int,
+        ): Boolean {
             val notification = findCallingAppNotification(context, notificationId)
             return getNoDismiss(notification)
         }

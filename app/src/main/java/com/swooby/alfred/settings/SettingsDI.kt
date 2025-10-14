@@ -8,10 +8,13 @@ import com.swooby.alfred.AlfredApp
 
 @Composable
 fun settingsViewModel(app: AlfredApp): SettingsViewModel {
-    return viewModel(factory = object: ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(app.settings) as T
-        }
-    })
+    return viewModel(
+        factory =
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return SettingsViewModel(app.settings) as T
+                }
+            },
+    )
 }

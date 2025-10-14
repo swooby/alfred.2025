@@ -5,15 +5,13 @@ import com.smartfoo.android.core.reflection.FooReflectionUtils
 
 @Suppress("unused")
 object FooLog {
+    @Suppress("FunctionName")
     @JvmStatic
-    fun TAG(o: Any?): String {
-        return TAG(o?.javaClass)
-    }
+    fun TAG(o: Any): String = TAG(o.javaClass)
 
+    @Suppress("FunctionName")
     @JvmStatic
-    fun TAG(c: Class<*>?): String {
-        return TAG(FooReflectionUtils.getShortClassName(c))
-    }
+    fun TAG(c: Class<*>): String = TAG(FooReflectionUtils.getShortClassName(c)!!)
 
     /**
      * Per http://developer.android.com/reference/android/util/Log.html#isLoggable(java.lang.String, int)
@@ -26,6 +24,7 @@ object FooLog {
      * @param value tag
      * @return the tag limited to [.LOG_TAG_LENGTH_LIMIT]
      */
+    @Suppress("FunctionName")
     @JvmStatic
     fun TAG(value: String): String {
         var tag = value
@@ -39,92 +38,152 @@ object FooLog {
     }
 
     @JvmStatic
-    fun v(tag: String?, msg: String?) {
+    fun v(
+        tag: String?,
+        msg: String?,
+    ) {
         v(tag, msg, null)
     }
 
     @JvmStatic
-    fun v(tag: String?, e: Throwable?) {
+    fun v(
+        tag: String?,
+        e: Throwable?,
+    ) {
         v(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun v(tag: String?, msg: String?, e: Throwable?) {
+    fun v(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.v(tag, msg, e)
     }
 
     @JvmStatic
-    fun d(tag: String?, msg: String?) {
+    fun d(
+        tag: String?,
+        msg: String?,
+    ) {
         d(tag, msg, null)
     }
 
     @JvmStatic
-    fun d(tag: String?, e: Throwable?) {
+    fun d(
+        tag: String?,
+        e: Throwable?,
+    ) {
         d(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun d(tag: String?, msg: String?, e: Throwable?) {
+    fun d(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.d(tag, msg, e)
     }
 
     @JvmStatic
-    fun i(tag: String?, msg: String?) {
+    fun i(
+        tag: String?,
+        msg: String?,
+    ) {
         i(tag, msg, null)
     }
 
     @JvmStatic
-    fun i(tag: String?, e: Throwable?) {
+    fun i(
+        tag: String?,
+        e: Throwable?,
+    ) {
         i(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun i(tag: String?, msg: String?, e: Throwable?) {
+    fun i(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.i(tag, msg, e)
     }
 
     @JvmStatic
-    fun w(tag: String?, msg: String?) {
+    fun w(
+        tag: String?,
+        msg: String?,
+    ) {
         w(tag, msg, null)
     }
 
     @JvmStatic
-    fun w(tag: String?, e: Throwable?) {
+    fun w(
+        tag: String?,
+        e: Throwable?,
+    ) {
         w(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun w(tag: String?, msg: String?, e: Throwable?) {
+    fun w(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.w(tag, msg, e)
     }
 
     @JvmStatic
-    fun e(tag: String?, msg: String?) {
+    fun e(
+        tag: String?,
+        msg: String?,
+    ) {
         e(tag, msg, null)
     }
 
     @JvmStatic
-    fun e(tag: String?, e: Throwable?) {
+    fun e(
+        tag: String?,
+        e: Throwable?,
+    ) {
         e(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun e(tag: String?, msg: String?, e: Throwable?) {
+    fun e(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.e(tag, msg, e)
     }
 
     @JvmStatic
-    fun f(tag: String?, msg: String?) {
+    fun f(
+        tag: String?,
+        msg: String?,
+    ) {
         f(tag, msg, null)
     }
 
     @JvmStatic
-    fun f(tag: String?, e: Throwable?) {
+    fun f(
+        tag: String?,
+        e: Throwable?,
+    ) {
         f(tag, "Throwable", e)
     }
 
     @JvmStatic
-    fun f(tag: String?, msg: String?, e: Throwable?) {
+    fun f(
+        tag: String?,
+        msg: String?,
+        e: Throwable?,
+    ) {
         Log.wtf(tag, msg, e)
     }
 }

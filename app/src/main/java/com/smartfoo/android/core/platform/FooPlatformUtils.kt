@@ -4,15 +4,287 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.service.quicksettings.TileService
 import androidx.core.net.toUri
 import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.logging.FooLog
 import java.util.Locale
 
 @Suppress("unused")
 object FooPlatformUtils {
+    private val TAG = FooLog.TAG(FooPlatformUtils::class.java)
+
+    @JvmStatic
+    fun getPackageManager(context: Context): PackageManager = context.packageManager
+
+    @JvmStatic
+    fun getPackageName(context: Context): String = context.packageName
+
+    /**
+     * As of Android 11 (API 30) requires the following in AndroidManifest.xml:
+     * ```
+     * <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+     * tools:ignore="QueryAllPackagesPermission" >
+     * ```
+     * See:
+     *  * [Package visibility in Android 11](https://medium.com/androiddevelopers/package-visibility-in-android-11-cc857f221cd9)
+     * "In rare cases, your app might need to query or interact with all installed apps on a device, independent of the components they contain. To allow your app to see all other installed apps, Android 11 introduces the QUERY_ALL_PACKAGES permission. In an upcoming Google Play policy update, look for guidelines for apps that need the QUERY_ALL_PACKAGES permission."
+     *  * [Package visibility filtering on Android](https://developer.android.com/training/package-visibility)
+     *
+     */
+    @JvmOverloads
+    @JvmStatic
+    fun getApplicationInfo(
+        context: Context,
+        packageName: String? = null,
+    ): ApplicationInfo? {
+        val packageName = packageName ?: getPackageName(context)
+        return try {
+            getPackageManager(context).getApplicationInfo(packageName, 0)
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    /**
+     * As of Android 11 (API 30) requires the following in AndroidManifest.xml:
+     * ```
+     * <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+     * tools:ignore="QueryAllPackagesPermission" >
+     * ```
+     * See:
+     *  * [Package visibility in Android 11](https://medium.com/androiddevelopers/package-visibility-in-android-11-cc857f221cd9)
+     * "In rare cases, your app might need to query or interact with all installed apps on a device, independent of the components they contain. To allow your app to see all other installed apps, Android 11 introduces the QUERY_ALL_PACKAGES permission. In an upcoming Google Play policy update, look for guidelines for apps that need the QUERY_ALL_PACKAGES permission."
+     *  * [Package visibility filtering on Android](https://developer.android.com/training/package-visibility)
+     *
+     */
+    @JvmOverloads
+    @JvmStatic
+    fun getApplicationName(
+        context: Context,
+        packageName: String? = null,
+    ): String? {
+        val packageName = packageName ?: getPackageName(context)
+        val ai = getApplicationInfo(context, packageName)
+        if (ai == null) {
+            return null
+        }
+        return getPackageManager(context).getApplicationLabel(ai).toString()
+    }
+
+    /**
+     * As of Android 11 (API 30) requires the following in AndroidManifest.xml:
+     * ```
+     * <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+     * tools:ignore="QueryAllPackagesPermission" >
+     * ```
+     * See:
+     *  * [Package visibility in Android 11](https://medium.com/androiddevelopers/package-visibility-in-android-11-cc857f221cd9)
+     * "In rare cases, your app might need to query or interact with all installed apps on a device, independent of the components they contain. To allow your app to see all other installed apps, Android 11 introduces the QUERY_ALL_PACKAGES permission. In an upcoming Google Play policy update, look for guidelines for apps that need the QUERY_ALL_PACKAGES permission."
+     *  * [Package visibility filtering on Android](https://developer.android.com/training/package-visibility)
+     *
+     */
+    @JvmOverloads
+    @JvmStatic
+    fun getApplicationUserId(
+        context: Context,
+        packageName: String? = null,
+    ): Int? {
+        val packageName = packageName ?: getPackageName(context)
+        val ai = getApplicationInfo(context, packageName)
+        if (ai == null) {
+            return null
+        }
+        return getApplicationInfo(context, packageName)?.uid
+    }
+
+    /**
+     * @param context context
+     * @return PackageInfo of the context's package name, or null if one does not exist (should never happen)
+     */
+    @JvmStatic
+    fun getPackageInfo(
+        context: Context,
+        packageName: String? = null,
+    ): PackageInfo? {
+        val packageName = packageName ?: getPackageName(context)
+        return try {
+            getPackageManager(context).getPackageInfo(packageName, PackageManager.GET_META_DATA)
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    /**
+     * @param context      context
+     * @param defaultValue defaultValue
+     * @return the context's package's versionName, or defaultValue if one does not exist
+     */
+    @JvmStatic
+    fun getVersionName(
+        context: Context,
+        defaultValue: String?,
+    ): String? {
+        val packageInfo = getPackageInfo(context)
+        return if (packageInfo != null) {
+            packageInfo.versionName
+        } else {
+            defaultValue
+        }
+    }
+
+    /**
+     * @param context      context
+     * @param defaultValue defaultValue
+     * @return the context's package's versionCode, or defaultValue if one does not exist
+     */
+    @JvmStatic
+    fun getVersionCode(
+        context: Context,
+        defaultValue: Long,
+    ): Long {
+        val packageInfo = getPackageInfo(context)
+        return packageInfo?.longVersionCode ?: defaultValue
+    }
+
+    @JvmStatic
+    val deviceName: String
+        get() {
+            val manufacturer = FooString.capitalize(Build.MANUFACTURER)
+            val deviceModel = FooString.capitalize(Build.MODEL)
+            val deviceName =
+                if (deviceModel.startsWith(manufacturer)) {
+                    deviceModel
+                } else {
+                    "$manufacturer - $deviceModel"
+                }
+
+            return deviceName
+        }
+
+    @JvmStatic
+    val osVersion: String
+        get() {
+            val builder = StringBuilder()
+
+            builder.append("Android ").append(Build.VERSION.RELEASE)
+
+            val fields =
+                Build.VERSION_CODES::class.java.getFields()
+            for (field in fields) {
+                val fieldName = field.getName()
+
+                var fieldValue = -1
+                try {
+                    fieldValue = field.getInt(Any())
+                } catch (e: IllegalArgumentException) {
+                    // ignore
+                } catch (e: IllegalAccessException) {
+                } catch (e: NullPointerException) {
+                }
+
+                if (fieldValue == Build.VERSION.SDK_INT) {
+                    if (!FooString.isNullOrEmpty(fieldName)) {
+                        builder.append(' ').append(fieldName)
+                    }
+                    builder.append(" (API level ").append(fieldValue).append(')')
+                    break
+                }
+            }
+
+            return builder.toString()
+        }
+
+    @JvmStatic
+    fun hasSystemFeature(
+        context: Context,
+        name: String,
+    ): Boolean = getPackageManager(context).hasSystemFeature(name)
+
+    @JvmStatic
+    fun hasSystemFeatureAutomotive(context: Context): Boolean = hasSystemFeature(context, PackageManager.FEATURE_AUTOMOTIVE)
+
+    @JvmStatic
+    fun hasSystemFeatureTelephony(context: Context): Boolean = hasSystemFeature(context, PackageManager.FEATURE_TELEPHONY)
+
+    @JvmStatic
+    fun hasSystemFeatureTelevision(context: Context): Boolean = hasSystemFeature(context, PackageManager.FEATURE_LEANBACK)
+
+    @JvmStatic
+    fun hasSystemFeatureWatch(context: Context): Boolean = hasSystemFeature(context, PackageManager.FEATURE_WATCH)
+
+    /**
+     * @param context context
+     * @return null if the package does not exist or has no meta-data
+     */
+    @JvmStatic
+    fun getMetaData(context: Context): Bundle? {
+        var metaDataBundle: Bundle? = null
+
+        val packageName = getPackageName(context)
+        val packageManager = getPackageManager(context)
+        val applicationInfo =
+            try {
+                packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+            } catch (e: PackageManager.NameNotFoundException) {
+                null
+            }
+
+        if (applicationInfo != null) {
+            metaDataBundle = applicationInfo.metaData
+        }
+
+        return metaDataBundle
+    }
+
+    @JvmStatic
+    fun getMetaDataString(
+        context: Context,
+        key: String?,
+        defaultValue: String?,
+    ): String? {
+        var value: String? = null
+        val metaDataBundle = getMetaData(context)
+        if (metaDataBundle != null) {
+            value = metaDataBundle.getString(key, defaultValue)
+        }
+        return value
+    }
+
+    @JvmStatic
+    fun getMetaDataInt(
+        context: Context,
+        key: String?,
+        defaultValue: Int,
+    ): Int {
+        var value = defaultValue
+        val metaDataBundle = getMetaData(context)
+        if (metaDataBundle != null) {
+            value = metaDataBundle.getInt(key, defaultValue)
+        }
+        return value
+    }
+
+    @JvmStatic
+    fun getMetaDataBoolean(
+        context: Context,
+        key: String?,
+        defaultValue: Boolean,
+    ): Boolean {
+        var value = defaultValue
+        val metaDataBundle = getMetaData(context)
+        if (metaDataBundle != null) {
+            value = metaDataBundle.getBoolean(key, defaultValue)
+        }
+        return value
+    }
+
     @JvmStatic
     fun toString(intent: Intent?): String {
         if (intent == null) return "null"
@@ -37,21 +309,24 @@ object FooPlatformUtils {
         sb.append('{')
         while (it.hasNext()) {
             val key = it.next()
-            var value = try {
-                /**
-                 * [android.os.BaseBundle.get] calls hidden method [android.os.BaseBundle.getValue].
-                 * `android.os.BaseBundle#getValue(java.lang.String)` says:
-                 * "Deprecated: Use `getValue(String, Class, Class[])`. This method should only be used in other deprecated APIs."
-                 * That first sentence does not help this method that dynamically enumerates the Bundle entries without awareness/concern of any types.
-                 * That second sentence tells me they probably won't be getting rid of android.os.BaseBundle#get(java.lang.String) any time soon.
-                 * So marking deprecated `android.os.BaseBundle#get(java.lang.String)` as safe to call... for awhile.
-                 */
-                @Suppress("DEPRECATION")
-                bundle.get(key)
-            } catch (e: RuntimeException) {
-                // Known issue if a Bundle (Parcelable) incorrectly implements writeToParcel
-                "[Error retrieving \"$key\" value: ${e.message}]"
-            }
+
+            @Suppress("KDocUnresolvedReference")
+            var value =
+                try {
+                    /**
+                     * [android.os.BaseBundle.get] calls hidden method [android.os.BaseBundle.getValue].
+                     * `android.os.BaseBundle#getValue(java.lang.String)` says:
+                     * "Deprecated: Use `getValue(String, Class, Class[])`. This method should only be used in other deprecated APIs."
+                     * That first sentence does not help this method that dynamically enumerates the Bundle entries without awareness/concern of any types.
+                     * That second sentence tells me they probably won't be getting rid of android.os.BaseBundle#get(java.lang.String) any time soon.
+                     * So marking deprecated `android.os.BaseBundle#get(java.lang.String)` as safe to call for awhile... until it isn't.
+                     */
+                    @Suppress("DEPRECATION")
+                    bundle.get(key)
+                } catch (e: RuntimeException) {
+                    // Known issue if a Bundle (Parcelable) incorrectly implements writeToParcel
+                    "[Error retrieving \"$key\" value: ${e.message}]"
+                }
 
             sb.append(FooString.quote(key)).append('=')
 
@@ -59,12 +334,18 @@ object FooPlatformUtils {
                 value = "*REDACTED*"
             }
 
-            if (value is Bundle) {
-                sb.append(toString(value))
-            } else if (value is Intent) {
-                sb.append(toString(value))
-            } else {
-                sb.append(FooString.quote(value))
+            when (value) {
+                is Bundle -> {
+                    sb.append(toString(value))
+                }
+
+                is Intent -> {
+                    sb.append(toString(value))
+                }
+
+                else -> {
+                    sb.append(FooString.quote(value))
+                }
             }
 
             if (it.hasNext()) {
@@ -78,13 +359,21 @@ object FooPlatformUtils {
 
     @JvmOverloads
     @JvmStatic
-    fun startActivity(context: Context, activityClass: Class<*>, bundle: Bundle? = null) {
+    fun startActivity(
+        context: Context,
+        activityClass: Class<*>,
+        bundle: Bundle? = null,
+    ) {
         startActivity(context, Intent(context, activityClass), bundle)
     }
 
     @JvmOverloads
     @JvmStatic
-    fun startActivity(context: Context, intent: Intent, bundle: Bundle? = null) {
+    fun startActivity(
+        context: Context,
+        intent: Intent,
+        bundle: Bundle? = null,
+    ) {
         /*
         if (context is Application) {
             // TODO Use Application.ActivityLifecycleCallbacks (like in AlfredAI) to actually test for background or not
@@ -94,9 +383,9 @@ object FooPlatformUtils {
             {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             }
-            */
+         */
         }
-        */
+         */
         context.startActivity(intent, bundle)
     }
 
@@ -189,7 +478,7 @@ object FooPlatformUtils {
         reads the meta-data to redirect to DevelopmentSettingsDashboardFragment:
         https://cs.android.com/android/platform/superproject/+/android-15.0.0_r23:packages/apps/Settings/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
 
-        */
+         */
 
         val pkg = "com.android.settings"
         val cls = "com.android.settings.development.qstile.DevelopmentTiles\$WirelessDebugging"
@@ -203,7 +492,10 @@ object FooPlatformUtils {
     }
 
     @JvmStatic
-    fun showGooglePlay(context: Context, packageName: String?) {
+    fun showGooglePlay(
+        context: Context,
+        packageName: String?,
+    ) {
         try {
             val uri = "market://details?id=$packageName".toUri()
             startActivity(context, Intent(Intent.ACTION_VIEW, uri))
@@ -215,7 +507,10 @@ object FooPlatformUtils {
 
     @JvmOverloads
     @JvmStatic
-    fun showAppSettings(context: Context, packageName: String? = context.packageName) {
+    fun showAppSettings(
+        context: Context,
+        packageName: String? = context.packageName,
+    ) {
         val uri = "package:$packageName".toUri()
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri)
         startActivity(context, intent)

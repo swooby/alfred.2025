@@ -13,7 +13,8 @@ abstract class AlfredDb : RoomDatabase() {
 
     companion object {
         fun open(context: Context): AlfredDb =
-            Room.databaseBuilder(context, AlfredDb::class.java, "alfred.db")
+            Room
+                .databaseBuilder(context, AlfredDb::class.java, "alfred.db")
                 .addTypeConverter(RoomConverters())
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()

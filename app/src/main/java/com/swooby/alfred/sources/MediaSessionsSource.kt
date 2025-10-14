@@ -8,17 +8,16 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
-import com.smartfoo.android.core.logging.FooLog
-import com.smartfoo.android.core.FooString
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-
 
 /**
  * TODO: Add android.media.session.MediaController.TransportControls
@@ -26,17 +25,21 @@ import kotlinx.serialization.json.put
  */
 class MediaSessionsSource(
     private val ctx: Context,
-    private val app: AlfredApp
+    private val app: AlfredApp,
 ) {
     companion object {
         private val TAG = FooLog.TAG(MediaSessionsSource::class.java)
-        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions", "RedundantSuppression", "UNREACHABLE_CODE")
         private val LOG_CONTROLLERS = false && BuildConfig.DEBUG
-        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions", "RedundantSuppression", "UNREACHABLE_CODE")
         private val LOG_MEDIA_SESSION_CHANGED = true && BuildConfig.DEBUG
-        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions", "RedundantSuppression", "UNREACHABLE_CODE")
         private val LOG_MEDIA_CONTROLLER = true && BuildConfig.DEBUG
     }
+
     private val msm = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
     private val listener = MediaSessionListener()
     private val controllerCallbacks = mutableMapOf<MediaController, MediaControllerCallback>()
@@ -49,7 +52,7 @@ class MediaSessionsSource(
             refreshSessions("$caller->start")
             msm.addOnActiveSessionsChangedListener(
                 listener,
-                ComponentName(ctx, NotificationsSource::class.java)
+                ComponentName(ctx, NotificationsSource::class.java),
             )
         } catch (se: SecurityException) {
             // No access yet; caller should have gated this, but be safe.
@@ -73,23 +76,30 @@ class MediaSessionsSource(
      *             + "instead.", maxTargetSdk = Build.VERSION_CODES.R)
      * ```
      */
-    private fun controlsSameSession(c1: MediaController, c2: MediaController): Boolean {
-        return c1.sessionToken == c2.sessionToken
-    }
+    private fun controlsSameSession(
+        c1: MediaController,
+        c2: MediaController,
+    ): Boolean = c1.sessionToken == c2.sessionToken
 
     /**
      * Needed because [Map.containsKey] does not work for a [android.media.session.MediaController]
      * key because [android.media.session.MediaController] does not have a [Any.equals] or
      * [Any.hashCode] that compares [android.media.session.MediaController.getSessionToken].
      */
-    private fun contains(c: Collection<MediaController>, key: MediaController): Boolean {
+    private fun contains(
+        c: Collection<MediaController>,
+        key: MediaController,
+    ): Boolean {
         c.forEach { controller ->
             if (controlsSameSession(controller, key)) return true
         }
         return false
     }
 
-    private fun refreshSessions(caller: String, controllers: MutableList<MediaController>? = null) {
+    private fun refreshSessions(
+        caller: String,
+        controllers: MutableList<MediaController>? = null,
+    ) {
         FooLog.v(TAG, "refreshSessions(caller=${FooString.quote(caller)}, controllers=...)")
         try {
             val controllers = controllers ?: msm.getActiveSessions(ComponentName(ctx, NotificationsSource::class.java))
@@ -118,24 +128,19 @@ class MediaSessionsSource(
         }
     }
 
-    private fun toString(sessionToken: MediaSession.Token): String {
-        return "{ hashCode()=${sessionToken.hashCode()} }"
-    }
+    private fun toString(sessionToken: MediaSession.Token): String = "{ hashCode()=${sessionToken.hashCode()} }"
 
-    private fun toString(mediaController: MediaController): String {
-        return "{ token=${toString(mediaController.sessionToken)}" +
-                ", sessionInfo=${mediaController.sessionInfo}" +
-                ", tag=${FooString.quote(mediaController.tag)}" +
-                ", packageName=${FooString.quote(mediaController.packageName)}" +
-                ", hashCode()=${mediaController.hashCode()} }"
-    }
+    private fun toString(mediaController: MediaController): String =
+        "{ token=${toString(mediaController.sessionToken)}" +
+            ", sessionInfo=${mediaController.sessionInfo}" +
+            ", tag=${FooString.quote(mediaController.tag)}" +
+            ", packageName=${FooString.quote(mediaController.packageName)}" +
+            ", hashCode()=${mediaController.hashCode()} }"
 
-    private fun toString(state: PlaybackState?): String {
-        return if (state == null) "null" else mediaSessionPlaybackStateToString(state.state)
-    }
+    private fun toString(state: PlaybackState?): String = if (state == null) "null" else mediaSessionPlaybackStateToString(state.state)
 
-    private fun mediaSessionPlaybackStateToString(state: Int): String {
-        return when (state) {
+    private fun mediaSessionPlaybackStateToString(state: Int): String =
+        when (state) {
             PlaybackState.STATE_NONE -> "STATE_NONE"
             PlaybackState.STATE_STOPPED -> "STATE_STOPPED"
             PlaybackState.STATE_PAUSED -> "STATE_PAUSED"
@@ -150,7 +155,6 @@ class MediaSessionsSource(
             PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> "STATE_SKIPPING_TO_QUEUE_ITEM"
             else -> "UNKNOWN"
         }.let { "$it($state)" }
-    }
 
     private fun attach(controller: MediaController) {
         FooLog.v(TAG, "+attach(${toString(controller)}")
@@ -188,7 +192,9 @@ class MediaSessionsSource(
         }
     }
 
-    private inner class MediaControllerCallback(private val c: MediaController) : MediaController.Callback() {
+    private inner class MediaControllerCallback(
+        private val c: MediaController,
+    ) : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) {
             if (LOG_MEDIA_CONTROLLER) {
                 FooLog.d(TAG, "#MEDIA onPlaybackStateChanged(controller=${toString(c)}, state=${toString(state)})")
@@ -199,7 +205,8 @@ class MediaSessionsSource(
                 PlaybackState.STATE_PLAYING -> emitMediaStart(c, md, state)
                 PlaybackState.STATE_PAUSED,
                 PlaybackState.STATE_STOPPED,
-                PlaybackState.STATE_NONE -> emitMediaStop(c, trackSnapshot(md), state)
+                PlaybackState.STATE_NONE,
+                -> emitMediaStop(c, trackSnapshot(md), state)
                 else -> {}
             }
         }
@@ -252,7 +259,11 @@ class MediaSessionsSource(
         }
     }
 
-    private fun emitMediaStart(c: MediaController, md: MediaMetadata?, state: PlaybackState) {
+    private fun emitMediaStart(
+        c: MediaController,
+        md: MediaMetadata?,
+        state: PlaybackState,
+    ) {
         val snapshot = trackSnapshot(md)
 
         maybeEmitSyntheticStop(c, snapshot)
@@ -269,55 +280,62 @@ class MediaSessionsSource(
         val subjectEntityId = subjectEntityId(title, artist, album)
         val api = "MediaSession"
         val sensitivity = if (title.isNotBlank() || artist.isNotBlank()) Sensitivity.CONTENT else Sensitivity.METADATA
-        val attributes = buildJsonObject {
-            put("title", title)
-            put("artist", artist)
-            put("album", album)
-            put("source_app", pkg)
-            put("output_route", routeName(c))
-        }
+        val attributes =
+            buildJsonObject {
+                put("title", title)
+                put("artist", artist)
+                put("album", album)
+                put("source_app", pkg)
+                put("output_route", routeName(c))
+            }
         val musicVolume = currentMusicVolume(ctx)
 
         val action = "start"
         val durMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.takeIf { it > 0 } ?: 0L
         val posMs = state.position.coerceAtLeast(0L)
-        val metrics = buildJsonObject {
-            put("position_ms", posMs.toInt())
-            if (durMs > 0) put("track_duration_ms", durMs.toInt())
-            put("volume_stream_music", musicVolume)
-        }
+        val metrics =
+            buildJsonObject {
+                put("position_ms", posMs.toInt())
+                if (durMs > 0) put("track_duration_ms", durMs.toInt())
+                put("volume_stream_music", musicVolume)
+            }
 
-        val ev = EventEntity(
-            eventId = eventId,
-            schemaVer = 1,
-            userId = "u_local",
-            deviceId = "android:device",
-            appPkg = pkg,
-            component = SourceComponentIds.MEDIA_SOURCE,
-            eventType = eventType,
-            eventCategory = eventCategory,
-            eventAction = action,
-            subjectEntity = "track",
-            subjectEntityId = subjectEntityId,
-            tsStart = span.startWall,
-            api = api,
-            sensitivity = sensitivity,
-            attributes = attributes,
-            metrics = metrics,
-            tags = listOf("music", "now_playing"),
-            sessionId = sessionId
-        )
+        val ev =
+            EventEntity(
+                eventId = eventId,
+                schemaVer = 1,
+                userId = "u_local",
+                deviceId = "android:device",
+                appPkg = pkg,
+                component = SourceComponentIds.MEDIA_SOURCE,
+                eventType = eventType,
+                eventCategory = eventCategory,
+                eventAction = action,
+                subjectEntity = "track",
+                subjectEntityId = subjectEntityId,
+                tsStart = span.startWall,
+                api = api,
+                sensitivity = sensitivity,
+                attributes = attributes,
+                metrics = metrics,
+                tags = listOf("music", "now_playing"),
+                sessionId = sessionId,
+            )
         lastTracks[c] = snapshot
         app.ingest.submit(
             RawEvent(
                 ev,
-                fingerprint =  fingerprint(pkg, title, artist, album, sessionId, action),
-                coalesceKey = coalesceKey(pkg, action)
-            )
+                fingerprint = fingerprint(pkg, title, artist, album, sessionId, action),
+                coalesceKey = coalesceKey(pkg, action),
+            ),
         )
     }
 
-    private fun emitMediaStop(c: MediaController, snapshot: TrackSnapshot, st: PlaybackState?) {
+    private fun emitMediaStop(
+        c: MediaController,
+        snapshot: TrackSnapshot,
+        st: PlaybackState?,
+    ) {
         val quad = tracker.onStop(c, st) ?: return
         val eventId = Ulids.newUlid()
         val sessionId = quad.sessionId
@@ -330,50 +348,53 @@ class MediaSessionsSource(
         val subjectEntityId = subjectEntityId(title, artist, album)
         val api = "MediaSession"
         val sensitivity = if (title.isNotBlank() || artist.isNotBlank()) Sensitivity.CONTENT else Sensitivity.METADATA
-        val attributes = buildJsonObject {
-            put("title", title)
-            put("artist", artist)
-            put("album", album)
-            put("source_app", pkg)
-            put("output_route", routeName(c))
-        }
+        val attributes =
+            buildJsonObject {
+                put("title", title)
+                put("artist", artist)
+                put("album", album)
+                put("source_app", pkg)
+                put("output_route", routeName(c))
+            }
         val musicVolume = currentMusicVolume(ctx)
 
         val action = "stop"
-        val metrics = buildJsonObject {
-            put("played_ms", quad.playedMs.toInt())
-            put("volume_stream_music", musicVolume)
-        }
+        val metrics =
+            buildJsonObject {
+                put("played_ms", quad.playedMs.toInt())
+                put("volume_stream_music", musicVolume)
+            }
 
-        val ev = EventEntity(
-            eventId = eventId,
-            schemaVer = 1,
-            userId = "u_local",
-            deviceId = "android:device",
-            appPkg = pkg,
-            component = SourceComponentIds.MEDIA_SOURCE,
-            eventType = eventType,
-            eventCategory = eventCategory,
-            eventAction = action,
-            subjectEntity = "track",
-            subjectEntityId = subjectEntityId,
-            tsStart = quad.tsStart,
-            tsEnd = quad.tsEnd,
-            durationMs = quad.durationMs,
-            api = api,
-            sensitivity = sensitivity,
-            attributes = attributes,
-            metrics = metrics,
-            tags = listOf("music"),
-            sessionId = sessionId
-        )
+        val ev =
+            EventEntity(
+                eventId = eventId,
+                schemaVer = 1,
+                userId = "u_local",
+                deviceId = "android:device",
+                appPkg = pkg,
+                component = SourceComponentIds.MEDIA_SOURCE,
+                eventType = eventType,
+                eventCategory = eventCategory,
+                eventAction = action,
+                subjectEntity = "track",
+                subjectEntityId = subjectEntityId,
+                tsStart = quad.tsStart,
+                tsEnd = quad.tsEnd,
+                durationMs = quad.durationMs,
+                api = api,
+                sensitivity = sensitivity,
+                attributes = attributes,
+                metrics = metrics,
+                tags = listOf("music"),
+                sessionId = sessionId,
+            )
         lastTracks.remove(c)
         app.ingest.submit(
             RawEvent(
                 ev,
-                fingerprint =  fingerprint(pkg, title, artist, album, sessionId, action),
-                coalesceKey = coalesceKey(pkg, action)
-            )
+                fingerprint = fingerprint(pkg, title, artist, album, sessionId, action),
+                coalesceKey = coalesceKey(pkg, action),
+            ),
         )
     }
 
@@ -384,7 +405,10 @@ class MediaSessionsSource(
         return TrackSnapshot(title, artist, album)
     }
 
-    private fun maybeEmitSyntheticStop(c: MediaController, next: TrackSnapshot) {
+    private fun maybeEmitSyntheticStop(
+        c: MediaController,
+        next: TrackSnapshot,
+    ) {
         val previous = lastTracks[c] ?: return
         FooLog.e(TAG, "#MEDIA maybeEmitSyntheticStop: previous=$previous, next=$next")
         if (previous == next) {
@@ -398,7 +422,7 @@ class MediaSessionsSource(
     private data class TrackSnapshot(
         val title: String,
         val artist: String,
-        val album: String
+        val album: String,
     ) {
         override fun toString(): String {
             val sb = StringBuilder("{")
@@ -415,17 +439,25 @@ class MediaSessionsSource(
         }
     }
 
-    private fun fingerprint(pkg: String, title: String, artist: String, album: String, sessionId: String, action: String): String {
-        return "$pkg|$title|$artist|$album|$sessionId|$action"
-    }
+    private fun fingerprint(
+        pkg: String,
+        title: String,
+        artist: String,
+        album: String,
+        sessionId: String,
+        action: String,
+    ): String = "$pkg|$title|$artist|$album|$sessionId|$action"
 
-    private fun coalesceKey(pkg: String, action: String): String {
-        return "media:$pkg:now_playing:$action"
-    }
+    private fun coalesceKey(
+        pkg: String,
+        action: String,
+    ): String = "media:$pkg:now_playing:$action"
 
-    private fun subjectEntityId(title: String, artist: String, album: String): String? {
-        return "$title::$artist::$album".ifBlank { null }
-    }
+    private fun subjectEntityId(
+        title: String,
+        artist: String,
+        album: String,
+    ): String? = "$title::$artist::$album".ifBlank { null }
 
     private fun routeName(c: MediaController): String {
         val info = c.playbackInfo

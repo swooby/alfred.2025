@@ -4,5 +4,6 @@ import com.swooby.alfred.data.EventEntity
 
 interface PhraseTemplate {
     val priority: Int
+
     fun livePhraseOrNull(e: EventEntity): Utterance.Live?
 }

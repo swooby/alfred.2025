@@ -9,7 +9,6 @@ import com.swooby.alfred.core.profile.AudioProfileUiState
 import com.swooby.alfred.core.profile.HeadsetEvent
 import com.swooby.alfred.data.EventDao
 import com.swooby.alfred.data.EventEntity
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -46,6 +46,7 @@ data class EventListUiState(
     val audioProfileUiState: AudioProfileUiState = AudioProfileUiState(),
 )
 
+@Suppress("unused")
 class EventListViewModel(
     private val eventDao: EventDao,
     private val userId: String,
@@ -53,7 +54,6 @@ class EventListViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val audioProfileController: AudioProfileController,
 ) : ViewModel() {
-
     private val _state = MutableStateFlow(EventListUiState(isLoading = true))
     private val pageLimit = MutableStateFlow(pageSize)
     val state: StateFlow<EventListUiState> = _state.asStateFlow()
@@ -79,7 +79,7 @@ class EventListViewModel(
                 isLoading = true,
                 isPerformingAction = false,
                 errorMessage = null,
-                isLoadingMore = false
+                isLoadingMore = false,
             )
         }
         pageLimit.value = pageSize
@@ -94,7 +94,7 @@ class EventListViewModel(
                     selectionMode = false,
                     selectedEventIds = emptySet(),
                     isAllSelected = false,
-                    totalSelectionCount = 0
+                    totalSelectionCount = 0,
                 )
             }
         }
@@ -111,7 +111,7 @@ class EventListViewModel(
                     selectionMode = true,
                     selectedEventIds = visibleIds,
                     isAllSelected = true,
-                    totalSelectionCount = total
+                    totalSelectionCount = total,
                 )
             }
         }
@@ -123,12 +123,15 @@ class EventListViewModel(
                 selectionMode = false,
                 selectedEventIds = emptySet(),
                 isAllSelected = false,
-                totalSelectionCount = 0
+                totalSelectionCount = 0,
             )
         }
     }
 
-    fun setEventSelection(eventId: String, isSelected: Boolean) {
+    fun setEventSelection(
+        eventId: String,
+        isSelected: Boolean,
+    ) {
         _state.update { current ->
             if (current.allEvents.none { it.eventId == eventId }) {
                 current
@@ -144,7 +147,7 @@ class EventListViewModel(
                     selectionMode = if (isSelected) true else hasSelection && current.selectionMode,
                     selectedEventIds = updated,
                     isAllSelected = false,
-                    totalSelectionCount = updated.size
+                    totalSelectionCount = updated.size,
                 )
             }
         }
@@ -160,7 +163,7 @@ class EventListViewModel(
             _state.update {
                 it.copy(
                     isPerformingAction = true,
-                    errorMessage = null
+                    errorMessage = null,
                 )
             }
             try {
@@ -175,7 +178,7 @@ class EventListViewModel(
                         selectedEventIds = emptySet(),
                         selectionMode = false,
                         isAllSelected = false,
-                        totalSelectionCount = 0
+                        totalSelectionCount = 0,
                     )
                 }
             } catch (t: Throwable) {
@@ -205,10 +208,10 @@ class EventListViewModel(
         viewModelScope.launch {
             pageLimit
                 .flatMapLatest { limit ->
-                    eventDao.observeRecent(userId, limit)
+                    eventDao
+                        .observeRecent(userId, limit)
                         .map { limit to it }
-                }
-                .flowOn(ioDispatcher)
+                }.flowOn(ioDispatcher)
                 .retryWhen { cause, attempt ->
                     if (cause is CancellationException) {
                         false
@@ -224,29 +227,32 @@ class EventListViewModel(
                         delay(RETRY_BASE_DELAY.inWholeMilliseconds * multiplier)
                         true
                     }
-                }
-                .collect { (limit, events) ->
+                }.collect { (limit, events) ->
                     _state.update { current ->
                         val existingIds = events.map(EventEntity::eventId).toSet()
-                        val sanitizedSelection = when {
-                            current.isAllSelected -> existingIds
-                            else -> current.selectedEventIds.filter { it in existingIds }.toSet()
-                        }
+                        val sanitizedSelection =
+                            when {
+                                current.isAllSelected -> existingIds
+                                else -> current.selectedEventIds.filter { it in existingIds }.toSet()
+                            }
                         val filtered = applyFilter(events, current.query)
                         val hasEvents = events.isNotEmpty()
-                        val normalizedSelectionMode = when {
-                            !hasEvents -> false
-                            current.isAllSelected -> true
-                            else -> current.selectionMode && sanitizedSelection.isNotEmpty()
-                        }
-                        val totalSelectionCount = when {
-                            !hasEvents -> 0
-                            current.isAllSelected -> determineSelectionCount(current.totalEventCount, events.size)
-                            else -> sanitizedSelection.size
-                        }
+                        val normalizedSelectionMode =
+                            when {
+                                !hasEvents -> false
+                                current.isAllSelected -> true
+                                else -> current.selectionMode && sanitizedSelection.isNotEmpty()
+                            }
+                        val totalSelectionCount =
+                            when {
+                                !hasEvents -> 0
+                                current.isAllSelected -> determineSelectionCount(current.totalEventCount, events.size)
+                                else -> sanitizedSelection.size
+                            }
                         val moreAvailableByLimit = events.size >= limit
-                        val canLoadMore = moreAvailableByLimit &&
-                            (current.totalEventCount == 0 || events.size < current.totalEventCount)
+                        val canLoadMore =
+                            moreAvailableByLimit &&
+                                (current.totalEventCount == 0 || events.size < current.totalEventCount)
                         current.copy(
                             isLoading = false,
                             isPerformingAction = false,
@@ -258,7 +264,7 @@ class EventListViewModel(
                             isAllSelected = current.isAllSelected && hasEvents,
                             totalSelectionCount = totalSelectionCount,
                             isLoadingMore = false,
-                            canLoadMore = canLoadMore
+                            canLoadMore = canLoadMore,
                         )
                     }
                 }
@@ -277,18 +283,21 @@ class EventListViewModel(
 
     private fun observeEventCount() {
         viewModelScope.launch {
-            eventDao.observeCount(userId)
+            eventDao
+                .observeCount(userId)
                 .flowOn(ioDispatcher)
                 .collect { count ->
                     val total = count.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                     _state.update { current ->
-                        val canLoadMore = current.allEvents.size >= pageLimit.value &&
-                            (total == 0 || current.allEvents.size < total)
-                        val totalSelectionCount = if (current.isAllSelected) {
-                            determineSelectionCount(total, current.allEvents.size)
-                        } else {
-                            current.totalSelectionCount
-                        }
+                        val canLoadMore =
+                            current.allEvents.size >= pageLimit.value &&
+                                (total == 0 || current.allEvents.size < total)
+                        val totalSelectionCount =
+                            if (current.isAllSelected) {
+                                determineSelectionCount(total, current.allEvents.size)
+                            } else {
+                                current.totalSelectionCount
+                            }
                         if (
                             current.totalEventCount == total &&
                             current.canLoadMore == canLoadMore &&
@@ -299,7 +308,7 @@ class EventListViewModel(
                             current.copy(
                                 totalEventCount = total,
                                 canLoadMore = canLoadMore,
-                                totalSelectionCount = totalSelectionCount
+                                totalSelectionCount = totalSelectionCount,
                             )
                         }
                     }
@@ -322,7 +331,10 @@ class EventListViewModel(
         }
     }
 
-    private fun applyFilter(events: List<EventEntity>, query: String): List<EventEntity> {
+    private fun applyFilter(
+        events: List<EventEntity>,
+        query: String,
+    ): List<EventEntity> {
         if (query.isBlank()) return events
         val locale = Locale.getDefault()
         val normalized = query.trim().lowercase(locale)
@@ -356,7 +368,7 @@ class EventListViewModel(
                     userId = userId,
                     pageSize = pageSize,
                     ioDispatcher = ioDispatcher,
-                    audioProfileController = audioProfileController
+                    audioProfileController = audioProfileController,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
@@ -368,8 +380,9 @@ class EventListViewModel(
         private val RETRY_BASE_DELAY = 1.seconds
         private const val DEFAULT_EVENT_PAGE_SIZE = 100
 
-        private fun determineSelectionCount(totalKnown: Int, loadedCount: Int): Int {
-            return if (totalKnown > 0) totalKnown else loadedCount
-        }
+        private fun determineSelectionCount(
+            totalKnown: Int,
+            loadedCount: Int,
+        ): Int = if (totalKnown > 0) totalKnown else loadedCount
     }
 }

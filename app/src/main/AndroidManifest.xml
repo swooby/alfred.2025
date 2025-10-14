@@ -28,8 +28,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Must match `com.swooby.alfred.pipeline.PipelineService.FOREGROUND_SERVICE_PERMISSION`-->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
@@ -64,8 +68,12 @@
         <service
             android:name=".pipeline.PipelineService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback|dataSync"
-            android:permission="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+            android:foregroundServiceType="specialUse" >
+            <property
+                    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                    android:value="Notification Parsing Voice Assistant Session"
+                    />
+        </service>
 
         <service
             android:name=".sources.NotificationsSource"

@@ -10,24 +10,30 @@ data class MediaPlaySpan(
     val sessionId: String,
     val startWall: Instant,
     val startPosMs: Long,
-    var lastState: Int
+    var lastState: Int,
 )
 
 class MediaSessionDurationTracker {
     private val spans = mutableMapOf<MediaController, MediaPlaySpan>()
 
-    fun onStart(controller: MediaController, state: PlaybackState?): MediaPlaySpan {
-        return spans.getOrPut(controller) {
-            MediaPlaySpan(
-                sessionId = "MS-${Ulids.newUlid()}",
-                startWall = Clock.System.now(),
-                startPosMs = state?.position ?: 0L,
-                lastState = state?.state ?: PlaybackState.STATE_PLAYING
-            )
-        }.also { it.lastState = PlaybackState.STATE_PLAYING }
-    }
+    fun onStart(
+        controller: MediaController,
+        state: PlaybackState?,
+    ): MediaPlaySpan =
+        spans
+            .getOrPut(controller) {
+                MediaPlaySpan(
+                    sessionId = "MS-${Ulids.newUlid()}",
+                    startWall = Clock.System.now(),
+                    startPosMs = state?.position ?: 0L,
+                    lastState = state?.state ?: PlaybackState.STATE_PLAYING,
+                )
+            }.also { it.lastState = PlaybackState.STATE_PLAYING }
 
-    fun onStop(controller: MediaController, state: PlaybackState?): QuadTimes? {
+    fun onStop(
+        controller: MediaController,
+        state: PlaybackState?,
+    ): QuadTimes? {
         val span = spans.remove(controller) ?: return null
         val endWall = Clock.System.now()
         val durationMs = endWall.toEpochMilliseconds() - span.startWall.toEpochMilliseconds()
@@ -41,6 +47,6 @@ class MediaSessionDurationTracker {
         val tsStart: Instant,
         val tsEnd: Instant,
         val durationMs: Long,
-        val playedMs: Long
+        val playedMs: Long,
     )
 }

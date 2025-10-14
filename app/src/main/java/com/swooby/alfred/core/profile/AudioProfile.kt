@@ -5,7 +5,9 @@ import androidx.compose.runtime.Stable
 import java.util.UUID
 
 @JvmInline
-value class AudioProfileId(val value: String) {
+value class AudioProfileId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "AudioProfileId must not be blank." }
     }
@@ -29,14 +31,14 @@ enum class ProfileCategory {
     WIRED_ONLY,
     BLUETOOTH_ANY,
     BLUETOOTH_DEVICE,
-    ANY_HEADSET
+    ANY_HEADSET,
 }
 
 @Immutable
 data class ProfileMetadata(
     val description: String? = null,
     val deviceToken: String? = null,
-    val deviceAddress: String? = null
+    val deviceAddress: String? = null,
 )
 
 @Stable
@@ -51,7 +53,7 @@ sealed interface AudioProfile {
 
     data class Disabled(
         override val displayName: String,
-        override val metadata: ProfileMetadata
+        override val metadata: ProfileMetadata,
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.static("profile.disabled")
         override val category: ProfileCategory = ProfileCategory.DISABLED
@@ -59,7 +61,7 @@ sealed interface AudioProfile {
 
     data class AlwaysOn(
         override val displayName: String,
-        override val metadata: ProfileMetadata
+        override val metadata: ProfileMetadata,
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.static("profile.always_on")
         override val category: ProfileCategory = ProfileCategory.ALWAYS_ON
@@ -67,7 +69,7 @@ sealed interface AudioProfile {
 
     data class WiredOnly(
         override val displayName: String,
-        override val metadata: ProfileMetadata
+        override val metadata: ProfileMetadata,
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.static("profile.headset.wired")
         override val category: ProfileCategory = ProfileCategory.WIRED_ONLY
@@ -75,7 +77,7 @@ sealed interface AudioProfile {
 
     data class BluetoothAny(
         override val displayName: String,
-        override val metadata: ProfileMetadata
+        override val metadata: ProfileMetadata,
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.static("profile.headset.bluetooth.any")
         override val category: ProfileCategory = ProfileCategory.BLUETOOTH_ANY
@@ -85,10 +87,11 @@ sealed interface AudioProfile {
         override val displayName: String,
         val deviceToken: String,
         val address: String?,
-        override val metadata: ProfileMetadata = ProfileMetadata(
-            deviceToken = deviceToken,
-            deviceAddress = address
-        )
+        override val metadata: ProfileMetadata =
+            ProfileMetadata(
+                deviceToken = deviceToken,
+                deviceAddress = address,
+            ),
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.device(deviceToken)
         override val category: ProfileCategory = ProfileCategory.BLUETOOTH_DEVICE
@@ -96,7 +99,7 @@ sealed interface AudioProfile {
 
     data class AnyHeadset(
         override val displayName: String,
-        override val metadata: ProfileMetadata
+        override val metadata: ProfileMetadata,
     ) : AudioProfile {
         override val id: AudioProfileId = AudioProfileId.static("profile.headset.any")
         override val category: ProfileCategory = ProfileCategory.ANY_HEADSET
@@ -109,7 +112,7 @@ data class AudioProfileSnapshot(
     val isSelected: Boolean,
     val isActive: Boolean,
     val isEffective: Boolean,
-    val activeDevices: Set<HeadsetDevice>
+    val activeDevices: Set<HeadsetDevice>,
 ) {
     val id: AudioProfileId = profile.id
 }
@@ -117,5 +120,5 @@ data class AudioProfileSnapshot(
 @Immutable
 data class EffectiveAudioProfile(
     val profile: AudioProfile,
-    val activeDevices: Set<HeadsetDevice>
+    val activeDevices: Set<HeadsetDevice>,
 )

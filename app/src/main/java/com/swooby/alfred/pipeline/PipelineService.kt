@@ -1,5 +1,6 @@
 package com.swooby.alfred.pipeline
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,6 +12,7 @@ import android.os.IBinder
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.notification.FooForegroundService
 import com.smartfoo.android.core.notification.FooNotification
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.smartfoo.android.core.platform.FooPlatformUtils
@@ -34,28 +36,29 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 
-
 class PipelineService : Service() {
     companion object {
         private val TAG = FooLog.TAG(PipelineService::class.java)
         private const val NOTIFICATION_ID = 42
-        private const val REQUEST_QUIT = 100
+
+        private const val FOREGROUND_SERVICE_PERMISSION = Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE
+        private val FOREGROUND_SERVICE_TYPE = FooForegroundService.getForegroundServiceType(FOREGROUND_SERVICE_PERMISSION)
+
+        private const val REQUEST_SHOW = 100
         private const val REQUEST_PIN = 101
+        private const val REQUEST_QUIT = 102
+        private const val REQUEST_ENABLE = 103
 
         private const val ACTION_REFRESH_NOTIFICATION = "com.swooby.alfred.pipeline.action.REFRESH_NOTIFICATION"
         private const val ACTION_QUIT = "com.swooby.alfred.pipeline.action.QUIT"
 
-        fun quitIntent(context: Context): Intent =
+        fun intentQuit(context: Context): Intent =
             Intent(context, PipelineService::class.java)
                 .setAction(ACTION_QUIT)
 
-        fun isOngoingNotificationNoDismiss(context: Context): Boolean {
-            return FooNotification.isCallingAppNotificationNoDismiss(context, NOTIFICATION_ID)
-        }
+        fun isOngoingNotificationNoDismiss(context: Context): Boolean = FooNotification.isCallingAppNotificationNoDismiss(context, NOTIFICATION_ID)
 
-        fun hasNotificationListenerAccess(context: Context): Boolean {
-            return FooNotificationListener.hasNotificationListenerAccess(context, NotificationsSource::class.java)
-        }
+        fun hasNotificationListenerAccess(context: Context): Boolean = FooNotificationListener.hasNotificationListenerAccess(context, NotificationsSource::class.java)
 
         fun requestNotificationListenerRebind(context: Context) {
             FooNotificationListener.requestNotificationListenerRebind(context, NotificationsSource::class.java)
@@ -66,8 +69,10 @@ class PipelineService : Service() {
         }
 
         fun refreshNotification(context: Context) {
-            context.startService(Intent(context, PipelineService::class.java)
-                .setAction(ACTION_REFRESH_NOTIFICATION))
+            context.startService(
+                Intent(context, PipelineService::class.java)
+                    .setAction(ACTION_REFRESH_NOTIFICATION),
+            )
         }
     }
 
@@ -82,7 +87,7 @@ class PipelineService : Service() {
         FooLog.v(TAG, "+onCreate()")
         super.onCreate()
 
-        startForeground(NOTIFICATION_ID, buildOngoingNotification())
+        FooForegroundService.startForeground(this, NOTIFICATION_ID, buildOngoingNotification(), FOREGROUND_SERVICE_TYPE)
 
         val hasNotificationListenerAccess = AppShutdownManager.onPipelineServiceStarted(this)
 
@@ -113,12 +118,13 @@ class PipelineService : Service() {
             app.ingest.out.collect { ev ->
                 val component = ev.component
                 if (component == SourceComponentIds.NOTIFICATION_SOURCE && ev.subjectEntityId != null) {
-                    val alreadyStored = app.db.events().existsNotification(
-                        userId = ev.userId,
-                        component = component,
-                        subjectEntityId = ev.subjectEntityId,
-                        tsStart = ev.tsStart
-                    )
+                    val alreadyStored =
+                        app.db.events().existsNotification(
+                            userId = ev.userId,
+                            component = component,
+                            subjectEntityId = ev.subjectEntityId,
+                            tsStart = ev.tsStart,
+                        )
                     if (alreadyStored) {
                         FooLog.d(TAG, "#PIPELINE skip duplicate ${SourceComponentIds.NOTIFICATION_SOURCE} event subjectId=${ev.subjectEntityId} tsStart=${ev.tsStart}")
                         return@collect
@@ -126,24 +132,33 @@ class PipelineService : Service() {
                 }
 
                 app.db.events().insert(ev)
-                val decision = app.rules.decide(
-                    e = ev,
-                    state = DeviceState(
-                        interactive = ev.userInteractive,
-                        audioActive = null,
-                        tz = tz
-                    ),
-                    cfg = cfg
-                )
+                val decision =
+                    app.rules.decide(
+                        e = ev,
+                        state =
+                            DeviceState(
+                                interactive = ev.userInteractive,
+                                audioActive = null,
+                                tz = tz,
+                            ),
+                        cfg = cfg,
+                    )
                 if (decision is Decision.Speak) {
                     val gate = app.audioProfiles.evaluateGate()
                     if (!gate.allow) {
-                        val selectedId = gate.snapshot?.profile?.id?.value
-                            ?: app.audioProfiles.uiState.value.selectedProfileId?.value
-                            ?: "none"
-                        val devices = gate.snapshot?.activeDevices
-                            ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
-                            ?: "[]"
+                        val selectedId =
+                            gate.snapshot
+                                ?.profile
+                                ?.id
+                                ?.value
+                                ?: app.audioProfiles.uiState.value.selectedProfileId
+                                    ?.value
+                                ?: "none"
+                        val devices =
+                            gate.snapshot
+                                ?.activeDevices
+                                ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
+                                ?: "[]"
                         FooLog.d(TAG, "#PIPELINE audio profile blocked speech; reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
                         return@collect
                     }
@@ -154,7 +169,11 @@ class PipelineService : Service() {
         FooLog.v(TAG, "-onCreate()")
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         FooLog.v(TAG, "onStartCommand(intent=${FooPlatformUtils.toString(intent)}, flags=$flags, startId=$startId)")
         when (intent?.action) {
             ACTION_REFRESH_NOTIFICATION -> {
@@ -187,7 +206,7 @@ class PipelineService : Service() {
     private fun updateNotification(
         @Suppress("SameParameterValue")
         id: Int,
-        notification: Notification
+        notification: Notification,
     ) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(id, notification)
@@ -198,76 +217,90 @@ class PipelineService : Service() {
             var pinEnable = false
             val isPersistentNotificationActionIgnored = app.settings.persistentNotificationActionIgnoredFlow.first()
             if (!isPersistentNotificationActionIgnored &&
-                !isOngoingNotificationNoDismiss(this@PipelineService)) {
+                !isOngoingNotificationNoDismiss(this@PipelineService)
+            ) {
                 pinEnable = true
             }
 
             val promptEnable = promptEnable ?: !hasNotificationListenerAccess(this@PipelineService)
 
-            updateNotification(NOTIFICATION_ID,
+            updateNotification(
+                NOTIFICATION_ID,
                 buildOngoingNotification(
                     pinEnable = pinEnable,
-                    promptEnable = promptEnable
-                )
+                    promptEnable = promptEnable,
+                ),
             )
         }
     }
 
     private fun buildOngoingNotification(
         pinEnable: Boolean = false,
-        promptEnable: Boolean = false
+        promptEnable: Boolean = false,
     ): Notification {
         val chId = "alfred_pipeline"
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
             NotificationChannel(
                 chId,
                 getString(R.string.pipeline_notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            )
+                NotificationManager.IMPORTANCE_LOW,
+            ),
         )
 
-        val builder = NotificationCompat.Builder(this, chId)
-            .setSmallIcon(android.R.drawable.stat_notify_more)
-            .setContentTitle(getString(R.string.pipeline_notification_title))
-            .setOngoing(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+        val pendingIntentShow =
+            PendingIntent.getActivity(
+                this,
+                REQUEST_SHOW,
+                EventListActivity.intentShow(this),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        val builder =
+            NotificationCompat
+                .Builder(this, chId)
+                .setSmallIcon(android.R.drawable.stat_notify_more)
+                .setContentTitle(getString(R.string.pipeline_notification_title))
+                .setOngoing(true)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setContentIntent(pendingIntentShow)
 
         if (pinEnable) {
-            val pinPendingIntent = PendingIntent.getActivity(
-                this,
-                REQUEST_PIN,
-                EventListActivity.pinIntent(this),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            builder.addAction(
-                R.drawable.ic_warning,
-                getString(R.string.alfred_notification_action_persistent),
-                pinPendingIntent
-            )
+            val pendingIntentPin =
+                PendingIntent.getActivity(
+                    this,
+                    REQUEST_PIN,
+                    EventListActivity.intentPin(this),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            builder
+                //.setContentTitle("...")
+                .addAction(R.drawable.ic_warning, getString(R.string.alfred_notification_action_persistent), pendingIntentPin)
         }
 
-        val quitPendingIntent = PendingIntent.getService(
-            this,
-            REQUEST_QUIT,
-            quitIntent(this),
-            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        builder.addAction(
-            0,
-            getString(R.string.pipeline_notification_action_quit),
-            quitPendingIntent
-        )
+        val pendingIntentQuit =
+            PendingIntent.getService(
+                this,
+                REQUEST_QUIT,
+                intentQuit(this),
+                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        builder
+            //.setContentText("...")
+            .addAction(0, getString(R.string.pipeline_notification_action_quit), pendingIntentQuit)
 
         if (promptEnable) {
-            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            val pi = PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+            val intentEnable = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            val pendingIntentEnable =
+                PendingIntent.getActivity(
+                    this,
+                    REQUEST_ENABLE,
+                    intentEnable,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
             builder
-                .setContentText(getString(R.string.pipeline_notification_permission))
-                .addAction(0, getString(R.string.pipeline_notification_action_enable), pi)
+                //.setContentText(getString(R.string.pipeline_notification_permission))
+                .addAction(0, getString(R.string.pipeline_notification_action_enable), pendingIntentEnable)
         }
 
         return builder.build()

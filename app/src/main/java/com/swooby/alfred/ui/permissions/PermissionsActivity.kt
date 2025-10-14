@@ -26,7 +26,6 @@ import com.swooby.alfred.ui.events.EventListActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 
 class PermissionsActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -37,17 +36,18 @@ class PermissionsActivity : ComponentActivity() {
             val themePreferences: ThemePreferences by app.settings.themePreferencesFlow
                 .collectAsState(initial = DefaultThemePreferences)
             val themeMode = themePreferences.mode
-            val darkTheme = when (themeMode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.DARK -> true
-                ThemeMode.LIGHT -> false
-            }
+            val darkTheme =
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.DARK -> true
+                    ThemeMode.LIGHT -> false
+                }
 
             val paletteSeed = themePreferences.seedArgb
 
             AlfredTheme(
                 darkTheme = darkTheme,
-                customSeedArgb = paletteSeed
+                customSeedArgb = paletteSeed,
             ) {
                 val colorScheme = MaterialTheme.colorScheme
                 val useLightStatusIcons = colorScheme.surface.luminance() > 0.5f
@@ -55,36 +55,38 @@ class PermissionsActivity : ComponentActivity() {
                 SideEffect {
                     val surfaceColor = colorScheme.surface.toArgb()
                     val surfaceFallbackColor = colorScheme.surfaceVariant.toArgb()
-                    val statusBarStyle = if (useLightStatusIcons) {
-                        SystemBarStyle.light(
-                            scrim = surfaceColor,
-                            darkScrim = surfaceFallbackColor
-                        )
-                    } else {
-                        SystemBarStyle.dark(surfaceColor)
-                    }
+                    val statusBarStyle =
+                        if (useLightStatusIcons) {
+                            SystemBarStyle.light(
+                                scrim = surfaceColor,
+                                darkScrim = surfaceFallbackColor,
+                            )
+                        } else {
+                            SystemBarStyle.dark(surfaceColor)
+                        }
                     enableEdgeToEdge(
                         statusBarStyle = statusBarStyle,
-                        navigationBarStyle = statusBarStyle
+                        navigationBarStyle = statusBarStyle,
                     )
                 }
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = colorScheme.surface
+                    color = colorScheme.surface,
                 ) {
                     PermissionsScreen(
                         onEssentialsGranted = {
                             ContextCompat.startForegroundService(
                                 this,
-                                Intent(this, PipelineService::class.java)
+                                Intent(this, PipelineService::class.java),
                             )
-                            val intent = Intent(this, EventListActivity::class.java).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
+                            val intent =
+                                Intent(this, EventListActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                             startActivity(intent)
                             finish()
-                        }
+                        },
                     )
                 }
             }

@@ -31,14 +31,14 @@ class FooAudioFocusController private constructor() {
         /** Return true to consume. */
         open fun onFocusGained(
             audioFocusController: FooAudioFocusController,
-            audioFocusRequest: AudioFocusRequest
+            audioFocusRequest: AudioFocusRequest,
         ): Boolean = false
 
         /** Return true to consume. */
         open fun onFocusLost(
             audioFocusController: FooAudioFocusController,
             audioFocusRequest: AudioFocusRequest,
-            focusChange: Int
+            focusChange: Int,
         ): Boolean = false
     }
 
@@ -48,10 +48,12 @@ class FooAudioFocusController private constructor() {
     inner class FocusHandle internal constructor(
         private val id: Long,
         private val tag: String?,
-        private val callbacks: Callbacks?
+        private val callbacks: Callbacks?,
     ) : AutoCloseable {
         @Volatile private var closed = false
+
         override fun close() = release()
+
         fun release() {
             if (closed) return
             closed = true
@@ -75,8 +77,12 @@ class FooAudioFocusController private constructor() {
 
     // --- Core API ------------------------------------------------------------
 
-    private fun buildRequest(audioAttributes: AudioAttributes, focusGainType: Int): AudioFocusRequest =
-        AudioFocusRequest.Builder(focusGainType)
+    private fun buildRequest(
+        audioAttributes: AudioAttributes,
+        focusGainType: Int,
+    ): AudioFocusRequest =
+        AudioFocusRequest
+            .Builder(focusGainType)
             .setAudioAttributes(audioAttributes)
             .setOnAudioFocusChangeListener(focusListener)
             .build()
@@ -92,7 +98,7 @@ class FooAudioFocusController private constructor() {
         audioAttributes: AudioAttributes,
         focusGainType: Int = AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK,
         callbacks: Callbacks? = null,
-        tag: String? = null
+        tag: String? = null,
     ): FocusHandle? {
         if (audioManager == null) {
             audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -116,8 +122,8 @@ class FooAudioFocusController private constructor() {
             if (VERBOSE) FooLog.v(TAG, "${logTag}requestAudioFocus result=$result granted=$granted")
             if (granted) {
                 currentAudioFocusRequest = audioFocusRequest
-                currentAudioAttributes   = audioAttributes
-                currentFocusGainType    = focusGainType
+                currentAudioAttributes = audioAttributes
+                currentFocusGainType = focusGainType
                 dispatchGained(audioFocusRequest)
             } else {
                 // roll back this acquire since request failed
@@ -132,7 +138,11 @@ class FooAudioFocusController private constructor() {
     }
 
     @Synchronized
-    private fun releaseInternal(id: Long, tag: String?, callbacks: Callbacks?) {
+    private fun releaseInternal(
+        id: Long,
+        tag: String?,
+        callbacks: Callbacks?,
+    ) {
         if (liveHolders <= 0) {
             // Already released/abandoned; detach callbacks if present and return.
             callbacks?.let { listeners.detach(it) }
@@ -163,16 +173,18 @@ class FooAudioFocusController private constructor() {
     // --- Focus change routing -----------------------------------------------
     @Synchronized
     private fun onAudioFocusChange(change: Int) {
-        val audioFocusRequest = currentAudioFocusRequest ?: run {
-            if (VERBOSE) FooLog.v(TAG, "onAudioFocusChange(${focusToString(change)}): no currentRequest; ignoring")
-            return
-        }
+        val audioFocusRequest =
+            currentAudioFocusRequest ?: run {
+                if (VERBOSE) FooLog.v(TAG, "onAudioFocusChange(${focusToString(change)}): no currentRequest; ignoring")
+                return
+            }
         if (VERBOSE) FooLog.v(TAG, "onAudioFocusChange(${focusToString(change)}) holders=$liveHolders")
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> dispatchGained(audioFocusRequest)
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> dispatchLost(audioFocusRequest, change)
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
+            -> dispatchLost(audioFocusRequest, change)
         }
     }
 
@@ -181,17 +193,21 @@ class FooAudioFocusController private constructor() {
         listeners.endTraversing()
     }
 
-    private fun dispatchLost(audioFocusRequest: AudioFocusRequest, change: Int) {
+    private fun dispatchLost(
+        audioFocusRequest: AudioFocusRequest,
+        change: Int,
+    ) {
         for (cb in listeners.beginTraversing()) if (cb.onFocusLost(this, audioFocusRequest, change)) break
         listeners.endTraversing()
     }
 
     // --- Utils ---------------------------------------------------------------
-    private fun focusToString(v: Int): String = when (v) {
-        AudioManager.AUDIOFOCUS_GAIN -> "GAIN"
-        AudioManager.AUDIOFOCUS_LOSS -> "LOSS"
-        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> "LOSS_TRANSIENT"
-        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> "LOSS_TRANSIENT_CAN_DUCK"
-        else -> "UNKNOWN($v)"
-    }
+    private fun focusToString(v: Int): String =
+        when (v) {
+            AudioManager.AUDIOFOCUS_GAIN -> "GAIN"
+            AudioManager.AUDIOFOCUS_LOSS -> "LOSS"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> "LOSS_TRANSIENT"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> "LOSS_TRANSIENT_CAN_DUCK"
+            else -> "UNKNOWN($v)"
+        }
 }

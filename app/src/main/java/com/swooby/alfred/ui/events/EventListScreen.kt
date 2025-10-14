@@ -38,20 +38,23 @@ import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Headset
-import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,8 +75,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
@@ -93,13 +94,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -176,21 +177,22 @@ fun EventListScreen(
         drawerContent = {
             ModalDrawerSheet {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = LocalizedStrings.drawerTitle,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 24.dp)
+                        modifier = Modifier.padding(horizontal = 24.dp),
                     )
                     DrawerThemeModeSection(
                         selectedMode = themeMode,
                         onThemeModeChange = onThemeModeChange,
-                        onShuffleThemeRequest = onShuffleThemeRequest
+                        onShuffleThemeRequest = onShuffleThemeRequest,
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerSettings) },
@@ -201,7 +203,7 @@ fun EventListScreen(
                                 onNavigateToSettings()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerNotificationAccess) },
@@ -212,7 +214,7 @@ fun EventListScreen(
                                 onNotificationAccessRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerApplicationInfo) },
@@ -223,7 +225,7 @@ fun EventListScreen(
                                 onApplicationInfoRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerDeveloperOptions) },
@@ -234,7 +236,7 @@ fun EventListScreen(
                                 onDeveloperOptionsRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerAdbWireless) },
@@ -245,7 +247,7 @@ fun EventListScreen(
                                 onAdbWirelessRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     if (BuildConfig.DEBUG) {
                         //
@@ -261,7 +263,7 @@ fun EventListScreen(
                                     onTextToSpeechSettingsRequested()
                                 }
                             },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                         )
                     }
                     NavigationDrawerItem(
@@ -273,7 +275,7 @@ fun EventListScreen(
                                 onTextToSpeechTestRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerPersistentNotification) },
@@ -284,7 +286,7 @@ fun EventListScreen(
                                 onPersistentNotification()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerQuit) },
@@ -295,18 +297,19 @@ fun EventListScreen(
                                 onQuitRequested()
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                 }
             }
         },
         modifier = modifier,
-        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)
+        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(backgroundColor)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor),
         ) {
             EventListScaffold(
                 state = state,
@@ -342,7 +345,7 @@ fun EventListScreen(
                             onEventSelectionChange(event.eventId, true)
                         }
                     }
-                }
+                },
             )
         }
     }
@@ -358,7 +361,7 @@ fun EventListScreen(
                 onDeleteSelected()
                 showDeleteSelectedDialog = false
             },
-            inProgress = state.isPerformingAction
+            inProgress = state.isPerformingAction,
         )
     }
 }
@@ -371,39 +374,43 @@ private fun DrawerThemeModeSection(
 ) {
     Spacer(modifier = Modifier.height(12.dp))
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             text = LocalizedStrings.drawerThemeModeTitle,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        val options = remember {
-            listOf(
-                ThemeMode.LIGHT,
-                ThemeMode.SYSTEM,
-                ThemeMode.DARK,
-            )
-        }
+        val options =
+            remember {
+                listOf(
+                    ThemeMode.LIGHT,
+                    ThemeMode.SYSTEM,
+                    ThemeMode.DARK,
+                )
+            }
         SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
             options.forEachIndexed { index, mode ->
-                val label = when (mode) {
-                    ThemeMode.DARK -> LocalizedStrings.themeModeDark
-                    ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
-                    ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
-                }
+                val label =
+                    when (mode) {
+                        ThemeMode.DARK -> LocalizedStrings.themeModeDark
+                        ThemeMode.LIGHT -> LocalizedStrings.themeModeLight
+                        ThemeMode.SYSTEM -> LocalizedStrings.themeModeSystem
+                    }
                 SegmentedButton(
                     selected = selectedMode == mode,
                     onClick = {
@@ -411,7 +418,7 @@ private fun DrawerThemeModeSection(
                             onThemeModeChange(mode)
                         }
                     },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                 ) {
                     Text(text = label)
                 }
@@ -420,7 +427,7 @@ private fun DrawerThemeModeSection(
         IconButton(onClick = onShuffleThemeRequest) {
             Icon(
                 imageVector = Icons.Outlined.Shuffle,
-                contentDescription = LocalizedStrings.shuffleThemeContentDescription
+                contentDescription = LocalizedStrings.shuffleThemeContentDescription,
             )
         }
     }
@@ -453,12 +460,13 @@ private fun EventListScaffold(
     val showAudioProfiles = audioProfileState.shouldShowAudioDropdown()
     val visibleRange by remember(listState, state.visibleEvents.size) {
         derivedStateOf {
-            val visibleIndices = listState.layoutInfo.visibleItemsInfo
-                .mapNotNull { info ->
-                    info.index.takeIf { index ->
-                        index >= 0 && index < state.visibleEvents.size
+            val visibleIndices =
+                listState.layoutInfo.visibleItemsInfo
+                    .mapNotNull { info ->
+                        info.index.takeIf { index ->
+                            index >= 0 && index < state.visibleEvents.size
+                        }
                     }
-                }
             val first = visibleIndices.minOrNull() ?: return@derivedStateOf null
             val last = visibleIndices.maxOrNull() ?: return@derivedStateOf null
             IntRange(first, last)
@@ -466,21 +474,23 @@ private fun EventListScaffold(
     }
 
     Scaffold(
-        modifier = modifier
-            .fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize(),
         containerColor = Color.Transparent,
         contentColor = colorScheme.onSurface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             AnimatedVisibility(visible = state.selectionMode) {
-                val visibleSelectedCount = if (state.isAllSelected) {
-                    state.visibleEvents.size
-                } else {
-                    state.visibleEvents.count { event ->
-                        state.selectedEventIds.contains(event.eventId)
+                val visibleSelectedCount =
+                    if (state.isAllSelected) {
+                        state.visibleEvents.size
+                    } else {
+                        state.visibleEvents.count { event ->
+                            state.selectedEventIds.contains(event.eventId)
+                        }
                     }
-                }
                 SelectionBottomBar(
                     selectedCount = state.totalSelectionCount,
                     visibleCount = state.visibleEvents.size,
@@ -490,15 +500,16 @@ private fun EventListScaffold(
                     onUnselectAll = onUnselectAll,
                     onDeleteSelected = onDeleteSelected,
                     onExitSelection = { onSelectionModeChange(false) },
-                    actionsEnabled = actionsEnabled
+                    actionsEnabled = actionsEnabled,
                 )
             }
-        }
+        },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
         ) {
             EventListHeader(
                 query = state.query,
@@ -509,7 +520,7 @@ private fun EventListScaffold(
                 userInitials = userInitials,
                 onQueryChange = onQueryChange,
                 onMenuClick = onMenuClick,
-                onAvatarClick = onAvatarClick
+                onAvatarClick = onAvatarClick,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -519,7 +530,7 @@ private fun EventListScaffold(
                     uiState = audioProfileState,
                     onProfileSelect = onAudioProfileSelect,
                     onEnsureBluetoothPermission = onEnsureBluetoothPermission,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -527,12 +538,13 @@ private fun EventListScaffold(
             AnimatedVisibility(
                 visible = state.isLoading || state.isPerformingAction,
                 enter = fadeIn(),
-                exit = fadeOut()
+                exit = fadeOut(),
             ) {
                 LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp),
                 )
             }
 
@@ -544,9 +556,10 @@ private fun EventListScaffold(
                 onEventLongPress = onEventLongPress,
                 listState = listState,
                 onLoadMore = onLoadMore,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f, fill = true)
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .weight(1f, fill = true),
             )
         }
     }
@@ -566,99 +579,108 @@ private fun EventListHeader(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val headerShape = RoundedCornerShape(28.dp)
-    val headerContainerColor = remember(colorScheme.primaryContainer) {
-        colorScheme.primaryContainer
-    }
+    val headerContainerColor =
+        remember(colorScheme.primaryContainer) {
+            colorScheme.primaryContainer
+        }
     val isHeaderBackgroundLight = headerContainerColor.luminance() > 0.5f
     val headerContentColor = colorScheme.onPrimaryContainer
-    val outlineColor = if (isHeaderBackgroundLight) {
-        colorScheme.primary.copy(alpha = 0.18f)
-    } else {
-        colorScheme.onPrimaryContainer.copy(alpha = 0.28f)
-    }
-    val searchContainerColor = if (isHeaderBackgroundLight) {
-        colorScheme.surfaceColorAtElevation(2.dp)
-    } else {
-        colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
-    }
-    val avatarBackgroundColor = if (isHeaderBackgroundLight) {
-        colorScheme.primary.copy(alpha = 0.16f)
-    } else {
-        colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-    }
+    val outlineColor =
+        if (isHeaderBackgroundLight) {
+            colorScheme.primary.copy(alpha = 0.18f)
+        } else {
+            colorScheme.onPrimaryContainer.copy(alpha = 0.28f)
+        }
+    val searchContainerColor =
+        if (isHeaderBackgroundLight) {
+            colorScheme.surfaceColorAtElevation(2.dp)
+        } else {
+            colorScheme.onPrimaryContainer.copy(alpha = 0.18f)
+        }
+    val avatarBackgroundColor =
+        if (isHeaderBackgroundLight) {
+            colorScheme.primary.copy(alpha = 0.16f)
+        } else {
+            colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+        }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier =
+            Modifier
+                .fillMaxWidth(),
     ) {
         Box(
-            modifier = Modifier
-                .padding(start = 8.dp, end = 8.dp, top = statusBarPadding + 8.dp, bottom = 8.dp)
-                .clip(headerShape)
-                .background(headerContainerColor)
-                .border(width = 1.dp, color = outlineColor, shape = headerShape)
+            modifier =
+                Modifier
+                    .padding(start = 8.dp, end = 8.dp, top = statusBarPadding + 8.dp, bottom = 8.dp)
+                    .clip(headerShape)
+                    .background(headerContainerColor)
+                    .border(width = 1.dp, color = outlineColor, shape = headerShape),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 16.dp,
-                        vertical = 16.dp,
-                    ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 16.dp,
+                            vertical = 16.dp,
+                        ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onMenuClick) {
                         Icon(
                             imageVector = Icons.Outlined.Menu,
                             contentDescription = LocalizedStrings.menuContentDescription,
-                            tint = headerContentColor
+                            tint = headerContentColor,
                         )
                     }
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
                             text = LocalizedStrings.headerSubtitle,
                             style = MaterialTheme.typography.labelLarge,
-                            color = headerContentColor.copy(alpha = 0.7f)
+                            color = headerContentColor.copy(alpha = 0.7f),
                         )
                         Text(
                             text = LocalizedStrings.headerTitle,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
-                            color = headerContentColor
+                            color = headerContentColor,
                         )
                         Text(
-                            text = visibleRange?.let { range ->
-                                val start = (range.first + 1).coerceAtLeast(1)
-                                val end = (range.last + 1).coerceAtLeast(start)
-                                LocalizedStrings.totalCountDetailsWithRange(
-                                    startIndex = start,
-                                    endIndex = end,
+                            text =
+                                visibleRange?.let { range ->
+                                    val start = (range.first + 1).coerceAtLeast(1)
+                                    val end = (range.last + 1).coerceAtLeast(start)
+                                    LocalizedStrings.totalCountDetailsWithRange(
+                                        startIndex = start,
+                                        endIndex = end,
+                                        totalCount = totalEventCount,
+                                        inMemoryCount = inMemoryCount,
+                                    )
+                                } ?: LocalizedStrings.totalCountDetails(
                                     totalCount = totalEventCount,
                                     inMemoryCount = inMemoryCount,
-                                )
-                            } ?: LocalizedStrings.totalCountDetails(
-                                totalCount = totalEventCount,
-                                inMemoryCount = inMemoryCount
-                            ),
+                                ),
                             style = MaterialTheme.typography.bodySmall,
-                            color = headerContentColor.copy(alpha = 0.7f)
+                            color = headerContentColor.copy(alpha = 0.7f),
                         )
                     }
                     Avatar(
                         initials = userInitials,
                         onClick = onAvatarClick,
                         backgroundColor = avatarBackgroundColor,
-                        contentColor = headerContentColor
+                        contentColor = headerContentColor,
                     )
                 }
 
@@ -667,7 +689,7 @@ private fun EventListHeader(
                     isRefreshing = isRefreshing,
                     onQueryChange = onQueryChange,
                     containerColor = searchContainerColor,
-                    contentColor = headerContentColor
+                    contentColor = headerContentColor,
                 )
             }
         }
@@ -693,14 +715,14 @@ private fun SearchField(
         placeholder = {
             Text(
                 text = LocalizedStrings.searchPlaceholder,
-                color = fieldContentColor.copy(alpha = 0.7f)
+                color = fieldContentColor.copy(alpha = 0.7f),
             )
         },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Outlined.Search,
                 contentDescription = null,
-                tint = fieldContentColor.copy(alpha = 0.75f)
+                tint = fieldContentColor.copy(alpha = 0.75f),
             )
         },
         trailingIcon = {
@@ -708,26 +730,27 @@ private fun SearchField(
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = fieldContentColor
+                    color = fieldContentColor,
                 )
             }
         },
         singleLine = true,
         shape = RoundedCornerShape(28.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = fieldContainerColor,
-            unfocusedContainerColor = fieldContainerColor,
-            disabledContainerColor = fieldContainerColor,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            cursorColor = fieldContentColor,
-            focusedTextColor = fieldContentColor,
-            unfocusedTextColor = fieldContentColor,
-            focusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
-            unfocusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
-            disabledPlaceholderColor = fieldContentColor.copy(alpha = 0.7f)
-        )
+        colors =
+            TextFieldDefaults.colors(
+                focusedContainerColor = fieldContainerColor,
+                unfocusedContainerColor = fieldContainerColor,
+                disabledContainerColor = fieldContainerColor,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                cursorColor = fieldContentColor,
+                focusedTextColor = fieldContentColor,
+                unfocusedTextColor = fieldContentColor,
+                focusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
+                unfocusedPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
+                disabledPlaceholderColor = fieldContentColor.copy(alpha = 0.7f),
+            ),
     )
 }
 
@@ -736,25 +759,26 @@ private fun Avatar(
     initials: String,
     onClick: () -> Unit,
     backgroundColor: Color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
 ) {
     val avatarContentDescription = LocalizedStrings.avatarContentDescription
 
     Surface(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .semantics { contentDescription = avatarContentDescription },
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .semantics { contentDescription = avatarContentDescription },
         shape = CircleShape,
         color = backgroundColor,
         contentColor = contentColor,
-        onClick = onClick
+        onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Text(
                 text = initials,
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = contentColor
+                color = contentColor,
             )
         }
     }
@@ -766,30 +790,33 @@ private fun AudioProfileDropdownRow(
     uiState: AudioProfileUiState,
     onProfileSelect: (AudioProfileId) -> Unit,
     onEnsureBluetoothPermission: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val profiles = uiState.profiles
     val missingBluetooth = uiState.missingPermissions.contains(Manifest.permission.BLUETOOTH_CONNECT)
-    val selectedSnapshot = profiles.firstOrNull { it.isSelected }
-        ?: profiles.firstOrNull { it.profile.category == ProfileCategory.ALWAYS_ON }
-        ?: profiles.firstOrNull()
-    val effectiveId = uiState.effectiveProfile?.profile?.id
-    val fieldText = buildString {
-        val base = selectedSnapshot?.profile?.displayName ?: LocalizedStrings.audioProfileAlwaysOnLabel
-        append(base)
-    }
+    val selectedSnapshot =
+        profiles.firstOrNull { it.isSelected }
+            ?: profiles.firstOrNull { it.profile.category == ProfileCategory.ALWAYS_ON }
+            ?: profiles.firstOrNull()
+    //val effectiveId = uiState.effectiveProfile?.profile?.id
+    val fieldText =
+        buildString {
+            val base = selectedSnapshot?.profile?.displayName ?: LocalizedStrings.audioProfileAlwaysOnLabel
+            append(base)
+        }
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     Row(
-        modifier = modifier
-            .fillMaxWidth(),
+        modifier =
+            modifier
+                .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = LocalizedStrings.audioProfileTitle,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ExposedDropdownMenuBox(
             expanded = expanded,
@@ -798,50 +825,55 @@ private fun AudioProfileDropdownRow(
                     expanded = !expanded
                 }
             },
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         ) {
+            val hasProfiles = profiles.isNotEmpty()
             TextField(
                 value = fieldText,
                 onValueChange = {},
                 readOnly = true,
-                enabled = profiles.isNotEmpty(),
+                enabled = hasProfiles,
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth(),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = MaterialTheme.colorScheme.primary
-                )
+                modifier =
+                    Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)//hasProfiles)
+                        .fillMaxWidth(),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
             )
             DropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
             ) {
                 profiles.forEach { snapshot ->
                     val requiresBluetooth = snapshot.profile.category in bluetoothMenuCategories()
                     val showPermissionIndicator = missingBluetooth && requiresBluetooth
-                    val availability = when (snapshot.profile.category) {
-                        ProfileCategory.BLUETOOTH_DEVICE,
-                        ProfileCategory.BLUETOOTH_ANY -> snapshot.isActive
-                        else -> null
-                    }
+                    val availability =
+                        when (snapshot.profile.category) {
+                            ProfileCategory.BLUETOOTH_DEVICE,
+                            ProfileCategory.BLUETOOTH_ANY,
+                            -> snapshot.isActive
+                            else -> null
+                        }
                     DropdownMenuItem(
                         text = {
                             Column(
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
                                 Text(
                                     text = snapshot.profile.displayName,
                                     fontWeight = if (snapshot.isEffective) FontWeight.Medium else FontWeight.Normal,
-                                    textDecoration = if (showPermissionIndicator) TextDecoration.LineThrough else TextDecoration.None
+                                    textDecoration = if (showPermissionIndicator) TextDecoration.LineThrough else TextDecoration.None,
                                 )
                                 availability?.let { available ->
                                     AvailabilityChip(available = available)
@@ -858,41 +890,42 @@ private fun AudioProfileDropdownRow(
                         leadingIcon = {
                             Icon(
                                 imageVector = iconForCategory(snapshot.profile.category),
-                                contentDescription = null
+                                contentDescription = null,
                             )
                         },
-                        trailingIcon = when {
-                            showPermissionIndicator -> {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Warning,
-                                        contentDescription = LocalizedStrings.audioProfilePermissionAction,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
+                        trailingIcon =
+                            when {
+                                showPermissionIndicator -> {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Warning,
+                                            contentDescription = LocalizedStrings.audioProfilePermissionAction,
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
                                 }
-                            }
-                            snapshot.isEffective -> {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                                snapshot.isEffective -> {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CheckCircle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
                                 }
-                            }
 
-                            snapshot.isSelected -> {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                snapshot.isSelected -> {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CheckCircle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
-                            }
 
-                            else -> null
-                        }
+                                else -> null
+                            },
                     )
                 }
             }
@@ -900,30 +933,32 @@ private fun AudioProfileDropdownRow(
     }
 }
 
-private fun bluetoothMenuCategories(): Set<ProfileCategory> = setOf(
-    ProfileCategory.BLUETOOTH_ANY,
-    ProfileCategory.BLUETOOTH_DEVICE
-)
+private fun bluetoothMenuCategories(): Set<ProfileCategory> =
+    setOf(
+        ProfileCategory.BLUETOOTH_ANY,
+        ProfileCategory.BLUETOOTH_DEVICE,
+    )
 
 @Composable
 private fun AvailabilityChip(
     available: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val (label, containerColor, contentColor) = if (available) {
-        Triple(
-            LocalizedStrings.audioProfileStatusAvailable,
-            colorScheme.tertiaryContainer,
-            colorScheme.onTertiaryContainer
-        )
-    } else {
-        Triple(
-            LocalizedStrings.audioProfileStatusUnavailable,
-            colorScheme.errorContainer,
-            colorScheme.onErrorContainer
-        )
-    }
+    val (label, containerColor, contentColor) =
+        if (available) {
+            Triple(
+                LocalizedStrings.audioProfileStatusAvailable,
+                colorScheme.tertiaryContainer,
+                colorScheme.onTertiaryContainer,
+            )
+        } else {
+            Triple(
+                LocalizedStrings.audioProfileStatusUnavailable,
+                colorScheme.errorContainer,
+                colorScheme.onErrorContainer,
+            )
+        }
 
     Surface(
         modifier = modifier,
@@ -931,29 +966,29 @@ private fun AvailabilityChip(
         color = containerColor,
         contentColor = contentColor,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        shadowElevation = 0.dp,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
     }
 }
 
-private fun iconForCategory(category: ProfileCategory): ImageVector = when (category) {
-    ProfileCategory.DISABLED -> Icons.Outlined.Close
-    ProfileCategory.ALWAYS_ON -> Icons.Outlined.CheckCircle
-    ProfileCategory.WIRED_ONLY -> Icons.Outlined.Headset
-    ProfileCategory.BLUETOOTH_ANY,
-    ProfileCategory.BLUETOOTH_DEVICE -> Icons.Outlined.Bluetooth
-    ProfileCategory.ANY_HEADSET -> Icons.Outlined.Headset
-}
+private fun iconForCategory(category: ProfileCategory): ImageVector =
+    when (category) {
+        ProfileCategory.DISABLED -> Icons.Outlined.Close
+        ProfileCategory.ALWAYS_ON -> Icons.Outlined.CheckCircle
+        ProfileCategory.WIRED_ONLY -> Icons.Outlined.Headset
+        ProfileCategory.BLUETOOTH_ANY,
+        ProfileCategory.BLUETOOTH_DEVICE,
+        -> Icons.Outlined.Bluetooth
+        ProfileCategory.ANY_HEADSET -> Icons.Outlined.Headset
+    }
 
-private fun AudioProfileUiState.shouldShowAudioDropdown(): Boolean {
-    return profiles.isNotEmpty() || missingPermissions.isNotEmpty()
-}
+private fun AudioProfileUiState.shouldShowAudioDropdown(): Boolean = profiles.isNotEmpty() || missingPermissions.isNotEmpty()
 
 @Composable
 private fun EventListContent(
@@ -964,22 +999,26 @@ private fun EventListContent(
     onEventLongPress: (EventEntity) -> Unit,
     listState: LazyListState,
     onLoadMore: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (state.visibleEvents.isEmpty()) {
         EmptyState(modifier = modifier.fillMaxSize())
         return
     }
 
-    val shouldLoadMore = remember(listState, state.visibleEvents, state.canLoadMore, state.isLoadingMore) {
-        derivedStateOf {
-            if (!state.canLoadMore || state.isLoadingMore) return@derivedStateOf false
-            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                ?: return@derivedStateOf false
-            val triggerIndex = (state.visibleEvents.lastIndex - LOAD_MORE_PREFETCH_THRESHOLD).coerceAtLeast(0)
-            lastVisibleIndex >= triggerIndex
+    val shouldLoadMore =
+        remember(listState, state.visibleEvents, state.canLoadMore, state.isLoadingMore) {
+            derivedStateOf {
+                if (!state.canLoadMore || state.isLoadingMore) return@derivedStateOf false
+                val lastVisibleIndex =
+                    listState.layoutInfo.visibleItemsInfo
+                        .lastOrNull()
+                        ?.index
+                        ?: return@derivedStateOf false
+                val triggerIndex = (state.visibleEvents.lastIndex - LOAD_MORE_PREFETCH_THRESHOLD).coerceAtLeast(0)
+                lastVisibleIndex >= triggerIndex
+            }
         }
-    }
 
     LaunchedEffect(shouldLoadMore) {
         snapshotFlow { shouldLoadMore.value }
@@ -992,12 +1031,13 @@ private fun EventListContent(
     }
 
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .navigationBarsPadding(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
         state = listState,
         verticalArrangement = Arrangement.spacedBy(3.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
     ) {
         itemsIndexed(state.visibleEvents) { index, event ->
             val isSelected = state.selectedEventIds.contains(event.eventId)
@@ -1011,22 +1051,23 @@ private fun EventListContent(
                     onEventSelectionChange(event, checked)
                 },
                 onLongPress = { onEventLongPress(event) },
-                actionsEnabled = actionsEnabled
+                actionsEnabled = actionsEnabled,
             )
         }
 
         if (state.isLoadingMore) {
             item("loading_more_indicator") {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
                     horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
-                        strokeWidth = 3.dp
+                        strokeWidth = 3.dp,
                     )
                 }
             }
@@ -1039,23 +1080,24 @@ private fun EventListContent(
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .padding(horizontal = 36.dp)
-            .navigationBarsPadding(),
+        modifier =
+            modifier
+                .padding(horizontal = 36.dp)
+                .navigationBarsPadding(),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Surface(
             modifier = Modifier.size(96.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer
+            color = MaterialTheme.colorScheme.secondaryContainer,
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(
                     imageVector = Icons.Outlined.Inbox,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
                 )
             }
         }
@@ -1065,21 +1107,21 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = LocalizedStrings.emptyBody,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = LocalizedStrings.emptyCta,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -1094,54 +1136,60 @@ private fun TimelineEventRow(
     onSelectionChange: (Boolean) -> Unit,
     onLongPress: () -> Unit,
     actionsEnabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.Top,
     ) {
         TimelineIndicator(
             isFirst = isFirst,
             isLast = isLast,
-            modifier = Modifier
-                .width(24.dp)
-                .fillMaxHeight()
+            modifier =
+                Modifier
+                    .width(24.dp)
+                    .fillMaxHeight(),
         )
         Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.Top,
         ) {
             if (selectionMode) {
                 Checkbox(
                     checked = isSelected,
                     onCheckedChange = onSelectionChange,
                     enabled = actionsEnabled,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.padding(top = 12.dp),
                 )
             }
             EventCard(
                 event = event,
                 isSelected = isSelected,
                 actionsEnabled = actionsEnabled,
-                onClick = if (selectionMode) {
-                    { onSelectionChange(!isSelected) }
-                } else {
-                    null
-                },
-                onLongPress = if (selectionMode) {
-                    null
-                } else {
-                    { onLongPress() }
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 4.dp)
+                onClick =
+                    if (selectionMode) {
+                        { onSelectionChange(!isSelected) }
+                    } else {
+                        null
+                    },
+                onLongPress =
+                    if (selectionMode) {
+                        null
+                    } else {
+                        { onLongPress() }
+                    },
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp),
             )
         }
     }
@@ -1151,7 +1199,7 @@ private fun TimelineEventRow(
 private fun TimelineIndicator(
     isFirst: Boolean,
     isLast: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val color = MaterialTheme.colorScheme.primary
 
@@ -1164,27 +1212,37 @@ private fun TimelineIndicator(
         if (!isFirst) {
             drawLine(
                 color = lineColor,
-                start = androidx.compose.ui.geometry.Offset(centerX, 0f),
-                end = androidx.compose.ui.geometry.Offset(centerX, centerY),
+                start =
+                    androidx.compose.ui.geometry
+                        .Offset(centerX, 0f),
+                end =
+                    androidx.compose.ui.geometry
+                        .Offset(centerX, centerY),
                 strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
+                cap = StrokeCap.Round,
             )
         }
 
         if (!isLast) {
             drawLine(
                 color = lineColor,
-                start = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                end = androidx.compose.ui.geometry.Offset(centerX, size.height),
+                start =
+                    androidx.compose.ui.geometry
+                        .Offset(centerX, centerY),
+                end =
+                    androidx.compose.ui.geometry
+                        .Offset(centerX, size.height),
                 strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
+                cap = StrokeCap.Round,
             )
         }
 
         drawCircle(
             color = color,
             radius = 6.dp.toPx(),
-            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+            center =
+                androidx.compose.ui.geometry
+                    .Offset(centerX, centerY),
         )
     }
 }
@@ -1200,41 +1258,43 @@ private fun SelectionBottomBar(
     onDeleteSelected: () -> Unit,
     onExitSelection: () -> Unit,
     actionsEnabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-        tonalElevation = 6.dp
+        tonalElevation = 6.dp,
     ) {
         val hasVisibleEvents = visibleCount > 0
         val allVisibleSelected = hasVisibleEvents && visibleSelectedCount == visibleCount
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
                 onClick = onExitSelection,
-                enabled = actionsEnabled
+                enabled = actionsEnabled,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Close,
-                    contentDescription = LocalizedStrings.exitSelectionLabel
+                    contentDescription = LocalizedStrings.exitSelectionLabel,
                 )
             }
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = LocalizedStrings.selectionCountLabel(selectedCount),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -1244,30 +1304,31 @@ private fun SelectionBottomBar(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(
                         onClick = if (allSelected || allVisibleSelected) onUnselectAll else onSelectAll,
                         enabled = actionsEnabled && (hasVisibleEvents || allSelected),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.SelectAll,
-                                contentDescription = null
+                                contentDescription = null,
                             )
-                            val label = if (allSelected || allVisibleSelected) {
-                                LocalizedStrings.unselectAllLabel
-                            } else {
-                                LocalizedStrings.selectAllLabel
-                            }
+                            val label =
+                                if (allSelected || allVisibleSelected) {
+                                    LocalizedStrings.unselectAllLabel
+                                } else {
+                                    LocalizedStrings.selectAllLabel
+                                }
                             Text(
                                 text = label,
                                 maxLines = 1,
-                                softWrap = false
+                                softWrap = false,
                             )
                         }
                     }
@@ -1275,12 +1336,12 @@ private fun SelectionBottomBar(
                         onClick = onDeleteSelected,
                         enabled = actionsEnabled && selectedCount > 0,
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Text(
                             text = LocalizedStrings.deleteSelectedLabel,
                             maxLines = 1,
-                            softWrap = false
+                            softWrap = false,
                         )
                     }
                 }
@@ -1297,7 +1358,7 @@ private fun ActionConfirmDialog(
     dismissLabel: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
-    inProgress: Boolean
+    inProgress: Boolean,
 ) {
     AlertDialog(
         onDismissRequest = {
@@ -1310,7 +1371,7 @@ private fun ActionConfirmDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = !inProgress
+                enabled = !inProgress,
             ) {
                 Text(text = confirmLabel)
             }
@@ -1318,11 +1379,11 @@ private fun ActionConfirmDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                enabled = !inProgress
+                enabled = !inProgress,
             ) {
                 Text(text = dismissLabel)
             }
-        }
+        },
     )
 }
 
@@ -1399,14 +1460,16 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_media_unknown_title)
 
     @Composable
-    fun componentLabel(component: String?): String = when (component) {
-        SourceComponentIds.MEDIA_SOURCE -> componentMediaSession
-        SourceComponentIds.NOTIFICATION_SOURCE -> componentNotification
-        null -> componentGeneric
-        else -> component.replace('_', ' ').replaceFirstChar { ch ->
-            if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+    fun componentLabel(component: String?): String =
+        when (component) {
+            SourceComponentIds.MEDIA_SOURCE -> componentMediaSession
+            SourceComponentIds.NOTIFICATION_SOURCE -> componentNotification
+            null -> componentGeneric
+            else ->
+                component.replace('_', ' ').replaceFirstChar { ch ->
+                    if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                }
         }
-    }
 
     @Composable
     fun mediaPlaybackState(action: String): String {
@@ -1416,26 +1479,27 @@ internal object LocalizedStrings {
             "stop", "stopped" -> stringResource(R.string.event_list_media_state_stop)
             "pause", "paused" -> stringResource(R.string.event_list_media_state_pause)
             "resume", "resumed" -> stringResource(R.string.event_list_media_state_resume)
-            else -> stringResource(
-                R.string.event_list_media_state_generic,
-                action.replace('_', ' ').replaceFirstChar { ch ->
-                    if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
-                }
-            )
+            else ->
+                stringResource(
+                    R.string.event_list_media_state_generic,
+                    action.replace('_', ' ').replaceFirstChar { ch ->
+                        if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                    },
+                )
         }
     }
 
     @Composable
-    fun mediaPlayedDuration(duration: String): String =
-        stringResource(R.string.event_list_media_played_duration, duration)
+    fun mediaPlayedDuration(duration: String): String = stringResource(R.string.event_list_media_played_duration, duration)
 
     @Composable
-    fun mediaRouteLabel(route: String): String =
-        stringResource(R.string.event_list_media_route, route)
+    fun mediaRouteLabel(route: String): String = stringResource(R.string.event_list_media_route, route)
 
     @Composable
-    fun totalCountDetails(totalCount: Int, inMemoryCount: Int) =
-        stringResource(R.string.event_list_total_count_details, totalCount, inMemoryCount)
+    fun totalCountDetails(
+        totalCount: Int,
+        inMemoryCount: Int,
+    ) = pluralStringResource(R.plurals.event_list_total_count_details, totalCount, totalCount, inMemoryCount)
 
     @Composable
     fun totalCountDetailsWithRange(
@@ -1443,24 +1507,25 @@ internal object LocalizedStrings {
         endIndex: Int,
         totalCount: Int,
         inMemoryCount: Int,
-    ): String {
-        return if (startIndex == endIndex) {
-            stringResource(
-                R.string.event_list_total_count_details_single,
+    ): String =
+        if (startIndex == endIndex) {
+            pluralStringResource(
+                R.plurals.event_list_total_count_details_single,
+                totalCount,
                 startIndex,
                 totalCount,
                 inMemoryCount,
             )
         } else {
-            stringResource(
-                R.string.event_list_total_count_details_range,
+            pluralStringResource(
+                R.plurals.event_list_total_count_details_range,
+                totalCount,
                 startIndex,
                 endIndex,
                 totalCount,
                 inMemoryCount,
             )
         }
-    }
 
     val audioProfileTitle: String
         @Composable get() = stringResource(R.string.event_list_audio_profiles_title)
@@ -1469,8 +1534,7 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_audio_profiles_subtitle)
 
     @Composable
-    fun audioProfileEffective(name: String) =
-        stringResource(R.string.event_list_audio_profiles_effective, name)
+    fun audioProfileEffective(name: String) = stringResource(R.string.event_list_audio_profiles_effective, name)
 
     val audioProfileEffectiveNone: String
         @Composable get() = stringResource(R.string.event_list_audio_profiles_effective_none)
@@ -1479,8 +1543,7 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.audio_profile_always_on_name)
 
     @Composable
-    fun audioProfileActiveDevices(devices: String) =
-        stringResource(R.string.event_list_audio_profiles_active_devices, devices)
+    fun audioProfileActiveDevices(devices: String) = stringResource(R.string.event_list_audio_profiles_active_devices, devices)
 
     val audioProfileConnectedTitle: String
         @Composable get() = stringResource(R.string.event_list_audio_profiles_connected_title)
@@ -1528,7 +1591,7 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_delete_selected_title)
 
     @Composable
-    fun deleteSelectedDialogMessage(count: Int) = stringResource(R.string.event_list_delete_selected_message, count)
+    fun deleteSelectedDialogMessage(count: Int) = pluralStringResource(R.plurals.event_list_delete_selected_message, count, count)
 
     val dialogCancel: String
         @Composable get() = stringResource(R.string.event_list_dialog_cancel)
@@ -1664,96 +1727,107 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_flag_conversation)
 }
 
-private val PreviewBluetoothDevice = HeadsetDevice.Bluetooth(
-    id = HeadsetId("bt:preview"),
-    displayName = "Swooby Buds",
-    supportsMicrophone = true,
-    supportsOutput = true,
-    rawName = "Swooby Buds",
-    address = "00:11:22:33:44:55",
-    isLeAudio = false
-)
+private val PreviewBluetoothDevice =
+    HeadsetDevice.Bluetooth(
+        id = HeadsetId("bt:preview"),
+        displayName = "Swooby Buds",
+        supportsMicrophone = true,
+        supportsOutput = true,
+        rawName = "Swooby Buds",
+        address = "00:11:22:33:44:55",
+        isLeAudio = false,
+    )
 
-private val PreviewWiredDevice = HeadsetDevice.Wired(
-    id = HeadsetId("wired:preview"),
-    displayName = "USB-C Headset",
-    supportsMicrophone = true,
-    supportsOutput = true,
-    rawName = "USB-C Headset",
-    portAddress = "usb:1"
-)
+private val PreviewWiredDevice =
+    HeadsetDevice.Wired(
+        id = HeadsetId("wired:preview"),
+        displayName = "USB-C Headset",
+        supportsMicrophone = true,
+        supportsOutput = true,
+        rawName = "USB-C Headset",
+        portAddress = "usb:1",
+    )
 
-private val PreviewConnectedHeadsetsState = ConnectedHeadsets(
-    wired = setOf(PreviewWiredDevice),
-    bluetooth = setOf(PreviewBluetoothDevice)
-)
+private val PreviewConnectedHeadsetsState =
+    ConnectedHeadsets(
+        wired = setOf(PreviewWiredDevice),
+        bluetooth = setOf(PreviewBluetoothDevice),
+    )
 
-private val PreviewAlwaysOnProfile = AudioProfile.AlwaysOn(
-    displayName = "Always on",
-    metadata = ProfileMetadata(description = "Applies regardless of connected devices.")
-)
-private val PreviewBluetoothProfile = AudioProfile.BluetoothAny(
-    displayName = "Bluetooth headset",
-    metadata = ProfileMetadata(description = "Activates when any Bluetooth audio device is connected.")
-)
-private val PreviewAnyHeadsetProfile = AudioProfile.AnyHeadset(
-    displayName = "Any headset",
-    metadata = ProfileMetadata(description = "Activates when any wired or Bluetooth headset is connected.")
-)
+private val PreviewAlwaysOnProfile =
+    AudioProfile.AlwaysOn(
+        displayName = "Always on",
+        metadata = ProfileMetadata(description = "Applies regardless of connected devices."),
+    )
+private val PreviewBluetoothProfile =
+    AudioProfile.BluetoothAny(
+        displayName = "Bluetooth headset",
+        metadata = ProfileMetadata(description = "Activates when any Bluetooth audio device is connected."),
+    )
+private val PreviewAnyHeadsetProfile =
+    AudioProfile.AnyHeadset(
+        displayName = "Any headset",
+        metadata = ProfileMetadata(description = "Activates when any wired or Bluetooth headset is connected."),
+    )
 
-private val PreviewAudioProfileState = AudioProfileUiState(
-    profiles = listOf(
-        AudioProfileSnapshot(
-            profile = AudioProfile.Disabled(
-                displayName = "Off",
-                metadata = ProfileMetadata(description = "Disable Alfred reactions for connected devices.")
+private val PreviewAudioProfileState =
+    AudioProfileUiState(
+        profiles =
+            listOf(
+                AudioProfileSnapshot(
+                    profile =
+                        AudioProfile.Disabled(
+                            displayName = "Off",
+                            metadata = ProfileMetadata(description = "Disable Alfred reactions for connected devices."),
+                        ),
+                    isSelected = false,
+                    isActive = false,
+                    isEffective = false,
+                    activeDevices = emptySet(),
+                ),
+                AudioProfileSnapshot(
+                    profile = PreviewAlwaysOnProfile,
+                    isSelected = false,
+                    isActive = true,
+                    isEffective = false,
+                    activeDevices = PreviewConnectedHeadsetsState.all,
+                ),
+                AudioProfileSnapshot(
+                    profile = PreviewBluetoothProfile,
+                    isSelected = true,
+                    isActive = true,
+                    isEffective = true,
+                    activeDevices = PreviewConnectedHeadsetsState.bluetooth,
+                ),
+                AudioProfileSnapshot(
+                    profile = PreviewAnyHeadsetProfile,
+                    isSelected = false,
+                    isActive = PreviewConnectedHeadsetsState.all.isNotEmpty(),
+                    isEffective = false,
+                    activeDevices = PreviewConnectedHeadsetsState.all,
+                ),
             ),
-            isSelected = false,
-            isActive = false,
-            isEffective = false,
-            activeDevices = emptySet()
-        ),
-        AudioProfileSnapshot(
-            profile = PreviewAlwaysOnProfile,
-            isSelected = false,
-            isActive = true,
-            isEffective = false,
-            activeDevices = PreviewConnectedHeadsetsState.all
-        ),
-        AudioProfileSnapshot(
-            profile = PreviewBluetoothProfile,
-            isSelected = true,
-            isActive = true,
-            isEffective = true,
-            activeDevices = PreviewConnectedHeadsetsState.bluetooth
-        ),
-        AudioProfileSnapshot(
-            profile = PreviewAnyHeadsetProfile,
-            isSelected = false,
-            isActive = PreviewConnectedHeadsetsState.all.isNotEmpty(),
-            isEffective = false,
-            activeDevices = PreviewConnectedHeadsetsState.all
-        )
-    ),
-    selectedProfileId = PreviewBluetoothProfile.id,
-    effectiveProfile = EffectiveAudioProfile(
-        profile = PreviewBluetoothProfile,
-        activeDevices = PreviewConnectedHeadsetsState.bluetooth
-    ),
-    connectedHeadsets = PreviewConnectedHeadsetsState
-)
+        selectedProfileId = PreviewBluetoothProfile.id,
+        effectiveProfile =
+            EffectiveAudioProfile(
+                profile = PreviewBluetoothProfile,
+                activeDevices = PreviewConnectedHeadsetsState.bluetooth,
+            ),
+        connectedHeadsets = PreviewConnectedHeadsetsState,
+    )
 
 @Preview(showBackground = true)
 @Composable
 private fun EventListPreview() {
     AlfredTheme {
         EventListScreen(
-            state = EventListUiState(
-                query = "",
-                allEvents = PreviewEvents,
-                visibleEvents = PreviewEvents,
-                audioProfileUiState = PreviewAudioProfileState
-            ),
+            state =
+                EventListUiState(
+                    query = "",
+                    allEvents = PreviewEvents,
+                    visibleEvents = PreviewEvents,
+                    audioProfileUiState = PreviewAudioProfileState,
+                ),
             userInitials = "A",
             themeMode = ThemeMode.SYSTEM,
             onQueryChange = {},
@@ -1775,7 +1849,7 @@ private fun EventListPreview() {
             onAudioProfileSelect = {},
             onEnsureBluetoothPermission = {},
             onThemeModeChange = {},
-            onShuffleThemeRequest = {}
+            onShuffleThemeRequest = {},
         )
     }
 }
@@ -1793,7 +1867,7 @@ private fun SelectionBottomBarPreview() {
             onUnselectAll = {},
             onDeleteSelected = {},
             onExitSelection = {},
-            actionsEnabled = true
+            actionsEnabled = true,
         )
     }
 }

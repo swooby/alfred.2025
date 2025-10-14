@@ -2,7 +2,10 @@ package com.smartfoo.android.core
 
 import com.smartfoo.android.core.reflection.FooReflectionUtils
 
-class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name) {
+@Suppress("unused")
+class FooListenerAutoStartManager<T>(
+    name: String,
+) : FooListenerManager<T?>(name) {
     interface FooListenerAutoStartManagerCallbacks {
         fun onFirstAttach()
 
@@ -17,7 +20,7 @@ class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name
 
     private var isStarted = false
 
-    constructor(name: Any) : this(FooReflectionUtils.getShortClassName(name))
+    constructor(name: Any) : this(FooReflectionUtils.getShortClassName(name)!!)
 
     fun attach(callbacks: FooListenerAutoStartManagerCallbacks) {
         autoStartListeners.attach(callbacks)
@@ -34,8 +37,9 @@ class FooListenerAutoStartManager<T>(name: String) : FooListenerManager<T?>(name
             if (listenersSize == 0) {
                 isStarted = false
                 for (callbacks in autoStartListeners.beginTraversing()) {
+                    @Suppress("ControlFlowWithEmptyBody")
                     if (callbacks.onLastDetach()) {
-                        //mAutoStartListeners.detach(callbacks);
+                        //autoStartListeners.detach(callbacks);
                     }
                 }
                 autoStartListeners.endTraversing()

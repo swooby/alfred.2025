@@ -4,20 +4,21 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationChannelGroup
 import android.app.NotificationManager
+import android.content.Context
 import android.os.UserHandle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.smartfoo.android.core.FooString
+import com.smartfoo.android.core.crypto.FooCrypto
+import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.notification.FooNotificationListener
+import com.smartfoo.android.core.platform.FooPlatformUtils
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.AttachmentRef
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
-import com.smartfoo.android.core.logging.FooLog
-import com.smartfoo.android.core.notification.FooNotificationListener
-import com.smartfoo.android.core.platform.FooPlatformUtils
-import com.smartfoo.android.core.crypto.FooCrypto
-import com.smartfoo.android.core.FooString
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -32,34 +33,40 @@ import kotlin.time.Instant
 class NotificationsSource : NotificationListenerService() {
     companion object {
         private val TAG = FooLog.TAG(NotificationsSource::class.java)
-        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+
+        @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions", "RedundantSuppression", "UNREACHABLE_CODE")
         private val LOG_NOTIFICATION = true && BuildConfig.DEBUG
 
         private fun extractSubjectTitle(subject: Map<String, Any?>): String? {
             val titleKeys = listOf("title", "conversationTitle", "template")
-            return titleKeys.asSequence()
+            return titleKeys
+                .asSequence()
                 .mapNotNull { key -> (subject[key] as? String)?.takeIf { it.isNotBlank() } }
                 .firstOrNull()
         }
 
         private fun extractSubjectBody(subject: Map<String, Any?>): String? {
             val bodyKeys = listOf("text", "summaryText", "subText", "infoText")
-            val direct = bodyKeys.asSequence()
-                .mapNotNull { key -> (subject[key] as? String)?.takeIf { it.isNotBlank() } }
-                .firstOrNull()
+            val direct =
+                bodyKeys
+                    .asSequence()
+                    .mapNotNull { key -> (subject[key] as? String)?.takeIf { it.isNotBlank() } }
+                    .firstOrNull()
             if (direct != null) return direct
 
-            val messageText = (subject["messages"] as? List<*>)
-                ?.firstNotNullOfOrNull { item ->
-                    (item as? Map<*, *>)
-                        ?.get("text")
-                        ?.toString()
-                        ?.takeIf { it.isNotBlank() }
-                }
+            val messageText =
+                (subject["messages"] as? List<*>)
+                    ?.firstNotNullOfOrNull { item ->
+                        (item as? Map<*, *>)
+                            ?.get("text")
+                            ?.toString()
+                            ?.takeIf { it.isNotBlank() }
+                    }
             if (messageText != null) return messageText
 
-            val lines = (subject["lines"] as? List<*>)
-                ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+            val lines =
+                (subject["lines"] as? List<*>)
+                    ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
             if (!lines.isNullOrEmpty()) return lines.joinToString(separator = "\n")
 
             return null
@@ -69,16 +76,17 @@ class NotificationsSource : NotificationListenerService() {
             subject: Map<String, Any?>,
             body: String?,
             lines: List<String>?,
-            rawExtras: JsonObject
+            rawExtras: JsonObject,
         ): Sensitivity {
             if (!body.isNullOrBlank()) return Sensitivity.CONTENT
             if (!lines.isNullOrEmpty()) return Sensitivity.CONTENT
-            val hasMessageContent = (subject["messages"] as? List<*>)?.any { item ->
-                (item as? Map<*, *>)
-                    ?.get("text")
-                    ?.toString()
-                    ?.isNotBlank() == true
-            } == true
+            val hasMessageContent =
+                (subject["messages"] as? List<*>)?.any { item ->
+                    (item as? Map<*, *>)
+                        ?.get("text")
+                        ?.toString()
+                        ?.isNotBlank() == true
+                } == true
             if (hasMessageContent) return Sensitivity.CONTENT
 
             val textKeys = listOf("android.text", "android.bigText", "android.summaryText")
@@ -92,61 +100,68 @@ class NotificationsSource : NotificationListenerService() {
             return Sensitivity.METADATA
         }
 
-        private fun Map<String, Any?>.toJsonObjectOrNull(): JsonObject? {
-            var hasEntry = false
-            val obj = buildJsonObject {
-                for ((key, value) in this@toJsonObjectOrNull) {
-                    val name = key.takeIf { it.isNotBlank() } ?: continue
-                    value.toJsonElementOrNull()?.let {
-                        put(name, it)
-                        hasEntry = true
-                    }
-                }
-            }
-            return if (hasEntry) obj else null
-        }
-
         private fun List<Map<String, Any?>>.toJsonArrayOrNull(): JsonArray? {
             if (isEmpty()) return null
-            val array = buildJsonArray {
-                this@toJsonArrayOrNull.forEach { item ->
-                    item.toJsonObjectOrNull()?.let { add(it) }
+            val array =
+                buildJsonArray {
+                    this@toJsonArrayOrNull.forEach { item ->
+                        item.toJsonObjectOrNull()?.let { add(it) }
+                    }
                 }
-            }
             return if (array.isEmpty()) null else array
         }
 
-        private fun Any?.toJsonElementOrNull(): JsonElement? = when (this) {
-            null -> null
-            is JsonElement -> this
-            is Boolean -> if (this) JsonPrimitive(true) else null
-            is Int -> JsonPrimitive(this)
-            is Long -> JsonPrimitive(this)
-            is Float -> JsonPrimitive(this)
-            is Double -> JsonPrimitive(this)
-            is Number -> JsonPrimitive(this.toDouble())
-            is String -> this.takeIf { it.isNotBlank() }?.let { JsonPrimitive(it) }
-            is Map<*, *> -> (this as? Map<String, Any?>)?.toJsonObjectOrNull()
-            is List<*> -> {
-                val array = buildJsonArray {
-                    this@toJsonElementOrNull.forEach { value ->
-                        value.toJsonElementOrNull()?.let { add(it) }
+        private fun Map<String, Any?>.toJsonObjectOrNull(): JsonObject? {
+            var hasEntry = false
+            val obj =
+                buildJsonObject {
+                    for ((key, value) in this@toJsonObjectOrNull) {
+                        val name = key.takeIf { it.isNotBlank() } ?: continue
+                        value.toJsonElementOrNull()?.let {
+                            put(name, it)
+                            hasEntry = true
+                        }
                     }
                 }
-                if (array.isEmpty()) null else array
-            }
-            is Array<*> -> this.toList().toJsonElementOrNull()
-            else -> JsonPrimitive(toString())
+            return if (hasEntry) obj else null
         }
+
+        private fun Any?.toJsonElementOrNull(): JsonElement? =
+            when (this) {
+                null -> null
+                is JsonElement -> this
+                is Boolean -> if (this) JsonPrimitive(true) else null
+                is Int -> JsonPrimitive(this)
+                is Long -> JsonPrimitive(this)
+                is Float -> JsonPrimitive(this)
+                is Double -> JsonPrimitive(this)
+                is Number -> JsonPrimitive(this.toDouble())
+                is String -> this.takeIf { it.isNotBlank() }?.let { JsonPrimitive(it) }
+                is Array<*> -> this.toList().toJsonElementOrNull()
+                is List<*> -> {
+                    val array =
+                        buildJsonArray {
+                            this@toJsonElementOrNull.forEach { value ->
+                                value.toJsonElementOrNull()?.let { add(it) }
+                            }
+                        }
+                    if (array.isEmpty()) null else array
+                }
+                is Map<*, *> ->
+                    this.entries
+                        .mapNotNull { (key, value) ->
+                            (key as? String)?.let { it to value }
+                        }.toMap()
+                        .toJsonObjectOrNull()
+                else -> JsonPrimitive(toString())
+            }
     }
 
     private val app get() = application as AlfredApp
 
-    private val activeNotificationsSnapshot = ActiveNotificationsSnapshot()
+    private val activeNotificationsSnapshot = ActiveNotificationsSnapshot(this)
 
-    private fun getActiveNotificationsSnapshot(): ActiveNotificationsSnapshot {
-        return activeNotificationsSnapshot.snapshot(this)
-    }
+    private fun getActiveNotificationsSnapshot(): ActiveNotificationsSnapshot = activeNotificationsSnapshot.snapshot(this)
 
     fun initializeActiveNotifications() {
         val activeNotificationsSnapshot = getActiveNotificationsSnapshot()
@@ -176,7 +191,7 @@ class NotificationsSource : NotificationListenerService() {
             app.mediaSource.start("$TAG.onListenerConnected")
         } catch (se: SecurityException) {
             FooLog.w(TAG, "onListenerConnected: SecurityException", se)
-            /* ignore */
+            // ignore
         }
 
         initializeActiveNotifications()
@@ -197,25 +212,30 @@ class NotificationsSource : NotificationListenerService() {
         subjectText: String?,
         subjectLines: List<String>?,
         eventCategory: String?,
-        eventAction: String?
+        eventAction: String?,
     ): String? {
-        val body = subjectText ?: subjectLines
-            ?.joinToString(separator = "\n")
-            ?.takeIf { it.isNotBlank() }
-        val parts = listOf(
-            pkg.takeIf { it.isNotBlank() },
-            subjectEntityId?.takeIf { it.isNotBlank() },
-            subjectTitle?.takeIf { it.isNotBlank() },
-            body,
-            eventCategory?.takeIf { it.isNotBlank() },
-            eventAction?.takeIf { it.isNotBlank() }
-        )
+        val body =
+            subjectText ?: subjectLines
+                ?.joinToString(separator = "\n")
+                ?.takeIf { it.isNotBlank() }
+        val parts =
+            listOf(
+                pkg.takeIf { it.isNotBlank() },
+                subjectEntityId?.takeIf { it.isNotBlank() },
+                subjectTitle?.takeIf { it.isNotBlank() },
+                body,
+                eventCategory?.takeIf { it.isNotBlank() },
+                eventAction?.takeIf { it.isNotBlank() },
+            )
         if (parts.all { it.isNullOrBlank() }) return null
         val normalized = parts.joinToString(separator = "|") { it ?: "" }
         return FooCrypto.SHA256(normalized)
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
+    override fun onNotificationPosted(
+        sbn: StatusBarNotification?,
+        rankingMap: RankingMap?,
+    ) {
         if (LOG_NOTIFICATION) {
             FooLog.d(TAG, "#NOTIFICATION onNotificationPosted(sbn=$sbn, rankingMap=$rankingMap)")
         }
@@ -223,60 +243,68 @@ class NotificationsSource : NotificationListenerService() {
         if (sbn == null) return
 
         val envelope = NotificationExtractor.extract(this, SourceEventTypes.NOTIFICATION_POST, sbn, rankingMap)
-        val pkg = (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
-            ?: sbn.packageName
+        val pkg =
+            (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
+                ?: sbn.packageName
         val appLabel = (envelope.actor["appLabel"] as? String)?.takeIf { it.isNotBlank() }
-        val template = (envelope.attributes["template"] as? String)?.takeIf { it.isNotBlank() }
-            ?: (envelope.subject["template"] as? String)?.takeIf { it.isNotBlank() }
+        val template =
+            (envelope.attributes["template"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.subject["template"] as? String)?.takeIf { it.isNotBlank() }
         val contextCategory = (envelope.context["category"] as? String)?.takeIf { it.isNotBlank() }
         val subjectTitle = extractSubjectTitle(envelope.subject)
         val subjectText = extractSubjectBody(envelope.subject)
-        val subjectLines = (envelope.subject["lines"] as? List<*>)
-            ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+        val subjectLines =
+            (envelope.subject["lines"] as? List<*>)
+                ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
         val subjectEntity = subjectTitle ?: appLabel ?: pkg
         val eventCategory = contextCategory ?: template ?: "notification"
         val eventAction = subjectText ?: subjectTitle ?: template ?: envelope.event
-        val subjectEntityId = (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
-            ?: "$pkg:${sbn.id}"
-        val subjectParentId = (envelope.context["groupKey"] as? String)?.takeIf { it.isNotBlank() }
-            ?: (envelope.refs["tag"] as? String)?.takeIf { it.isNotBlank() }
-            ?: (envelope.refs["channelId"] as? String)?.takeIf { it.isNotBlank() }
+        val subjectEntityId =
+            (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
+                ?: "$pkg:${sbn.id}"
+        val subjectParentId =
+            (envelope.context["groupKey"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["tag"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["channelId"] as? String)?.takeIf { it.isNotBlank() }
         val postInstant = Instant.fromEpochMilliseconds(envelope.time)
         val metrics = envelope.metrics.toJsonObjectOrNull() ?: JsonObject(emptyMap())
-        val attachments = envelope.attachments.mapNotNull { attachment ->
-            val kind = (attachment["type"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val uri = (attachment["uri"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val mime = (attachment["mime"] as? String)?.takeIf { it.isNotBlank() }
-            val size = (attachment["sizeBytes"] as? Number)?.toLong()
-            AttachmentRef(kind = kind, uri = uri, mime = mime, sizeBytes = size)
-        }
-        val attributes = buildJsonObject {
-            envelope.actor.toJsonObjectOrNull()?.let { put("actor", it) }
-            envelope.subject.toJsonObjectOrNull()?.let { put("subject", it) }
-            envelope.source.toJsonObjectOrNull()?.let { put("source", it) }
-            envelope.context.toJsonObjectOrNull()?.let { put("context", it) }
-            envelope.attributes.toJsonObjectOrNull()?.let { put("traits", it) }
-            envelope.refs.toJsonObjectOrNull()?.let { put("refs", it) }
-            envelope.attachments.toJsonArrayOrNull()?.let { put("attachments", it) }
-            envelope.integrity.toJsonObjectOrNull()?.let { put("integrity", it) }
-            if (!envelope.rawExtrasJson.isEmpty()) {
-                put("rawExtras", envelope.rawExtrasJson)
+        val attachments =
+            envelope.attachments.mapNotNull { attachment ->
+                val kind = (attachment["type"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val uri = (attachment["uri"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val mime = (attachment["mime"] as? String)?.takeIf { it.isNotBlank() }
+                val size = (attachment["sizeBytes"] as? Number)?.toLong()
+                AttachmentRef(kind = kind, uri = uri, mime = mime, sizeBytes = size)
             }
-            subjectLines?.takeIf { it.isNotEmpty() }?.let { lines ->
-                put("subjectLines", buildJsonArray { lines.forEach { add(JsonPrimitive(it)) } })
+        val attributes =
+            buildJsonObject {
+                envelope.actor.toJsonObjectOrNull()?.let { put("actor", it) }
+                envelope.subject.toJsonObjectOrNull()?.let { put("subject", it) }
+                envelope.source.toJsonObjectOrNull()?.let { put("source", it) }
+                envelope.context.toJsonObjectOrNull()?.let { put("context", it) }
+                envelope.attributes.toJsonObjectOrNull()?.let { put("traits", it) }
+                envelope.refs.toJsonObjectOrNull()?.let { put("refs", it) }
+                envelope.attachments.toJsonArrayOrNull()?.let { put("attachments", it) }
+                envelope.integrity.toJsonObjectOrNull()?.let { put("integrity", it) }
+                if (!envelope.rawExtrasJson.isEmpty()) {
+                    put("rawExtras", envelope.rawExtrasJson)
+                }
+                subjectLines?.takeIf { it.isNotEmpty() }?.let { lines ->
+                    put("subjectLines", buildJsonArray { lines.forEach { add(JsonPrimitive(it)) } })
+                }
             }
-        }
-        val fingerprint = buildStableNotificationFingerprint(
-            pkg = pkg,
-            subjectEntityId = subjectEntityId,
-            subjectTitle = subjectTitle,
-            subjectText = subjectText,
-            subjectLines = subjectLines,
-            eventCategory = eventCategory,
-            eventAction = eventAction
-        ) ?: (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
-            ?: (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
-            ?: sbn.key
+        val fingerprint =
+            buildStableNotificationFingerprint(
+                pkg = pkg,
+                subjectEntityId = subjectEntityId,
+                subjectTitle = subjectTitle,
+                subjectText = subjectText,
+                subjectLines = subjectLines,
+                eventCategory = eventCategory,
+                eventAction = eventAction,
+            ) ?: (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
+                ?: sbn.key
         val coalesceKey = (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
         val tags = mutableListOf<String>()
         contextCategory?.let { tags += it }
@@ -288,43 +316,48 @@ class NotificationsSource : NotificationListenerService() {
         val eventId = Ulids.newUlid()
         val sensitivity = inferSensitivity(envelope.subject, subjectText, subjectLines, envelope.rawExtrasJson)
 
-        val ev = EventEntity(
-            eventId = eventId,
-            schemaVer = 1,
-            userId = "u_local",
-            deviceId = "android:device",
-            appPkg = pkg,
-            component = SourceComponentIds.NOTIFICATION_SOURCE,
-            parserVer = NotificationExtractor.PARSER_VERSION,
-            eventType = envelope.event,
-            eventCategory = eventCategory,
-            eventAction = eventAction,
-            subjectEntity = subjectEntity,
-            subjectEntityId = subjectEntityId,
-            subjectParentId = subjectParentId,
-            tsStart = postInstant,
-            ingestAt = postInstant,
-            api = envelope.source["api"]?.toString(),
-            sensitivity = sensitivity,
-            attributes = attributes,
-            metrics = metrics,
-            tags = tags.distinct(),
-            attachments = attachments,
-            rawFingerprint = fingerprint,
-            integritySig = (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
-        )
+        val ev =
+            EventEntity(
+                eventId = eventId,
+                schemaVer = 1,
+                userId = "u_local",
+                deviceId = "android:device",
+                appPkg = pkg,
+                component = SourceComponentIds.NOTIFICATION_SOURCE,
+                parserVer = NotificationExtractor.PARSER_VERSION,
+                eventType = envelope.event,
+                eventCategory = eventCategory,
+                eventAction = eventAction,
+                subjectEntity = subjectEntity,
+                subjectEntityId = subjectEntityId,
+                subjectParentId = subjectParentId,
+                tsStart = postInstant,
+                ingestAt = postInstant,
+                api = envelope.source["api"]?.toString(),
+                sensitivity = sensitivity,
+                attributes = attributes,
+                metrics = metrics,
+                tags = tags.distinct(),
+                attachments = attachments,
+                rawFingerprint = fingerprint,
+                integritySig = (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() },
+            )
         app.ingest.submit(
             RawEvent(
                 event = ev,
                 fingerprint = fingerprint,
-                coalesceKey = coalesceKey
-            )
+                coalesceKey = coalesceKey,
+            ),
         )
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?, rankingMap: RankingMap?, reason: Int) {
+    override fun onNotificationRemoved(
+        sbn: StatusBarNotification?,
+        rankingMap: RankingMap?,
+        reason: Int,
+    ) {
         if (LOG_NOTIFICATION) {
-            FooLog.d(TAG, "#NOTIFICATION onNotificationRemoved(sbn=$sbn, rankingMap=$rankingMap, reason=${FooNotificationListener.notificationCancelReasonToString(reason)})")
+            FooLog.d(TAG, "#NOTIFICATION onNotificationRemoved(sbn=$sbn, rankingMap=$rankingMap, reason=${FooString.quote(FooNotificationListener.notificationCancelReasonToString(reason))})")
         }
 
         //...
@@ -348,13 +381,23 @@ class NotificationsSource : NotificationListenerService() {
         }
     }
 
-    override fun onNotificationChannelModified(pkg: String?, user: UserHandle?, channel: NotificationChannel?, modificationType: Int) {
+    override fun onNotificationChannelModified(
+        pkg: String?,
+        user: UserHandle?,
+        channel: NotificationChannel?,
+        modificationType: Int,
+    ) {
         if (LOG_NOTIFICATION) {
             FooLog.v(TAG, "#NOTIFICATION onNotificationChannelModified(...)")
         }
     }
 
-    override fun onNotificationChannelGroupModified(pkg: String?, user: UserHandle?, group: NotificationChannelGroup?, modificationType: Int) {
+    override fun onNotificationChannelGroupModified(
+        pkg: String?,
+        user: UserHandle?,
+        group: NotificationChannelGroup?,
+        modificationType: Int,
+    ) {
         if (LOG_NOTIFICATION) {
             FooLog.v(TAG, "#NOTIFICATION onNotificationChannelGroupModified(...)")
         }
@@ -375,7 +418,9 @@ class NotificationsSource : NotificationListenerService() {
      *
      * Call [snapshot] to populate from a NotificationListenerService, or [reset] to clear.
      */
-    class ActiveNotificationsSnapshot {
+    class ActiveNotificationsSnapshot(
+        val context: Context,
+    ) {
         /** Snapshot of the [NotificationListenerService] used at the last [snapshot] call; null after [reset]. */
         var notificationListenerService: NotificationsSource? = null
             private set
@@ -388,14 +433,13 @@ class NotificationsSource : NotificationListenerService() {
         var currentRanking: RankingMap? = null
             private set
 
-
         private var _activeNotificationsRanked: List<StatusBarNotification>? = null
 
         /** Ranked view (top → bottom), cached after the first computation per snapshot. */
         val activeNotificationsRanked: List<StatusBarNotification>?
             get() {
                 if (_activeNotificationsRanked == null) {
-                    _activeNotificationsRanked = shadeSort(activeNotifications, currentRanking)
+                    _activeNotificationsRanked = shadeSort(context, activeNotifications, currentRanking)
                     @Suppress("ConstantConditionIf")
                     if (false) {
                         for (sbn in _activeNotificationsRanked!!) {
@@ -415,11 +459,12 @@ class NotificationsSource : NotificationListenerService() {
             _activeNotificationsRanked = null
         }
 
+        // @WorkerThread
+
         /**
          * Replaces current state with a fresh snapshot from [service].
          * If [service] is null, behaves like [reset].
          */
-        //@WorkerThread
         fun snapshot(service: NotificationsSource?): ActiveNotificationsSnapshot {
             reset()
             notificationListenerService = service
@@ -434,8 +479,11 @@ class NotificationsSource : NotificationListenerService() {
          * Top to bottom order of appearance in the Notification Shade.
          * Analogous to ...?
          */
-        private enum class UiBucket(val order: Int) {
-            MEDIA(0), CONVERSATION(1), ALERTING(2), SILENT(3)
+        private enum class UiBucket {
+            MEDIA,
+            CONVERSATION,
+            ALERTING,
+            SILENT,
         }
 
         private fun isMediaNotificationCompat(n: Notification): Boolean {
@@ -444,12 +492,16 @@ class NotificationsSource : NotificationListenerService() {
             val isTransport = n.category == Notification.CATEGORY_TRANSPORT
             val template = extras?.getString(Notification.EXTRA_TEMPLATE)
             // Accept framework or compat styles; the literal string contains '$'
-            val isMediaStyle = template?.endsWith("\$MediaStyle") == true ||
+            val isMediaStyle =
+                template?.endsWith("\$MediaStyle") == true ||
                     template?.contains("MediaStyle") == true
             return hasMediaSession || isTransport || isMediaStyle
         }
 
-        private fun bucketOfWithRank(sbn: StatusBarNotification, r: Ranking): UiBucket {
+        private fun bucketOfWithRank(
+            sbn: StatusBarNotification,
+            r: Ranking,
+        ): UiBucket {
             if (isMediaNotificationCompat(sbn.notification)) return UiBucket.MEDIA
             if (r.isConversation) return UiBucket.CONVERSATION
             val isSilent = r.isAmbient || r.importance <= NotificationManager.IMPORTANCE_LOW
@@ -457,47 +509,59 @@ class NotificationsSource : NotificationListenerService() {
         }
 
         /** Fallback when RankingMap is null: heuristic using flags/category/priority. */
-        private fun bucketOfNoRank(sbn: StatusBarNotification): UiBucket {
+        private fun bucketOfNoRank(
+            context: Context,
+            sbn: StatusBarNotification,
+        ): UiBucket {
             val n = sbn.notification
+            val nc = NotificationExtractor.getNotificationChannel(context, n)
             if (isMediaNotificationCompat(n)) return UiBucket.MEDIA
-            // Heuristic: treat PRIORITY_LOW or below as silent when no ranking is available
-            @Suppress("DEPRECATION")
-            val silent = n.priority <= Notification.PRIORITY_LOW
+            val importance = nc?.importance ?: NotificationManager.IMPORTANCE_UNSPECIFIED
+            // Heuristic: treat importance below as silent when no ranking is available
+            val silent = importance <= NotificationManager.IMPORTANCE_DEFAULT
             return if (silent) UiBucket.SILENT else UiBucket.ALERTING
         }
 
         private fun shadeSort(
+            context: Context,
             actives: List<StatusBarNotification>?,
-            rankingMap: RankingMap?
+            rankingMap: RankingMap?,
         ): List<StatusBarNotification> {
             val list = actives ?: return emptyList()
             if (list.isEmpty()) return emptyList()
 
             // Collapse groups: prefer GROUP_SUMMARY when present
-            val summariesByGroup = list
-                .filter { it.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0 }
-                .associateBy { it.notification.group }
+            val summariesByGroup =
+                list
+                    .filter { it.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0 }
+                    .associateBy { it.notification.group }
 
-            val collapsed = buildList {
-                val seen = HashSet<String>()
-                list.filter { it.notification.group.isNullOrEmpty() }
-                    .forEach { if (seen.add(it.key)) add(it) }
-                list.groupBy { it.notification.group }.forEach { (g, members) ->
-                    if (g.isNullOrEmpty()) return@forEach
-                    val summary = summariesByGroup[g]
-                    if (summary != null) {
-                        if (seen.add(summary.key)) add(summary)
-                    } else {
-                        members.forEach { if (seen.add(it.key)) add(it) }
+            val collapsed =
+                buildList {
+                    val seen = HashSet<String>()
+                    list
+                        .filter { it.notification.group.isNullOrEmpty() }
+                        .forEach { if (seen.add(it.key)) add(it) }
+                    list.groupBy { it.notification.group }.forEach { (g, members) ->
+                        if (g.isNullOrEmpty()) return@forEach
+                        val summary = summariesByGroup[g]
+                        if (summary != null) {
+                            if (seen.add(summary.key)) add(summary)
+                        } else {
+                            members.forEach { if (seen.add(it.key)) add(it) }
+                        }
                     }
                 }
-            }
 
             // System order index (may be empty if rankingMap == null)
             val sysOrder: Map<String, Int> =
                 rankingMap?.orderedKeys?.withIndex()?.associate { it.value to it.index } ?: emptyMap()
 
-            data class K(val bucket: UiBucket, val sys: Int, val tiebreak: Long)
+            data class K(
+                val bucket: UiBucket,
+                val sys: Int,
+                val tiebreak: Long,
+            )
             val keys = HashMap<String, K>(collapsed.size * 2)
 
             for (sbn in collapsed) {
@@ -505,15 +569,16 @@ class NotificationsSource : NotificationListenerService() {
                 val sortKey = n.sortKey
                 val tiebreak = if (!sortKey.isNullOrEmpty()) sortKey.hashCode().toLong() else -sbn.postTime
 
-                val (bucket, sysIdx) = if (rankingMap != null) {
-                    val r = Ranking()
-                    val has = rankingMap.getRanking(sbn.key, r)
-                    val b = if (has) bucketOfWithRank(sbn, r) else bucketOfNoRank(sbn)
-                    val idx = sysOrder[sbn.key] ?: Int.MAX_VALUE
-                    b to idx
-                } else {
-                    bucketOfNoRank(sbn) to Int.MAX_VALUE
-                }
+                val (bucket, sysIdx) =
+                    if (rankingMap != null) {
+                        val r = Ranking()
+                        val has = rankingMap.getRanking(sbn.key, r)
+                        val b = if (has) bucketOfWithRank(sbn, r) else bucketOfNoRank(context, sbn)
+                        val idx = sysOrder[sbn.key] ?: Int.MAX_VALUE
+                        b to idx
+                    } else {
+                        bucketOfNoRank(context, sbn) to Int.MAX_VALUE
+                    }
 
                 keys[sbn.key] = K(bucket, sysIdx, tiebreak)
             }
@@ -521,26 +586,28 @@ class NotificationsSource : NotificationListenerService() {
             return collapsed.sortedWith(
                 compareBy<StatusBarNotification> { keys[it.key]!!.bucket }
                     .thenBy { keys[it.key]!!.sys }
-                    .thenBy { keys[it.key]!!.tiebreak }
+                    .thenBy { keys[it.key]!!.tiebreak },
             )
         }
 
         companion object {
-            fun toString(ranking: Ranking): String {
-                return "{key=${ranking.key}, rank=${ranking.rank}}"
-            }
+            fun toString(ranking: Ranking): String = "{key=${ranking.key}, rank=${ranking.rank}}"
 
-            fun toString(sbn: StatusBarNotification, showAllExtras: Boolean = false): String {
+            fun toString(
+                sbn: StatusBarNotification,
+                showAllExtras: Boolean = false,
+            ): String {
                 val notification = sbn.notification
                 val extras = notification.extras
                 val title = extras?.getCharSequence(Notification.EXTRA_TITLE)
                 var text = extras?.getCharSequence(Notification.EXTRA_TEXT)
                 if (text != null) {
-                    text = if (text.length > 33) {
-                        "(${text.length})${FooString.quote(text.substring(0, 32)).replaceAfterLast("\"", "…\"")}"
-                    } else {
-                        FooString.quote(text)
-                    }
+                    text =
+                        if (text.length > 33) {
+                            "(${text.length})${FooString.quote(text.substring(0, 32)).replaceAfterLast("\"", "…\"")}"
+                        } else {
+                            FooString.quote(text)
+                        }
                 }
                 val subText = extras?.getCharSequence(Notification.EXTRA_SUB_TEXT)
 
@@ -563,7 +630,7 @@ class NotificationsSource : NotificationListenerService() {
                 sb.append(
                     "id=${sbn.id}, key=${FooString.quote(sbn.key)}, packageName=${
                         FooString.quote(sbn.packageName)
-                    }, notification={ $notification"
+                    }, notification={ $notification",
                 )
                 if (showAllExtras) {
                     sb.append(", extras=")
