@@ -1,6 +1,5 @@
 package com.swooby.alfred.pipeline
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,11 +7,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.smartfoo.android.core.logging.FooLog
-import com.smartfoo.android.core.notification.FooForegroundService
 import com.smartfoo.android.core.notification.FooNotification
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.smartfoo.android.core.platform.FooPlatformUtils
@@ -39,10 +38,8 @@ import kotlinx.datetime.TimeZone
 class PipelineService : Service() {
     companion object {
         private val TAG = FooLog.TAG(PipelineService::class.java)
-        private const val NOTIFICATION_ID = 42
 
-        private const val FOREGROUND_SERVICE_PERMISSION = Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE
-        private val FOREGROUND_SERVICE_TYPE = FooForegroundService.getForegroundServiceType(FOREGROUND_SERVICE_PERMISSION)
+        private const val NOTIFICATION_ID = 42
 
         private const val REQUEST_SHOW = 100
         private const val REQUEST_PIN = 101
@@ -50,11 +47,35 @@ class PipelineService : Service() {
         private const val REQUEST_ENABLE = 103
 
         private const val ACTION_REFRESH_NOTIFICATION = "com.swooby.alfred.pipeline.action.REFRESH_NOTIFICATION"
-        private const val ACTION_QUIT = "com.swooby.alfred.pipeline.action.QUIT"
+        private const val ACTION_APP_SHUTDOWN = "com.swooby.alfred.pipeline.action.APP_SHUTDOWN"
 
-        fun intentQuit(context: Context): Intent =
+        fun start(context: Context) {
+            startForegroundService(context)
+        }
+
+        fun refreshNotification(context: Context) {
+            startForegroundService(context, ACTION_REFRESH_NOTIFICATION)
+        }
+
+        fun appShutdown(context: Context) {
+            startForegroundService(context, ACTION_APP_SHUTDOWN)
+        }
+
+        private fun startForegroundService(
+            context: Context,
+            action: String? = null,
+        ) {
+            context.startForegroundService(intent(context, action))
+        }
+
+        private fun intent(
+            context: Context,
+            action: String? = null,
+        ): Intent =
             Intent(context, PipelineService::class.java)
-                .setAction(ACTION_QUIT)
+                .setAction(action)
+
+        private fun intentAppShutdown(context: Context): Intent = intent(context, ACTION_APP_SHUTDOWN)
 
         fun isOngoingNotificationNoDismiss(context: Context): Boolean = FooNotification.isCallingAppNotificationNoDismiss(context, NOTIFICATION_ID)
 
@@ -66,13 +87,6 @@ class PipelineService : Service() {
 
         fun requestNotificationListenerUnbind(context: Context) {
             FooNotificationListener.requestNotificationListenerUnbind(context, NotificationsSource::class.java)
-        }
-
-        fun refreshNotification(context: Context) {
-            context.startService(
-                Intent(context, PipelineService::class.java)
-                    .setAction(ACTION_REFRESH_NOTIFICATION),
-            )
         }
     }
 
@@ -87,7 +101,26 @@ class PipelineService : Service() {
         FooLog.v(TAG, "+onCreate()")
         super.onCreate()
 
-        FooForegroundService.startForeground(this, NOTIFICATION_ID, buildOngoingNotification(), FOREGROUND_SERVICE_TYPE)
+        /**
+         * From [https://developer.android.com/about/versions/14/changes/fgs-types-required#include-fgs-type-runtime](https://developer.android.com/about/versions/14/changes/fgs-types-required#include-fgs-type-runtime):
+         * > **If the foreground service type is not specified in the call,
+         * > the type defaults to the values defined in the manifest.**
+         * > If you didn't specify the service type in the manifest, the system throws
+         * > [MissingForegroundServiceTypeException](https://developer.android.com/reference/android/app/MissingForegroundServiceTypeException).
+         *
+         * ie: [android.app.Service.startForeground]`(int id, Notification notification)` defaults `foregroundServiceType` to [ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST]
+         *
+         * NOTE: **Only do this if only one foreground service type is defined!**
+         *
+         * If the manifest defines multiple types then all requirements need to be met before
+         * `FOREGROUND_SERVICE_TYPE_MANIFEST` will succeed:
+         * > In cases where a foreground service is started with multiple types, then the
+         * > foreground service must adhere to the
+         * > [platform enforcement requirements](https://developer.android.com/guide/components/foreground-services#runtime-permissions)
+         * > of all types.
+         */
+        val foregroundServiceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST
+        startForeground(NOTIFICATION_ID, buildOngoingNotification(), foregroundServiceType)
 
         val hasNotificationListenerAccess = AppShutdownManager.onPipelineServiceStarted(this)
 
@@ -179,7 +212,7 @@ class PipelineService : Service() {
             ACTION_REFRESH_NOTIFICATION -> {
                 updateOngoingNotification()
             }
-            ACTION_QUIT -> {
+            ACTION_APP_SHUTDOWN -> {
                 AppShutdownManager.markQuitRequested(this)
                 stopSelf()
                 return START_NOT_STICKY
@@ -278,16 +311,16 @@ class PipelineService : Service() {
                 .addAction(R.drawable.ic_warning, getString(R.string.alfred_notification_action_persistent), pendingIntentPin)
         }
 
-        val pendingIntentQuit =
+        val pendingIntentAppShutdown =
             PendingIntent.getService(
                 this,
                 REQUEST_QUIT,
-                intentQuit(this),
+                intentAppShutdown(this),
                 PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         builder
             //.setContentText("...")
-            .addAction(0, getString(R.string.pipeline_notification_action_quit), pendingIntentQuit)
+            .addAction(0, getString(R.string.pipeline_notification_action_quit), pendingIntentAppShutdown)
 
         if (promptEnable) {
             val intentEnable = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)

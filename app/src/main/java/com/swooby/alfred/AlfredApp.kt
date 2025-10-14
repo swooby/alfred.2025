@@ -2,6 +2,7 @@ package com.swooby.alfred
 
 import android.app.Application
 import android.bluetooth.BluetoothManager
+import android.content.Intent
 import android.media.AudioManager
 import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.core.ingest.EventIngest
@@ -14,6 +15,8 @@ import com.swooby.alfred.core.rules.RulesEngineImpl
 import com.swooby.alfred.core.summary.SummaryGenerator
 import com.swooby.alfred.core.summary.TemplatedSummaryGenerator
 import com.swooby.alfred.data.AlfredDb
+import com.swooby.alfred.pipeline.HourlyDigestWorker
+import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.settings.SettingsRepository
 import com.swooby.alfred.sources.MediaSessionsSource
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +66,11 @@ class AlfredApp : Application() {
                 ioDispatcher = Dispatchers.IO,
             )
         FooLog.v(TAG, "-onCreate()")
+    }
+
+    fun onBootCompleted() {
+        PipelineService.start(this)
+        HourlyDigestWorker.schedule(this)
     }
 
     fun shutdown() {

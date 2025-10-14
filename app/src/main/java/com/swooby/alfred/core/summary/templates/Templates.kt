@@ -132,5 +132,5 @@ private fun String.ensureSentenceTerminator(): String {
     val trimmed = trimEnd()
     if (trimmed.isEmpty()) return this
     val lastChar = trimmed.last()
-    return if (lastChar == '.' || lastChar == '!' || lastChar == '?') trimmed else trimmed + "."
+    return if (lastChar == '.' || lastChar == '!' || lastChar == '?') trimmed else "$trimmed."
 }

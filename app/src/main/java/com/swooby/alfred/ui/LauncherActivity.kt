@@ -3,7 +3,6 @@ package com.swooby.alfred.ui
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.core.content.ContextCompat
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.sources.NotificationsSource
@@ -26,10 +25,7 @@ class LauncherActivity : ComponentActivity() {
 
         val nextIntent =
             if (hasEssentials) {
-                ContextCompat.startForegroundService(
-                    this,
-                    Intent(this, PipelineService::class.java),
-                )
+                PipelineService.start(this)
                 Intent(this, EventListActivity::class.java)
             } else {
                 Intent(this, PermissionsActivity::class.java)

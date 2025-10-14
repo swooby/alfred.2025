@@ -6,23 +6,25 @@ or possibly make this project eventually better than Alfred2017.
 
 ## TODO
 
+NOTE: Regularly consolidate with Keep notes.
+
 **NOT PRIORITIZED**
 1. Improve EventCard; simplify for non-Dev user
 1. Improve media playing logic to better announce song stop/start transitions.
-1. Add detailed logging of event parsing result
-   This might result in noticing that the parsing is not as thorough as in Alfred 2017
-1. Add exhaustive notification parsing information to EventCard 
+1. Add detailed logging of event parsing result.  
+   This might result in noticing that the parsing is not as thorough as in Alfred 2017.
+1. Add exhaustive notification parsing information to EventCard.
 1. When starting up:
     1. Say greeting
     1. Start hourly summary including read all current notifications
 1. Add user's name, gender, Alfred voice, pitch, formality, etc to Settings.
-1. Setting to announce time every whole, half, or quarter hour
+1. Setting to announce time every whole, half, or quarter hour.
 1. Special debug UI to control debug settings:
     1. Toggle VERBOSE_LOG_SPEECH
-    2. Toggle VERBOSE_LOG_UTTERANCE_IDS
-    3. Toggle VERBOSE_LOG_UTTERANCE_PROGRESS
-    4. Toggle VERBOSE_LOG_AUDIO_FOCUS
-    5. Toggle showing mUtteranceCallbacks contents (to help debug anything that may look like a "leak")
+    1. Toggle VERBOSE_LOG_UTTERANCE_IDS
+    1. Toggle VERBOSE_LOG_UTTERANCE_PROGRESS
+    1. Toggle VERBOSE_LOG_AUDIO_FOCUS
+    1. Toggle showing mUtteranceCallbacks contents (to help debug anything that may look like a "leak")
 1. Consider elevating the code to a first class Accessibility Service and so what possibilities that opens up.
 1. Understand how this app can launch to listen when app is in background, but Alfred.2017 can't
 1. Speak time durations/intervals in more human understandable expanded "1 hour, 27 minutes, 14 seconds"

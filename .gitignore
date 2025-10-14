@@ -1,10 +1,11 @@
 
-.DS_Store
 .gradle
 .idea
 .kotlin
 build
 app/build
 app/schemas
+scratch/
 
+.DS_Store
 local.properties

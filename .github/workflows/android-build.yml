@@ -45,14 +45,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          cache-read-only: github.ref != 'refs/heads/main'
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        # if non-main branch: not writing to Gradle cache.
+        # if main branch: writing to Gradle cache.
+        run: |
+          ./gradlew assembleDebug
 
       - name: Build release APK
         if: github.ref == 'refs/heads/main'
-        run: ./gradlew assembleRelease
+        # main branch, last build step: stop writing to Gradle cache.
+        run: |
+          echo "org.gradle.configuration-cache.read-only=true" >> gradle.properties
+          ./gradlew assembleRelease
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

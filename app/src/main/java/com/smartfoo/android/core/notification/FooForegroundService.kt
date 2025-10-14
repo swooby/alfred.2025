@@ -7,6 +7,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.ServiceCompat
 
+@Suppress("unused")
 class FooForegroundService {
     companion object {
         /**
@@ -76,8 +77,36 @@ class FooForegroundService {
         }
 
         /**
-         * https://developer.android.com/about/versions/14/changes/fgs-types-required#include-fgs-type-runtime
-         * "If the foreground service type is not specified in the call, the type defaults to the values defined in the manifest."
+         * From [https://developer.android.com/about/versions/14/changes/fgs-types-required#include-fgs-type-runtime](https://developer.android.com/about/versions/14/changes/fgs-types-required#include-fgs-type-runtime):
+         * > The best practice for applications starting foreground services is to use
+         * > [ServiceCompat.startForeground]`(...)` (available in androidx-core 1.12 and higher)]
+         * > where you pass in a **bitwise integer of foreground service types**.
+         * > You can choose to pass one or more type values.
+         *
+         * > Usually, you should declare only the types required for a particular use case.
+         * > This makes it easier to meet the
+         * > [system's expectations for each foreground service type](https://developer.android.com/guide/components/foreground-services#fgs-prerequisites).
+         *
+         * > `ServiceCompat.startForeground(0, notification, FOREGROUND_SERVICE_TYPE_LOCATION)`
+         *
+         * > **If the foreground service type is not specified in the call,
+         * > the type defaults to the values defined in the manifest.**
+         * > If you didn't specify the service type in the manifest, the system throws
+         * > [MissingForegroundServiceTypeException](https://developer.android.com/reference/android/app/MissingForegroundServiceTypeException).
+         *
+         * > In cases where a foreground service is started with multiple types, then the
+         * > foreground service must adhere to the
+         * > [platform enforcement requirements](https://developer.android.com/guide/components/foreground-services#runtime-permissions)
+         * > of all types.
+         *
+         * > If the foreground service needs new permissions after you launch it, you should call
+         * > `startForeground()` again and add the new service types.
+         * > For example, suppose a fitness app runs a running-tracker service that always needs
+         * > `location` information, but might or might not need `media` permissions. You would need
+         * > to declare both `location` and `mediaPlayback` in the manifest. If a user starts a run
+         * > and just wants their location tracked, your app should call `startForeground()` and
+         * > pass just the `location` service type. Then, if the user wants to start playing audio,
+         * > call `startForeground()` again and pass `location|mediaPlayback`.
          */
         fun startForeground(
             service: Service,

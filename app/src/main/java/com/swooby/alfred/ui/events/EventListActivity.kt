@@ -111,10 +111,7 @@ class EventListActivity : ComponentActivity() {
             )
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
 
-        ContextCompat.startForegroundService(
-            this,
-            Intent(this, PipelineService::class.java),
-        )
+        PipelineService.start(this)
 
         setContent {
             val themePreferences: ThemePreferences by app.settings.themePreferencesFlow

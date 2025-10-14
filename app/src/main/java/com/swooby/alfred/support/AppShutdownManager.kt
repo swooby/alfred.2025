@@ -2,7 +2,6 @@ package com.swooby.alfred.support
 
 import android.app.ActivityManager
 import android.content.Context
-import androidx.core.content.ContextCompat
 import com.smartfoo.android.core.logging.FooLog
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.pipeline.PipelineService
@@ -46,11 +45,7 @@ object AppShutdownManager {
             FooLog.i(TAG, "requestQuit: initiating app shutdown")
         }
         prepareForShutdown(context)
-        val appContext = context.applicationContext
-        ContextCompat.startForegroundService(
-            appContext,
-            PipelineService.intentQuit(appContext),
-        )
+        PipelineService.appShutdown(context)
     }
 
     fun markQuitRequested(context: Context) {

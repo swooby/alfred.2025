@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:tools="http://schemas.android.com/tools"
+        xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
         Android 11+ package visibility: allow resolving labels for launchers and headless media apps.
@@ -27,13 +28,20 @@
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Must match `com.swooby.alfred.pipeline.PipelineService.FOREGROUND_SERVICE_PERMISSION`-->
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"
+            tools:ignore="ForegroundServicesPolicy" />
+    <!--
+    https://developer.android.com/about/versions/14/changes/fgs-types-required
+    1. Chosen `FOREGROUND_SERVICE_*` permission must also be set in `.pipeline.PipelineService.FOREGROUND_SERVICE_PERMISSION`.
+    2. Also define in manifest service a compatible `android:foregroundServiceType`.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!--
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     -->
+
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
