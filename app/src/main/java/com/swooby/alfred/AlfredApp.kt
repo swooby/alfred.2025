@@ -5,8 +5,10 @@ import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.media.AudioManager
 import com.smartfoo.android.core.logging.FooLog
+import com.swooby.alfred.core.ingest.CoalesceHistoryStore
 import com.swooby.alfred.core.ingest.EventIngest
 import com.swooby.alfred.core.ingest.EventIngestImpl
+import com.swooby.alfred.core.ingest.SharedPreferencesCoalesceHistoryStore
 import com.swooby.alfred.core.profile.AndroidAudioProfilePermissionChecker
 import com.swooby.alfred.core.profile.AndroidAudioProfileStore
 import com.swooby.alfred.core.profile.AudioProfileController
@@ -45,7 +47,8 @@ class AlfredApp : Application() {
         super.onCreate()
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         db = AlfredDb.open(this)
-        ingest = EventIngestImpl(appScope)
+        val coalesceHistoryStore: CoalesceHistoryStore = SharedPreferencesCoalesceHistoryStore(this)
+        ingest = EventIngestImpl(appScope, coalesceHistoryStore = coalesceHistoryStore)
         rules = RulesEngineImpl()
         summarizer = TemplatedSummaryGenerator()
         settings = SettingsRepository(this)
