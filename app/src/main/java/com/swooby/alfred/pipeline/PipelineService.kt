@@ -192,7 +192,7 @@ class PipelineService : Service() {
                                 ?.activeDevices
                                 ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
                                 ?: "[]"
-                        FooLog.d(TAG, "#PIPELINE audio profile blocked speech; reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
+                        FooLog.i(TAG, "#PIPELINE audio profile blocked speech; reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
                         return@collect
                     }
                     app.summarizer.livePhrase(ev)?.let { utter -> tts.speak(utter.text) }

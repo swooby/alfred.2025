@@ -38,7 +38,7 @@ class HourlyDigestWorker(
                         ?: app.audioProfiles.uiState.value.selectedProfileId
                             ?.value
                         ?: "none"
-                FooLog.d(TAG, "#DIGEST audio profile blocked speech; reason=${gate.reason}; selected=$selectedId")
+                FooLog.i(TAG, "#DIGEST audio profile blocked speech; reason=${gate.reason}; selected=$selectedId")
                 return@withContext Result.success()
             }
             FooTextToSpeech.speak(app, text)
