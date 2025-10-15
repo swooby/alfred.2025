@@ -5,6 +5,7 @@ import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+@Suppress("FunctionName", "unused")
 object FooCrypto {
     /**
      * Needs to match https://docs.oracle.com/javase/6/docs/technotes/guides/security/StandardNames.html#KeyGenerator
@@ -16,11 +17,13 @@ object FooCrypto {
      */
     const val SHA256 = "SHA-256"
 
+    @JvmStatic
     fun HMACSHA256(
         key: ByteArray,
         buffer: ByteArray,
     ): ByteArray = HMACSHA256(key, buffer, 0, buffer.size)
 
+    @JvmStatic
     fun HMACSHA256(
         key: ByteArray,
         buffer: ByteArray,
@@ -34,6 +37,7 @@ object FooCrypto {
         return mac.doFinal()
     }
 
+    @JvmStatic
     fun SHA256(buffer: ByteArray): ByteArray {
         if (buffer.isEmpty()) return byteArrayOf()
         return MessageDigest.getInstance(SHA256).digest(buffer)
@@ -41,6 +45,7 @@ object FooCrypto {
 
     private val HEX_DIGITS = "0123456789abcdef".toCharArray()
 
+    @JvmStatic
     fun SHA256(input: String): String {
         if (input.isEmpty()) return ""
         val bytes = SHA256(input.toByteArray(Charsets.UTF_8))
@@ -54,18 +59,21 @@ object FooCrypto {
         return chars.concatToString()
     }
 
+    @JvmStatic
     val randomInt32: Int
         get() {
             val random = SecureRandom()
             return random.nextInt()
         }
 
+    @JvmStatic
     val randomInt64: Long
         get() {
             val random = SecureRandom()
             return random.nextLong()
         }
 
+    @JvmStatic
     fun getRandomBytes(count: Int): ByteArray {
         val bytes = ByteArray(count)
         val random = SecureRandom()

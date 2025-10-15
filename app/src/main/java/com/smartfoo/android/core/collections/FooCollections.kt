@@ -3,6 +3,7 @@ package com.smartfoo.android.core.collections
 import com.smartfoo.android.core.FooObjects
 
 object FooCollections {
+    @JvmStatic
     fun <T> hashCode(items: Collection<T>): Int {
         var hashCode = 0
         for (item in items) {
@@ -11,6 +12,7 @@ object FooCollections {
         return hashCode
     }
 
+    @JvmStatic
     fun <T> identical(
         a: Collection<T>?,
         b: Collection<T>?,
@@ -47,6 +49,7 @@ object FooCollections {
      * @param <T>
      * @return
      </T> */
+    @JvmStatic
     fun <T> equivalent(
         a: Collection<T>,
         b: Collection<T>,
