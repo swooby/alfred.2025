@@ -1,20 +1,20 @@
 package com.swooby.alfred.core.ingest
 
-import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.core.ingest.CoalesceHistoryStore
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import com.swooby.alfred.data.EventEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.flow.take
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -40,58 +40,59 @@ class EventIngestImplTest {
     }
 
     @Test
-    fun coalesceSkipsRepeatUntilFingerprintChanges() = runBlocking {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        try {
-            val ingest =
-                EventIngestImpl(
-                    scope = scope,
-                    debounceWindow = 10.milliseconds,
-                    dedupeWindow = 20.milliseconds,
+    fun coalesceSkipsRepeatUntilFingerprintChanges() =
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val ingest =
+                    EventIngestImpl(
+                        scope = scope,
+                        debounceWindow = 10.milliseconds,
+                        dedupeWindow = 20.milliseconds,
+                    )
+                val collected = mutableListOf<EventEntity>()
+                val collector =
+                    scope.launch {
+                        ingest.out
+                            .take(2)
+                            .collect { collected += it }
+                    }
+
+                ingest.submit(
+                    RawEvent(
+                        event = event("first", 0.milliseconds),
+                        fingerprint = "fp",
+                        coalesceKey = "key",
+                    ),
                 )
-            val collected = mutableListOf<EventEntity>()
-            val collector =
-                scope.launch {
-                    ingest.out
-                        .take(2)
-                        .collect { collected += it }
+                delay(50)
+
+                ingest.submit(
+                    RawEvent(
+                        event = event("second", 50.milliseconds),
+                        fingerprint = "fp",
+                        coalesceKey = "key",
+                    ),
+                )
+                delay(100)
+
+                ingest.submit(
+                    RawEvent(
+                        event = event("third", 100.milliseconds),
+                        fingerprint = "fp-new",
+                        coalesceKey = "key",
+                    ),
+                )
+                withTimeout(500) {
+                    collector.join()
                 }
 
-            ingest.submit(
-                RawEvent(
-                    event = event("first", 0.milliseconds),
-                    fingerprint = "fp",
-                    coalesceKey = "key",
-                ),
-            )
-            delay(50)
-
-            ingest.submit(
-                RawEvent(
-                    event = event("second", 50.milliseconds),
-                    fingerprint = "fp",
-                    coalesceKey = "key",
-                ),
-            )
-            delay(100)
-
-            ingest.submit(
-                RawEvent(
-                    event = event("third", 100.milliseconds),
-                    fingerprint = "fp-new",
-                    coalesceKey = "key",
-                ),
-            )
-            withTimeout(500) {
-                collector.join()
+                assertEquals(2, collected.size)
+                assertEquals(listOf("first", "third"), collected.map { it.eventId })
+            } finally {
+                scope.cancel()
             }
-
-            assertEquals(2, collected.size)
-            assertEquals(listOf("first", "third"), collected.map { it.eventId })
-        } finally {
-            scope.cancel()
         }
-    }
 
     private fun event(
         id: String,
@@ -108,61 +109,63 @@ class EventIngestImplTest {
     )
 
     @Test
-    fun persistedHistorySuppressesImmediately() = runBlocking {
-        val store = RecordingHistoryStore(initialEntries = listOf("key" to "fp"))
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        try {
-            val ingest =
-                EventIngestImpl(
-                    scope = scope,
-                    debounceWindow = 10.milliseconds,
-                    dedupeWindow = 20.milliseconds,
-                    coalesceHistoryStore = store,
+    fun persistedHistorySuppressesImmediately() =
+        runBlocking {
+            val store = RecordingHistoryStore(initialEntries = listOf("key" to "fp"))
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val ingest =
+                    EventIngestImpl(
+                        scope = scope,
+                        debounceWindow = 10.milliseconds,
+                        dedupeWindow = 20.milliseconds,
+                        coalesceHistoryStore = store,
+                    )
+                val collected = mutableListOf<EventEntity>()
+                val collector =
+                    scope.launch {
+                        ingest.out.collect { collected += it }
+                    }
+
+                // Should be suppressed because the fingerprint was persisted.
+                ingest.submit(
+                    RawEvent(
+                        event = event("first", 0.milliseconds),
+                        fingerprint = "fp",
+                        coalesceKey = "key",
+                    ),
                 )
-            val collected = mutableListOf<EventEntity>()
-            val collector = scope.launch {
-                ingest.out.collect { collected += it }
-            }
+                delay(100)
+                assertEquals(0, collected.size)
 
-            // Should be suppressed because the fingerprint was persisted.
-            ingest.submit(
-                RawEvent(
-                    event = event("first", 0.milliseconds),
-                    fingerprint = "fp",
-                    coalesceKey = "key",
-                ),
-            )
-            delay(100)
-            assertEquals(0, collected.size)
-
-            // New fingerprint should emit and persist.
-            ingest.submit(
-                RawEvent(
-                    event = event("second", 50.milliseconds),
-                    fingerprint = "fp-new",
-                    coalesceKey = "key",
-                ),
-            )
-            withTimeout(500) {
-                while (collected.size < 1) {
-                    delay(10)
+                // New fingerprint should emit and persist.
+                ingest.submit(
+                    RawEvent(
+                        event = event("second", 50.milliseconds),
+                        fingerprint = "fp-new",
+                        coalesceKey = "key",
+                    ),
+                )
+                withTimeout(500) {
+                    while (collected.size < 1) {
+                        delay(10)
+                    }
                 }
-            }
 
-            assertEquals(listOf("second"), collected.map { it.eventId })
-            withTimeout(500) {
-                while (store.savedSnapshots.isEmpty()) {
-                    delay(10)
+                assertEquals(listOf("second"), collected.map { it.eventId })
+                withTimeout(500) {
+                    while (store.savedSnapshots.isEmpty()) {
+                        delay(10)
+                    }
                 }
-            }
-            assertEquals(listOf(listOf("key" to "fp-new")), store.savedSnapshots)
+                assertEquals(listOf(listOf("key" to "fp-new")), store.savedSnapshots)
 
-            collector.cancel()
-            collector.join()
-        } finally {
-            scope.cancel()
+                collector.cancel()
+                collector.join()
+            } finally {
+                scope.cancel()
+            }
         }
-    }
 
     private class RecordingHistoryStore(
         private val initialEntries: List<Pair<String, String>> = emptyList(),

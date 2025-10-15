@@ -291,10 +291,11 @@ object FooPlatformUtils {
     @JvmStatic
     fun toString(intent: Intent?): String {
         if (intent == null) return "null"
-        val sb = StringBuilder()
-        sb.append(intent) // only prints "(has extras)" for extras
-        sb.append(", extras=").append(toString(intent.extras)) // show extras
-        return sb.toString()
+        return StringBuilder()
+            .append(intent)
+            .append(", extras=")
+            .append(toString(intent.extras))
+            .toString()
     }
 
     /**

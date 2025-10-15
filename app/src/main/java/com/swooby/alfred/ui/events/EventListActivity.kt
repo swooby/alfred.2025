@@ -10,7 +10,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -52,10 +51,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.app.NotificationCompat
 import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.notification.FooNotificationListener
@@ -74,14 +73,14 @@ import com.swooby.alfred.support.AppShutdownManager
 import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import com.swooby.alfred.ui.theme.ThemeSeedGenerator
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 class EventListActivity : ComponentActivity() {
     companion object {
@@ -513,41 +512,46 @@ private class DebugNotificationController(
     private var noisyJob: Job? = null
     private var progressJob: Job? = null
 
-    fun isNoisyActive(): Boolean = noisyJob?.isActive == true
+    fun isNoisyActive(): Boolean =
+        (
+            @Suppress("MemberExtensionConflict")
+            noisyJob?.isActive
+                == true
+        )
 
-    fun isProgressActive(): Boolean = progressJob?.isActive == true
+    fun isProgressActive(): Boolean =
+        (
+            @Suppress("MemberExtensionConflict")
+            progressJob?.isActive
+                == true
+        )
 
-    fun toggleNoisyNotification(): Boolean {
-        return if (isNoisyActive()) {
-            stopNoisyNotification(cancelNotification = true)
+    fun toggleNoisyNotification(): Boolean =
+        if (isNoisyActive()) {
+            stopNoisyNotification()
             false
         } else {
             startNoisyNotification()
             isNoisyActive()
         }
-    }
 
-    fun toggleProgressNotification(): Boolean {
-        return if (isProgressActive()) {
-            stopProgressNotification(cancelNotification = true)
+    fun toggleProgressNotification(): Boolean =
+        if (isProgressActive()) {
+            stopProgressNotification()
             false
         } else {
             startProgressNotification()
             isProgressActive()
         }
-    }
 
     fun shutdown() {
-        stopNoisyNotification(cancelNotification = true)
-        stopProgressNotification(cancelNotification = true)
+        stopNoisyNotification()
+        stopProgressNotification()
     }
 
     private fun startNoisyNotification() {
         if (isNoisyActive()) return
-        if (!ensureChannel()) {
-            FooLog.w(TAG, "#DEBUG_NOTIFS noisy: channel unavailable")
-            return
-        }
+        ensureChannel()
         if (!canPostNotifications()) {
             FooLog.w(TAG, "#DEBUG_NOTIFS noisy: POST_NOTIFICATIONS not granted")
             return
@@ -576,20 +580,15 @@ private class DebugNotificationController(
         noisyJob = job
     }
 
-    private fun stopNoisyNotification(cancelNotification: Boolean) {
+    private fun stopNoisyNotification() {
         noisyJob?.cancel()
         noisyJob = null
-        if (cancelNotification) {
-            notificationManager.cancel(NOISY_NOTIFICATION_ID)
-        }
+        notificationManager.cancel(NOISY_NOTIFICATION_ID)
     }
 
     private fun startProgressNotification() {
         if (isProgressActive()) return
-        if (!ensureChannel()) {
-            FooLog.w(TAG, "#DEBUG_NOTIFS progress: channel unavailable")
-            return
-        }
+        ensureChannel()
         if (!canPostNotifications()) {
             FooLog.w(TAG, "#DEBUG_NOTIFS progress: POST_NOTIFICATIONS not granted")
             return
@@ -637,12 +636,10 @@ private class DebugNotificationController(
         progressJob = job
     }
 
-    private fun stopProgressNotification(cancelNotification: Boolean) {
+    private fun stopProgressNotification() {
         progressJob?.cancel()
         progressJob = null
-        if (cancelNotification) {
-            notificationManager.cancel(PROGRESS_NOTIFICATION_ID)
-        }
+        notificationManager.cancel(PROGRESS_NOTIFICATION_ID)
     }
 
     private fun notifySafely(
@@ -656,12 +653,9 @@ private class DebugNotificationController(
         }
     }
 
-    private fun ensureChannel(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val existing = notificationManager.getNotificationChannel(CHANNEL_ID)
-            if (existing != null) {
-                return true
-            }
+    private fun ensureChannel() {
+        val existing = notificationManager.getNotificationChannel(CHANNEL_ID)
+        if (existing == null) {
             val channel =
                 NotificationChannel(
                     CHANNEL_ID,
@@ -672,22 +666,16 @@ private class DebugNotificationController(
                 }
             notificationManager.createNotificationChannel(channel)
         }
-        return true
     }
 
     private fun builder(): NotificationCompat.Builder =
-        NotificationCompat.Builder(context, CHANNEL_ID)
+        NotificationCompat
+            .Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_warning)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(false)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
 
-    private fun canPostNotifications(): Boolean {
-        return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            true
-        } else {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        }
-    }
+    private fun canPostNotifications(): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }
