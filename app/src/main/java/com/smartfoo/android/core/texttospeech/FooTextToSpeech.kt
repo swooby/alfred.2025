@@ -51,7 +51,8 @@ class FooTextToSpeech private constructor() {
         /**
          * Main thing to debug
          */
-        var VERBOSE_LOG_UTTERANCE = false
+        var VERBOSE_LOG_UTTERANCE = true
+
         var VERBOSE_LOG_UTTERANCE_PROGRESS = false
         var VERBOSE_LOG_AUDIO_FOCUS = false
 

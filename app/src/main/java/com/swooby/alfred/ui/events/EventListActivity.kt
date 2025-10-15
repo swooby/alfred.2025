@@ -2,12 +2,15 @@ package com.swooby.alfred.ui.events
 
 import android.Manifest
 import android.app.ComponentCaller
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.bluetooth.BluetoothManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -35,7 +38,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -49,6 +55,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.app.NotificationCompat
 import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.notification.FooNotificationListener
@@ -68,9 +75,13 @@ import com.swooby.alfred.ui.MainActivity
 import com.swooby.alfred.ui.theme.AlfredTheme
 import com.swooby.alfred.ui.theme.ThemeSeedGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 class EventListActivity : ComponentActivity() {
     companion object {
@@ -93,6 +104,7 @@ class EventListActivity : ComponentActivity() {
     }
 
     private val persistentNotificationDialogVisible = MutableStateFlow(false)
+    private lateinit var debugNotificationController: DebugNotificationController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -112,6 +124,7 @@ class EventListActivity : ComponentActivity() {
         val initials = userId.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
 
         PipelineService.start(this)
+        debugNotificationController = DebugNotificationController(this, lifecycleScope)
 
         setContent {
             val themePreferences: ThemePreferences by app.settings.themePreferencesFlow
@@ -193,6 +206,8 @@ class EventListActivity : ComponentActivity() {
                 }
                 val uiState by viewModel.state.collectAsState()
                 val settingsScope = rememberCoroutineScope()
+                var noisyDebugActive by remember { mutableStateOf(debugNotificationController.isNoisyActive()) }
+                var progressDebugActive by remember { mutableStateOf(debugNotificationController.isProgressActive()) }
 
                 EventListScreen(
                     state = uiState,
@@ -219,6 +234,14 @@ class EventListActivity : ComponentActivity() {
                     },
                     onTextToSpeechTestRequested = {
                         speakTextToSpeechTest()
+                    },
+                    debugNoisyNotificationActive = noisyDebugActive,
+                    onToggleDebugNoisyNotification = {
+                        noisyDebugActive = debugNotificationController.toggleNoisyNotification()
+                    },
+                    debugProgressNotificationActive = progressDebugActive,
+                    onToggleDebugProgressNotification = {
+                        progressDebugActive = debugNotificationController.toggleProgressNotification()
                     },
                     onPersistentNotification = {
                         showPersistentNotificationDialog()
@@ -287,6 +310,9 @@ class EventListActivity : ComponentActivity() {
     override fun onDestroy() {
         FooLog.v(TAG, "+onDestroy()")
         hidePersistentNotificationDialog()
+        if (::debugNotificationController.isInitialized) {
+            debugNotificationController.shutdown()
+        }
         super.onDestroy()
         FooLog.v(TAG, "-onDestroy()")
     }
@@ -310,7 +336,7 @@ class EventListActivity : ComponentActivity() {
                     else -> R.string.event_list_tts_test_blocked_generic
                 }
             Toast.makeText(this, getString(messageId), Toast.LENGTH_LONG).show()
-            FooLog.d(TAG, "speakTextToSpeechTest: blocked reason=${gate.reason}")
+            FooLog.i(TAG, "speakTextToSpeechTest: blocked reason=${gate.reason}")
             return
         }
         val phrase = getString(R.string.event_list_tts_test_phrase)
@@ -460,5 +486,208 @@ private fun PersistentNotificationDialogPinnedPreview() {
             onCopyCommand = {},
             onDismiss = {},
         )
+    }
+}
+
+private class DebugNotificationController(
+    private val context: Context,
+    private val scope: CoroutineScope,
+) {
+    companion object {
+        private val TAG = FooLog.TAG(DebugNotificationController::class.java)
+
+        private const val CHANNEL_ID = "alfred.debug.notifications"
+        private const val NOISY_NOTIFICATION_ID = 0xD09
+        private const val PROGRESS_NOTIFICATION_ID = 0xD0A
+        private const val NOISY_PERIOD_MS = 10_000L
+        private const val PROGRESS_RESET_DELAY_MS = 5_000L
+        private const val PROGRESS_STEPS = 100
+        private const val PROGRESS_TOTAL_MS = 60_000L
+        private const val PROGRESS_STEP_DELAY_MS = PROGRESS_TOTAL_MS / PROGRESS_STEPS
+    }
+
+    private val notificationManager: NotificationManager =
+        ContextCompat.getSystemService(context, NotificationManager::class.java)
+            ?: context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private var noisyJob: Job? = null
+    private var progressJob: Job? = null
+
+    fun isNoisyActive(): Boolean = noisyJob?.isActive == true
+
+    fun isProgressActive(): Boolean = progressJob?.isActive == true
+
+    fun toggleNoisyNotification(): Boolean {
+        return if (isNoisyActive()) {
+            stopNoisyNotification(cancelNotification = true)
+            false
+        } else {
+            startNoisyNotification()
+            isNoisyActive()
+        }
+    }
+
+    fun toggleProgressNotification(): Boolean {
+        return if (isProgressActive()) {
+            stopProgressNotification(cancelNotification = true)
+            false
+        } else {
+            startProgressNotification()
+            isProgressActive()
+        }
+    }
+
+    fun shutdown() {
+        stopNoisyNotification(cancelNotification = true)
+        stopProgressNotification(cancelNotification = true)
+    }
+
+    private fun startNoisyNotification() {
+        if (isNoisyActive()) return
+        if (!ensureChannel()) {
+            FooLog.w(TAG, "#DEBUG_NOTIFS noisy: channel unavailable")
+            return
+        }
+        if (!canPostNotifications()) {
+            FooLog.w(TAG, "#DEBUG_NOTIFS noisy: POST_NOTIFICATIONS not granted")
+            return
+        }
+        val title = context.getString(R.string.debug_notification_noisy_title)
+        val text = context.getString(R.string.debug_notification_noisy_text)
+        val job =
+            scope.launch(Dispatchers.Default) {
+                while (isActive) {
+                    val notification =
+                        builder()
+                            .setContentTitle(title)
+                            .setContentText(text)
+                            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                            .setWhen(System.currentTimeMillis())
+                            .build()
+                    notifySafely(NOISY_NOTIFICATION_ID, notification)
+                    delay(NOISY_PERIOD_MS)
+                }
+            }
+        job.invokeOnCompletion {
+            if (noisyJob == job) {
+                noisyJob = null
+            }
+        }
+        noisyJob = job
+    }
+
+    private fun stopNoisyNotification(cancelNotification: Boolean) {
+        noisyJob?.cancel()
+        noisyJob = null
+        if (cancelNotification) {
+            notificationManager.cancel(NOISY_NOTIFICATION_ID)
+        }
+    }
+
+    private fun startProgressNotification() {
+        if (isProgressActive()) return
+        if (!ensureChannel()) {
+            FooLog.w(TAG, "#DEBUG_NOTIFS progress: channel unavailable")
+            return
+        }
+        if (!canPostNotifications()) {
+            FooLog.w(TAG, "#DEBUG_NOTIFS progress: POST_NOTIFICATIONS not granted")
+            return
+        }
+        val title = context.getString(R.string.debug_notification_progress_title)
+        val job =
+            scope.launch(Dispatchers.Default) {
+                while (isActive) {
+                    for (progress in 0..PROGRESS_STEPS) {
+                        if (!isActive) break
+                        val text =
+                            context.getString(
+                                R.string.debug_notification_progress_text,
+                                progress,
+                            )
+                        val notification =
+                            builder()
+                                .setContentTitle(title)
+                                .setContentText(text)
+                                .setOnlyAlertOnce(true)
+                                .setOngoing(true)
+                                .setProgress(PROGRESS_STEPS, progress, false)
+                                .build()
+                        notifySafely(PROGRESS_NOTIFICATION_ID, notification)
+                        delay(PROGRESS_STEP_DELAY_MS)
+                    }
+                    if (!isActive) break
+                    val completionNotification =
+                        builder()
+                            .setContentTitle(title)
+                            .setContentText(context.getString(R.string.debug_notification_progress_complete))
+                            .setOnlyAlertOnce(true)
+                            .setOngoing(false)
+                            .setProgress(0, 0, false)
+                            .build()
+                    notifySafely(PROGRESS_NOTIFICATION_ID, completionNotification)
+                    delay(PROGRESS_RESET_DELAY_MS)
+                }
+            }
+        job.invokeOnCompletion {
+            if (progressJob == job) {
+                progressJob = null
+            }
+        }
+        progressJob = job
+    }
+
+    private fun stopProgressNotification(cancelNotification: Boolean) {
+        progressJob?.cancel()
+        progressJob = null
+        if (cancelNotification) {
+            notificationManager.cancel(PROGRESS_NOTIFICATION_ID)
+        }
+    }
+
+    private fun notifySafely(
+        id: Int,
+        notification: android.app.Notification,
+    ) {
+        if (canPostNotifications()) {
+            notificationManager.notify(id, notification)
+        } else {
+            FooLog.w(TAG, "#DEBUG_NOTIFS notifySafely: POST_NOTIFICATIONS missing; skipping id=$id")
+        }
+    }
+
+    private fun ensureChannel(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val existing = notificationManager.getNotificationChannel(CHANNEL_ID)
+            if (existing != null) {
+                return true
+            }
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    context.getString(R.string.debug_notification_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.debug_notification_channel_description)
+                }
+            notificationManager.createNotificationChannel(channel)
+        }
+        return true
+    }
+
+    private fun builder(): NotificationCompat.Builder =
+        NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_warning)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+
+    private fun canPostNotifications(): Boolean {
+        return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            true
+        } else {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        }
     }
 }

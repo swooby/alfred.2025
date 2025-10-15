@@ -33,10 +33,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Headset
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Menu
@@ -56,6 +60,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -139,6 +144,10 @@ fun EventListScreen(
     onAdbWirelessRequested: () -> Unit,
     onTextToSpeechSettingsRequested: () -> Unit,
     onTextToSpeechTestRequested: () -> Unit,
+    debugNoisyNotificationActive: Boolean,
+    onToggleDebugNoisyNotification: () -> Unit,
+    debugProgressNotificationActive: Boolean,
+    onToggleDebugProgressNotification: () -> Unit,
     onPersistentNotification: () -> Unit,
     onQuitRequested: () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
@@ -181,6 +190,7 @@ fun EventListScreen(
                         Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
+                            .verticalScroll(rememberScrollState())
                             .padding(vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -195,84 +205,12 @@ fun EventListScreen(
                         onShuffleThemeRequest = onShuffleThemeRequest,
                     )
                     NavigationDrawerItem(
-                        label = { Text(text = LocalizedStrings.drawerSettings) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch {
-                                drawerState.close()
-                                onNavigateToSettings()
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                    )
-                    NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerNotificationAccess) },
                         selected = false,
                         onClick = {
                             coroutineScope.launch {
                                 drawerState.close()
                                 onNotificationAccessRequested()
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(text = LocalizedStrings.drawerApplicationInfo) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch {
-                                drawerState.close()
-                                onApplicationInfoRequested()
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(text = LocalizedStrings.drawerDeveloperOptions) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch {
-                                drawerState.close()
-                                onDeveloperOptionsRequested()
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(text = LocalizedStrings.drawerAdbWireless) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch {
-                                drawerState.close()
-                                onAdbWirelessRequested()
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                    )
-                    if (BuildConfig.DEBUG) {
-                        //
-                        // Hide when non-DEBUG:
-                        // This launches to Global TTS settings, which does not help this app's defined TTS settings.
-                        //
-                        NavigationDrawerItem(
-                            label = { Text(text = LocalizedStrings.drawerTextToSpeech) },
-                            selected = false,
-                            onClick = {
-                                coroutineScope.launch {
-                                    drawerState.close()
-                                    onTextToSpeechSettingsRequested()
-                                }
-                            },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
-                        )
-                    }
-                    NavigationDrawerItem(
-                        label = { Text(text = LocalizedStrings.drawerTextToSpeechTest) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch {
-                                drawerState.close()
-                                onTextToSpeechTestRequested()
                             }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
@@ -287,6 +225,129 @@ fun EventListScreen(
                             }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    )
+                    var debugExpanded by rememberSaveable { mutableStateOf(false) }
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerDebugHeader) },
+                        selected = debugExpanded,
+                        onClick = { debugExpanded = !debugExpanded },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                        badge = {
+                            Icon(
+                                imageVector = if (debugExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                    if (debugExpanded) {
+                        val nestedPadding =
+                            Modifier
+                                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                                .padding(start = 16.dp)
+                        NavigationDrawerItem(
+                            label = { Text(text = LocalizedStrings.drawerApplicationInfo) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onApplicationInfoRequested()
+                                }
+                            },
+                            modifier = nestedPadding,
+                        )
+                        NavigationDrawerItem(
+                            label = { Text(text = LocalizedStrings.drawerDeveloperOptions) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onDeveloperOptionsRequested()
+                                }
+                            },
+                            modifier = nestedPadding,
+                        )
+                        NavigationDrawerItem(
+                            label = { Text(text = LocalizedStrings.drawerAdbWireless) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onAdbWirelessRequested()
+                                }
+                            },
+                            modifier = nestedPadding,
+                        )
+                        if (BuildConfig.DEBUG) {
+                            NavigationDrawerItem(
+                                label = { Text(text = LocalizedStrings.drawerTextToSpeech) },
+                                selected = false,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        drawerState.close()
+                                        onTextToSpeechSettingsRequested()
+                                    }
+                                },
+                                modifier = nestedPadding,
+                            )
+                        }
+                        NavigationDrawerItem(
+                            label = { Text(text = LocalizedStrings.drawerTextToSpeechTest) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    drawerState.close()
+                                    onTextToSpeechTestRequested()
+                                }
+                            },
+                            modifier = nestedPadding,
+                        )
+                        if (BuildConfig.DEBUG) {
+                            NavigationDrawerItem(
+                                label = { Text(text = LocalizedStrings.drawerNoisyNotificationLabel(debugNoisyNotificationActive)) },
+                                selected = debugNoisyNotificationActive,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        drawerState.close()
+                                        onToggleDebugNoisyNotification()
+                                    }
+                                },
+                                modifier = nestedPadding,
+                            )
+                            NavigationDrawerItem(
+                                label = { Text(text = LocalizedStrings.drawerProgressNotificationLabel(debugProgressNotificationActive)) },
+                                selected = debugProgressNotificationActive,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        drawerState.close()
+                                        onToggleDebugProgressNotification()
+                                    }
+                                },
+                                modifier = nestedPadding,
+                            )
+                        }
+                    }
+                    HorizontalDivider(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = LocalizedStrings.drawerSettings) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch {
+                                drawerState.close()
+                                onNavigateToSettings()
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    )
+                    HorizontalDivider(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
                         label = { Text(text = LocalizedStrings.drawerQuit) },
@@ -1412,6 +1473,29 @@ internal object LocalizedStrings {
     val drawerTextToSpeechTest: String
         @Composable get() = stringResource(R.string.event_list_drawer_text_to_speech_test)
 
+    val drawerDebugHeader: String
+        @Composable get() = stringResource(R.string.event_list_drawer_debug_header)
+
+    @Composable
+    fun drawerNoisyNotificationLabel(isActive: Boolean): String =
+        stringResource(
+            if (isActive) {
+                R.string.event_list_drawer_noisy_notification_stop
+            } else {
+                R.string.event_list_drawer_noisy_notification_start
+            },
+        )
+
+    @Composable
+    fun drawerProgressNotificationLabel(isActive: Boolean): String =
+        stringResource(
+            if (isActive) {
+                R.string.event_list_drawer_progress_notification_stop
+            } else {
+                R.string.event_list_drawer_progress_notification_start
+            },
+        )
+
     val drawerPersistentNotification: String
         @Composable get() = stringResource(R.string.action_show_persistent_notification_help)
 
@@ -1838,6 +1922,10 @@ private fun EventListPreview() {
             onAdbWirelessRequested = {},
             onTextToSpeechSettingsRequested = {},
             onTextToSpeechTestRequested = {},
+            debugNoisyNotificationActive = false,
+            onToggleDebugNoisyNotification = {},
+            debugProgressNotificationActive = false,
+            onToggleDebugProgressNotification = {},
             onPersistentNotification = {},
             onQuitRequested = {},
             onSelectionModeChange = {},

@@ -59,6 +59,11 @@
     <string name="event_list_drawer_adb_wireless">ADB Wireless Settings</string>
     <string name="event_list_drawer_text_to_speech" tools:ignore="DuplicateStrings">Text-To-Speech</string>
     <string name="event_list_drawer_text_to_speech_test">Text-To-Speech: Test</string>
+    <string name="event_list_drawer_debug_header">Debug</string>
+    <string name="event_list_drawer_noisy_notification_start">Noisy Notification: Start</string>
+    <string name="event_list_drawer_noisy_notification_stop">Noisy Notification: Stop</string>
+    <string name="event_list_drawer_progress_notification_start">Progress Notification: Start</string>
+    <string name="event_list_drawer_progress_notification_stop">Progress Notification: Stop</string>
     <string name="event_list_drawer_quit" tools:ignore="DuplicateStrings">Quit</string>
     <string name="event_list_drawer_theme_mode_title">Theme</string>
     <string name="event_list_theme_mode_dark">Dark</string>
@@ -101,6 +106,13 @@
     <string name="event_list_audio_profiles_permission_body">Grant the Bluetooth connect permission so Alfred can detect Bluetooth headsets.</string>
     <string name="event_list_audio_profiles_permission_action">Check permission</string>
     <string name="event_list_audio_profiles_permission_denied">Permission still missing. Enable Bluetooth Connect for Alfred in system settings.</string>
+    <string name="debug_notification_channel_name">Debug notifications</string>
+    <string name="debug_notification_channel_description">Helpers for testing event coalescing and progress updates.</string>
+    <string name="debug_notification_noisy_title">Debug noisy notification</string>
+    <string name="debug_notification_noisy_text">This notification intentionally repeats every 10 seconds.</string>
+    <string name="debug_notification_progress_title">Debug progress notification</string>
+    <string name="debug_notification_progress_text">Progress: %1$d%% complete</string>
+    <string name="debug_notification_progress_complete">Progress completed</string>
     <string name="audio_profile_disabled_name">Always off</string>
     <string name="audio_profile_disabled_description">Never output audio.</string>
     <string name="audio_profile_always_on_name">Always on</string>
