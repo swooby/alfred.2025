@@ -13,12 +13,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.LinkedHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.runBlocking
 
 class RawEvent(
     val event: EventEntity,
@@ -228,8 +228,7 @@ internal class FilterStats {
         fingerprintDropCount.incrementAndGet()
     }
 
-    fun snapshot(): String =
-        "emit=$emitted coalesceDrops=$coalesceDrops fingerprintDrops=$fingerprintDrops"
+    fun snapshot(): String = "emit=$emitted coalesceDrops=$coalesceDrops fingerprintDrops=$fingerprintDrops"
 
     fun reset() {
         emittedCount.set(0)

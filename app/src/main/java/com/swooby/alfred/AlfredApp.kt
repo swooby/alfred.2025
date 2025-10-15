@@ -21,6 +21,8 @@ import com.swooby.alfred.pipeline.HourlyDigestWorker
 import com.swooby.alfred.pipeline.PipelineService
 import com.swooby.alfred.settings.SettingsRepository
 import com.swooby.alfred.sources.MediaSessionsSource
+import com.swooby.alfred.sources.system.SystemEventIngestion
+import com.swooby.alfred.sources.system.SystemEventMapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +42,8 @@ class AlfredApp : Application() {
     lateinit var settings: SettingsRepository
     lateinit var mediaSource: MediaSessionsSource
     lateinit var audioProfiles: AudioProfileController
+    lateinit var systemEvents: SystemEventIngestion
+    lateinit var systemEventMapper: SystemEventMapper
     private val isShutdown = AtomicBoolean(false)
 
     override fun onCreate() {
@@ -50,9 +54,11 @@ class AlfredApp : Application() {
         val coalesceHistoryStore: CoalesceHistoryStore = SharedPreferencesCoalesceHistoryStore(this)
         ingest = EventIngestImpl(appScope, coalesceHistoryStore = coalesceHistoryStore)
         rules = RulesEngineImpl()
-        summarizer = TemplatedSummaryGenerator()
+        summarizer = TemplatedSummaryGenerator(this)
         settings = SettingsRepository(this)
         mediaSource = MediaSessionsSource(this, this)
+        systemEvents = SystemEventIngestion(this, appScope)
+        systemEventMapper = SystemEventMapper()
         val audioManager =
             getSystemService(AudioManager::class.java)
                 ?: throw IllegalStateException("AudioManager service unavailable")
@@ -72,6 +78,7 @@ class AlfredApp : Application() {
     }
 
     fun onBootCompleted() {
+        systemEvents.onBootCompleted(Intent.ACTION_BOOT_COMPLETED)
         PipelineService.start(this)
         HourlyDigestWorker.schedule(this)
     }

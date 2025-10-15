@@ -1,5 +1,7 @@
 package com.swooby.alfred.core.summary.templates
 
+import android.content.Context
+import com.smartfoo.android.core.FooString
 import com.swooby.alfred.core.summary.PhraseTemplate
 import com.swooby.alfred.core.summary.Utterance
 import com.swooby.alfred.data.EventEntity
@@ -10,6 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 class GenericMediaTemplate : PhraseTemplate {
     override val priority = 10
@@ -101,17 +104,104 @@ class NotificationTemplate : PhraseTemplate {
     }
 }
 
-class ScreenTemplate : PhraseTemplate {
+class DeviceStateTemplate(
+    private val context: Context,
+) : PhraseTemplate {
     override val priority = 5
 
     override fun livePhraseOrNull(e: EventEntity): Utterance.Live? =
         when (e.eventType) {
-            SourceEventTypes.DISPLAY_ON -> Utterance.Live(5, "Screen on.")
-            SourceEventTypes.DISPLAY_OFF -> Utterance.Live(5, "Screen off.")
+            SourceEventTypes.DISPLAY_ON -> Utterance.Live(5, buildScreenPhrase("on", "off", e))
+            SourceEventTypes.DISPLAY_OFF -> Utterance.Live(5, buildScreenPhrase("off", "on", e))
             SourceEventTypes.DEVICE_UNLOCK -> Utterance.Live(5, "Device unlocked.")
+            SourceEventTypes.DEVICE_BOOT -> Utterance.Live(5, "Device booted.")
+            SourceEventTypes.DEVICE_SHUTDOWN -> Utterance.Live(5, "Device shutting down.")
+            SourceEventTypes.POWER_CONNECTED -> Utterance.Live(5, buildPowerConnectedPhrase(e).ensureSentenceTerminator())
+            SourceEventTypes.POWER_DISCONNECTED -> Utterance.Live(5, buildPowerDisconnectedPhrase(e).ensureSentenceTerminator())
+            SourceEventTypes.POWER_CHARGING_STATUS -> buildPowerStatusPhrase(e)?.let { Utterance.Live(5, it.ensureSentenceTerminator()) }
             else -> null
         }
+
+    private fun buildScreenPhrase(
+        currentState: String,
+        previousState: String,
+        event: EventEntity,
+    ): String {
+        val durationMs =
+            event.metrics["previous_state_duration_ms"]
+                ?.jsonPrimitive
+                ?.longOrNull
+        val durationText =
+            durationMs
+                ?.takeIf { it > 0 }
+                ?.let { FooString.getTimeDurationString(context, it) }
+                ?.takeIf { it.isNotBlank() }
+        return durationText
+            ?.let { "Screen $currentState. Was $previousState for $it." }
+            ?: "Screen $currentState."
+    }
 }
+
+private fun buildPowerConnectedPhrase(e: EventEntity): String {
+    val attrs = e.attributes
+    val plug = attrs["plugType"]?.jsonPrimitive?.contentOrNull.formatPlugType()
+    val status = attrs["chargingStatus"]?.jsonPrimitive?.contentOrNull.formatChargingStatus()
+    val pct = attrs["batteryPercent"]?.jsonPrimitive?.intOrNull
+    return buildString {
+        append("Power connected")
+        if (!plug.isNullOrBlank()) append(" via ").append(plug)
+        if (pct != null) append(" at ").append(pct).append(" percent")
+        if (!status.isNullOrBlank() && status != "charging") append(" (").append(status).append(")")
+        append(".")
+    }
+}
+
+private fun buildPowerDisconnectedPhrase(e: EventEntity): String {
+    val attrs = e.attributes
+    val plug = attrs["plugType"]?.jsonPrimitive?.contentOrNull.formatPlugType()
+    val pct = attrs["batteryPercent"]?.jsonPrimitive?.intOrNull
+    return buildString {
+        append("Power disconnected")
+        if (!plug.isNullOrBlank() && plug != "power") append(" from ").append(plug)
+        if (pct != null) append(" at ").append(pct).append(" percent")
+        append(".")
+    }
+}
+
+private fun buildPowerStatusPhrase(e: EventEntity): String? {
+    val attrs = e.attributes
+    val statusRaw = attrs["chargingStatus"]?.jsonPrimitive?.contentOrNull ?: return null
+    val status = statusRaw.formatChargingStatus() ?: return null
+    val pct = attrs["batteryPercent"]?.jsonPrimitive?.intOrNull
+    val plug = attrs["plugType"]?.jsonPrimitive?.contentOrNull.formatPlugType()
+    return buildString {
+        append("Battery ").append(status)
+        if (pct != null) append(" at ").append(pct).append(" percent")
+        if (!plug.isNullOrBlank()) append(" via ").append(plug)
+        append(".")
+    }
+}
+
+private fun String?.formatPlugType(): String? =
+    when (this?.lowercase()) {
+        "ac" -> "AC power"
+        "usb" -> "USB power"
+        "wireless" -> "wireless charging"
+        "car" -> "car dock"
+        "other" -> "external power"
+        "none" -> "battery"
+        else -> null
+    }
+
+private fun String?.formatChargingStatus(): String? =
+    when (this?.lowercase()) {
+        "charging" -> "charging"
+        "full" -> "fully charged"
+        "not_charging" -> "not charging"
+        "discharging" -> "discharging"
+        "unknown" -> null
+        else -> this
+    }
 
 private fun JsonObject?.firstNonBlankString(vararg keys: String): String? {
     if (this == null) return null

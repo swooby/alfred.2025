@@ -9,6 +9,7 @@ package com.swooby.alfred.sources
 object SourceComponentIds {
     const val NOTIFICATION_SOURCE = "notification_source"
     const val MEDIA_SOURCE = "media_source"
+    const val SYSTEM_EVENT_SOURCE = "system_event_source"
 }
 
 object SourceEventTypes {
@@ -18,6 +19,11 @@ object SourceEventTypes {
     const val DISPLAY_ON = "display.on"
     const val DISPLAY_OFF = "display.off"
     const val DEVICE_UNLOCK = "device.unlock"
+    const val DEVICE_BOOT = "device.boot"
+    const val DEVICE_SHUTDOWN = "device.shutdown"
     const val NETWORK_WIFI_CONNECT = "network.wifi.connect"
     const val NETWORK_WIFI_DISCONNECT = "network.wifi.disconnect"
+    const val POWER_CONNECTED = "power.connected"
+    const val POWER_DISCONNECTED = "power.disconnected"
+    const val POWER_CHARGING_STATUS = "power.charging.status"
 }

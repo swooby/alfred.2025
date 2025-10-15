@@ -184,6 +184,12 @@ private fun SettingsContent_Preview() {
                 SourceEventTypes.DISPLAY_ON,
                 SourceEventTypes.DISPLAY_OFF,
                 SourceEventTypes.DEVICE_UNLOCK,
+                SourceEventTypes.DEVICE_UNLOCK,
+                SourceEventTypes.DEVICE_BOOT,
+                SourceEventTypes.DEVICE_SHUTDOWN,
+                SourceEventTypes.POWER_CONNECTED,
+                SourceEventTypes.POWER_DISCONNECTED,
+                SourceEventTypes.POWER_CHARGING_STATUS,
             ).joinToString(","),
         )
     }

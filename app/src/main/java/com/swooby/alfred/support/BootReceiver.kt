@@ -4,18 +4,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.swooby.alfred.AlfredApp
-import com.swooby.alfred.pipeline.HourlyDigestWorker
-import com.swooby.alfred.pipeline.PipelineService
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
-        when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED -> {
-                (context.applicationContext as? AlfredApp)?.onBootCompleted()
-            }
-        }
+        val action = intent.action ?: return
+        if (action != Intent.ACTION_BOOT_COMPLETED) return
+        (context.applicationContext as? AlfredApp)?.onBootCompleted()
     }
 }

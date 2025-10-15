@@ -285,6 +285,9 @@ object FooPlatformUtils {
         return value
     }
 
+    /**
+     * More useful than [android.content.Intent.toString] that only prints "(has extras)" if there are extras.
+     */
     @JvmStatic
     fun toString(intent: Intent?): String {
         if (intent == null) return "null"

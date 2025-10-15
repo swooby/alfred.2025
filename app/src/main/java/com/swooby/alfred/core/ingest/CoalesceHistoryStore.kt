@@ -3,7 +3,6 @@ package com.swooby.alfred.core.ingest
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -14,6 +13,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Persists the relationship between [RawEvent.coalesceKey] and the last fingerprint we emitted.

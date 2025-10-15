@@ -24,10 +24,12 @@ import com.swooby.alfred.core.rules.RulesConfig
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SystemSources
+import com.swooby.alfred.sources.system.SystemEvent
 import com.swooby.alfred.support.AppShutdownManager
 import com.swooby.alfred.ui.events.EventListActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
@@ -96,6 +98,7 @@ class PipelineService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val tz = TimeZone.currentSystemDefault()
     private var cfg = RulesConfig()
+    private var systemEventsJob: Job? = null
 
     override fun onCreate() {
         FooLog.v(TAG, "+onCreate()")
@@ -125,8 +128,16 @@ class PipelineService : Service() {
         val hasNotificationListenerAccess = AppShutdownManager.onPipelineServiceStarted(this)
 
         tts = FooTextToSpeech.instance.start(app)
-        sysSources = SystemSources(this, app)
+        sysSources = SystemSources(app)
         sysSources.start()
+        app.systemEvents.start()
+        systemEventsJob =
+            scope.launch {
+                app.systemEvents.events.collect { event: SystemEvent ->
+                    val raw = app.systemEventMapper.map(event)
+                    app.ingest.submit(raw)
+                }
+            }
 
         // 🔒 Only start media session source if we have notification-listener access
         if (hasNotificationListenerAccess) {
@@ -226,6 +237,9 @@ class PipelineService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         runCatching { sysSources.stop() }
             .onFailure { FooLog.w(TAG, "onDestroy: sysSources.stop failed", it) }
+        @Suppress("MemberExtensionConflict")
+        systemEventsJob?.cancel()
+        app.systemEvents.stop()
         app.mediaSource.stop("$TAG.onDestroy")
         tts.stop()
         scope.cancel()
