@@ -8,61 +8,65 @@ or possibly make this project eventually better than Alfred2017.
 
 NOTE: Regularly check Keep notes and move to here.
 
-**NOT PRIORITIZED**
-1. Lower volume for X minutes/hours (aka: Attenuate)
-1. Do Not Disturb for X minutes/hours (aka: Snooze)
-1. Detect and honor "Do Not Disturb" hours
-1. Notification Mute, Snooze, Stop
-1. Notification Media Controls
-1. Friendly don't say "Greater Than" for ">" prefixed quoted lines
-1. Friendly don't say "Underscore" for "FOO_BAR"
-1. "Smart Switch" (or any similar) Notification of "Backing Up" progress causes annoying repeats
-1. Dictionary to change way words are pronounced; ex: Friendlier name for LOCKLY app
-1. Detect when phone in pocket and Always On and go to 100% volume https://www.google.com/search?q=Android+detect+if+phone+is+in+pocket
-1. Detect when removed from pocket and restore to previous volume
-1. "Lock after screen timeout" is a useful device setting to detect screen locked
-1. Event commands:
-   * Copy to clipboard
-   * Share
-   * Speak
-   * ...
-1. Gmail notification needs better reading.
-1. "Android System: Data warning - You've used 2.38 GB of data" is repeating a lot...basically not deduping at all!
-   What is very interesting (clue?) is that peer "Wireless debugging connected" is not repeating.
-1. Coalesce similar duplicate Media and Notifications
-1. TTS audio needs to route to selected audio device
-1. Future option to show Media Playing info directly in app as if it was actually playing in the app, perhaps with even Pause, Stop, Next, Like, Favorite, Playlist, etc.
-1. Future option to show history on map similar to Google Maps
-1. Future option to show tasks similar to Google Keep or Google Tasks
-1. Future option to show list view of events as a calendar similar to Google Calendar
-1. Improve EventCard; simplify for non-Dev user
-1. Improve media playing logic to better announce song stop/start transitions.
-1. Add detailed logging of event parsing result.  
-   This might result in noticing that the parsing is not as thorough as in Alfred 2017.
-1. Add exhaustive notification parsing information to EventCard.
-1. When starting up:
-    1. Say greeting
-    1. Start hourly summary including read all current notifications
-1. Add user's name, gender, Alfred voice, pitch, formality, etc to Settings.
-1. Setting to announce time every whole, half, or quarter hour.
-1. Special debug UI to control debug settings:
+### Notification & Audio Controls
+1. Detect and honor system Do Not Disturb schedules before speaking or playing announcements.
+1. Implement timed notification controls (mute, snooze, temporary volume attenuation) so users can pause Alfred for set durations.
+    * Lower volume for X minutes/hours (aka: Attenuate)
+    * Do Not Disturb for X minutes/hours (aka: Snooze)
+    * Pick and choose what and what not to snooze?
+1. Expose notification media playback controls (play, pause, next, stop) from Alfred's UI or speech layer.
+1. Route TTS audio to the user-selected audio device (speaker, headset, car) to respect user context.
+1. Refine media playback announcements to better indicate song start/stop transitions without redundant chatter.
+
+### Device Context Automation
+1. Use the "Lock after screen timeout" system setting to detect a reliable screen-locked state for pipeline decisions.
+1. Automate pocket-based volume management: detect when the phone is pocketed to temporarily boost announcements, then restore the previous volume once removed.
+
+### Speech Output Polish
+1. Normalize symbol-heavy snippets so ">" prefixed quotes and identifiers like "FOO_BAR" are spoken naturally.
+    * Don't say "Greater Than" for ">" prefixed quoted lines
+    * Don't say "Underscore" for "FOO_BAR"
+1. Maintain a pronunciation dictionary for app names and custom terms (e.g., friendlier wording for LOCKLY).
+1. Improve Gmail notification summaries to emphasize sender, subject, and actionable content.
+1. Format spoken durations and intervals in natural language (e.g., "1 hour, 27 minutes, 14 seconds").
+1. On startup, greet the user and kick off the hourly summary (including current notifications) once permissions allow.
+
+### Event Processing & Diagnostics
+1. Add detailed logging of event parsing results to surface ingestion gaps not as thorough as Alfred 2017.
+1. Surface exhaustive notification parsing information inside `EventCard` for easier troubleshooting.
+1. Improve coalescing logic for similar media and notification events to reduce repeated speech.
+1. Stop the "Smart Switch" backup notification from generating repeated "Backing Up" announcements.
+1. Fix the "Android System: Data warning" notification so it dedupes instead of repeating very frequently.
+
+### Announcements & Timekeeping
+1. Announce screen, charging, and network session durations along with daily totals
+    * "Screen on. Was off for 45 minutes."/"Screen off. Was on for 3 minutes."
+    * Charging
+    * Cellular
+    * WiFi (Network Name)
+1. Offer a setting to announce the time on whole-, half-, or quarter-hour intervals.
+    * Screen on total time (for day?)
+    * ...
+
+### UI & Interaction Enhancements
+1. Simplify the `EventCard` for non-developer users while keeping key diagnostic details accessible.
+1. Provide quick event actions (copy to clipboard, share, replay speech, ...) from cards or voice commands.
+1. Investigate displaying currently playing media details directly in-app, with optional Pause, Stop, Next, Like, Favorite, Playlist, etc. controls.
+1. Add richer event history views (Map-based, Keep/Task-like lists, and Calendar timelines) for exploring stored events.
+
+### Personalization & Summaries
+1. Expand Settings with user identity and voice profile options (name, gender, Alfred voice, pitch, formality, etc).
+1. Generate a YouGPT configuration that summarizes Alfred data for downstream GPT workflows.
+
+### Developer Tooling & Platform Exploration
+1. Build a dedicated debug UI to toggle verbose logging flags (speech, utterance IDs/progress, audio focus, utterance callbacks).
     1. Toggle VERBOSE_LOG_SPEECH
     1. Toggle VERBOSE_LOG_UTTERANCE_IDS
     1. Toggle VERBOSE_LOG_UTTERANCE_PROGRESS
     1. Toggle VERBOSE_LOG_AUDIO_FOCUS
     1. Toggle showing mUtteranceCallbacks contents (to help debug anything that may look like a "leak")
-1. Consider elevating the code to a first class Accessibility Service and so what possibilities that opens up.
-1. Understand how this app can launch to listen when app is in background, but Alfred.2017 can't
-1. Screen on total time (for day?) announcement
-1. Add "Screen on, wes off for XX minutes" and "Screen off, was on for XX minutes"
-   Repeat for: 
-   * charging
-   * network
-   * ...
-1. Speak time durations/intervals in more human understandable expanded "1 hour, 27 minutes, 14 seconds"
-1. ...
-1. YouGPT: Summarize Alfred data in a GPT config file
-1. ...
+1. Learn how this app can start foreground notification when in background but Alfred2017 can't (crashes if not in foreground).
+1. Evaluate promoting the app to a full Accessibility Service and document the new capabilities it would unlock.
 
 ## BUGS
 
@@ -79,6 +83,7 @@ NOTE: Regularly check Keep notes and move to here.
 * Add notification PendingIntent that launches app.
 * Audio profiles now gate speech output (Always Off / headset-only modes)
   https://github.com/swooby/alfred.2025/pull/26
+* System event ingestion rebuilt on Flows: display, boot/shutdown, and power changes now speak status automatically.  
 * Properly announces Screen On/Off; more to come... and better organized.
 * Get notification coalesce/dedupe/debound working (better)
   https://github.com/swooby/alfred.2025/pull/25
