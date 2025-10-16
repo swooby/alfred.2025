@@ -28,6 +28,8 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.Locale
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 class NotificationsSource : NotificationListenerService() {
@@ -360,7 +362,137 @@ class NotificationsSource : NotificationListenerService() {
             FooLog.d(TAG, "#NOTIFICATION onNotificationRemoved(sbn=$sbn, rankingMap=$rankingMap, reason=${FooString.quote(FooNotificationListener.notificationCancelReasonToString(reason))})")
         }
 
-        //...
+        if (sbn == null) return
+
+        val cancelReason = FooNotificationListener.notificationCancelReasonToString(reason)
+        val cancelReasonLabel = cancelReason.substringBefore('(')
+        val envelope = NotificationExtractor.extract(this, SourceEventTypes.NOTIFICATION_REMOVE, sbn, rankingMap)
+        val pkg =
+            (envelope.actor["packageName"] as? String)?.takeIf { it.isNotBlank() }
+                ?: sbn.packageName
+        val appLabel = (envelope.actor["appLabel"] as? String)?.takeIf { it.isNotBlank() }
+        val template =
+            (envelope.attributes["template"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.subject["template"] as? String)?.takeIf { it.isNotBlank() }
+        val contextCategory = (envelope.context["category"] as? String)?.takeIf { it.isNotBlank() }
+        val subjectTitle = extractSubjectTitle(envelope.subject)
+        val subjectText = extractSubjectBody(envelope.subject)
+        val subjectLines =
+            (envelope.subject["lines"] as? List<*>)
+                ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+        val subjectEntity = subjectTitle ?: appLabel ?: pkg
+        val eventCategory = contextCategory ?: template ?: "notification"
+        val eventAction =
+            "Removed" +
+                cancelReasonLabel
+                    .takeIf { it.isNotBlank() }
+                    ?.let { ": $it" }
+                    .orEmpty()
+        val subjectEntityId =
+            (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
+                ?: "$pkg:${sbn.id}"
+        val subjectParentId =
+            (envelope.context["groupKey"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["tag"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["channelId"] as? String)?.takeIf { it.isNotBlank() }
+        val removalInstant = Clock.System.now()
+        val postedInstant = Instant.fromEpochMilliseconds(sbn.postTime)
+        val lifetimeMs = (removalInstant.toEpochMilliseconds() - postedInstant.toEpochMilliseconds()).coerceAtLeast(0)
+        val metrics =
+            buildJsonObject {
+                envelope.metrics.toJsonObjectOrNull()?.let { put("sourceMetrics", it) }
+                put("cancelReason", JsonPrimitive(cancelReasonLabel.ifBlank { "UNKNOWN" }))
+                put("cancelReasonCode", JsonPrimitive(reason))
+                put("lifetimeMs", JsonPrimitive(lifetimeMs))
+            }
+        val attachments =
+            envelope.attachments.mapNotNull { attachment ->
+                val kind = (attachment["type"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val uri = (attachment["uri"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val mime = (attachment["mime"] as? String)?.takeIf { it.isNotBlank() }
+                val size = (attachment["sizeBytes"] as? Number)?.toLong()
+                AttachmentRef(kind = kind, uri = uri, mime = mime, sizeBytes = size)
+            }
+        val attributes =
+            buildJsonObject {
+                envelope.actor.toJsonObjectOrNull()?.let { put("actor", it) }
+                envelope.subject.toJsonObjectOrNull()?.let { put("subject", it) }
+                envelope.source.toJsonObjectOrNull()?.let { put("source", it) }
+                envelope.context.toJsonObjectOrNull()?.let { put("context", it) }
+                envelope.attributes.toJsonObjectOrNull()?.let { put("traits", it) }
+                envelope.refs.toJsonObjectOrNull()?.let { put("refs", it) }
+                envelope.attachments.toJsonArrayOrNull()?.let { put("attachments", it) }
+                envelope.integrity.toJsonObjectOrNull()?.let { put("integrity", it) }
+                if (!envelope.rawExtrasJson.isEmpty()) {
+                    put("rawExtras", envelope.rawExtrasJson)
+                }
+                subjectLines?.takeIf { it.isNotEmpty() }?.let { lines ->
+                    put("subjectLines", buildJsonArray { lines.forEach { add(JsonPrimitive(it)) } })
+                }
+                put("postedEpochMs", JsonPrimitive(sbn.postTime))
+            }
+        val fingerprintBase =
+            buildStableNotificationFingerprint(
+                pkg = pkg,
+                subjectEntityId = subjectEntityId,
+                subjectTitle = subjectTitle,
+                subjectText = subjectText,
+                subjectLines = subjectLines,
+                eventCategory = eventCategory,
+                eventAction = eventAction,
+            ) ?: (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
+                ?: sbn.key
+        val fingerprint = "$fingerprintBase#removed"
+        val coalesceKey = (envelope.refs["key"] as? String)?.takeIf { it.isNotBlank() }
+        val tags = mutableListOf<String>()
+        contextCategory?.let { tags += it }
+        template?.let { tags += it }
+        if ((envelope.context["rankingInfo"] as? Map<*, *>)?.isNotEmpty() == true) {
+            tags += "ranked"
+        }
+        tags += "removed"
+        cancelReasonLabel
+            .lowercase(Locale.US)
+            .takeIf { it.isNotBlank() }
+            ?.let { tags += it }
+
+        val eventId = Ulids.newUlid()
+        val sensitivity = inferSensitivity(envelope.subject, subjectText, subjectLines, envelope.rawExtrasJson)
+
+        val ev =
+            EventEntity(
+                eventId = eventId,
+                schemaVer = 1,
+                userId = "u_local",
+                deviceId = "android:device",
+                appPkg = pkg,
+                component = SourceComponentIds.NOTIFICATION_SOURCE,
+                parserVer = NotificationExtractor.PARSER_VERSION,
+                eventType = SourceEventTypes.NOTIFICATION_REMOVE,
+                eventCategory = eventCategory,
+                eventAction = eventAction,
+                subjectEntity = subjectEntity,
+                subjectEntityId = subjectEntityId,
+                subjectParentId = subjectParentId,
+                tsStart = removalInstant,
+                ingestAt = removalInstant,
+                api = envelope.source["api"]?.toString(),
+                sensitivity = sensitivity,
+                attributes = attributes,
+                metrics = metrics,
+                tags = tags.distinct(),
+                attachments = attachments,
+                rawFingerprint = fingerprint,
+                integritySig = (envelope.integrity["snapshotHash"] as? String)?.takeIf { it.isNotBlank() },
+            )
+        app.ingest.submit(
+            RawEvent(
+                event = ev,
+                fingerprint = fingerprint,
+                coalesceKey = coalesceKey,
+            ),
+        )
     }
 
     override fun onNotificationRankingUpdate(rankingMap: RankingMap?) {

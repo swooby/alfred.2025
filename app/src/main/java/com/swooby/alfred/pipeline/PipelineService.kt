@@ -23,6 +23,7 @@ import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.sources.SourceComponentIds
+import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.sources.system.SystemEvent
 import com.swooby.alfred.support.AppShutdownManager
@@ -161,7 +162,10 @@ class PipelineService : Service() {
         scope.launch {
             app.ingest.out.collect { ev ->
                 val component = ev.component
-                if (component == SourceComponentIds.NOTIFICATION_SOURCE && ev.subjectEntityId != null) {
+                if (component == SourceComponentIds.NOTIFICATION_SOURCE &&
+                    ev.eventType == SourceEventTypes.NOTIFICATION_POST &&
+                    ev.subjectEntityId != null
+                ) {
                     val alreadyStored =
                         app.db.events().existsNotification(
                             userId = ev.userId,

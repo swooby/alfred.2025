@@ -14,6 +14,7 @@ object SourceComponentIds {
 
 object SourceEventTypes {
     const val NOTIFICATION_POST = "notification.post"
+    const val NOTIFICATION_REMOVE = "notification.remove"
     const val MEDIA_START = "media.start"
     const val MEDIA_STOP = "media.stop"
     const val DISPLAY_ON = "display.on"
