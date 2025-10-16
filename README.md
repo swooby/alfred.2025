@@ -14,7 +14,6 @@ NOTE: Regularly check Keep notes and vet into here.
     * Lower volume for X minutes/hours (aka: Attenuate)
     * Do Not Disturb for X minutes/hours (aka: Snooze)
     * Pick and choose what and what not to snooze?
-1. Ensure `AudioProfileController` calls `FooTextToSpeech.stopSpeaking()` when the audio gate closes so speech halts immediately.
 1. Update the foreground notification when no audio profile matches to say "Waiting for ${audioProfileName}".
 1. Tune volume attenuation for long-form media (e.g., YouTube) so Alfred backs off quickly instead of talking over content.
 1. Experiment with queuing speech as dismissible Alfred notifications users can swipe away to silence.
@@ -121,6 +120,7 @@ NOTE: Regularly check Keep notes and vet into here.
   Scrolling down will continue to load from storage.
   List should update automatically whenever a new event is stored.
   https://github.com/swooby/alfred.2025/pull/18
+* AudioProfileController now stops FooTextToSpeech when the audio gate closes, preventing runaway speech.
 * Get audio ducking working again
   https://github.com/swooby/alfred.2025/pull/12
 * Move hard coded strings to resource files

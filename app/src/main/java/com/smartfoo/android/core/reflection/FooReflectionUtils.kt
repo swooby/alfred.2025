@@ -1,35 +1,39 @@
 package com.smartfoo.android.core.reflection
 
-import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 
 @Suppress("unused")
 object FooReflectionUtils {
     private val TAG = FooLog.TAG(FooReflectionUtils::class.java)
 
+    @JvmStatic
     fun getClass(o: Any?): Class<*>? = o as? Class<*> ?: o?.javaClass
 
-    fun getClassName(o: Any?): String? = getClassName(getClass(o))
+    @JvmStatic
+    fun getClassName(o: Any?): String = getClassName(getClass(o))
 
-    fun <T> getClassName(c: Class<T?>?): String? = getClassName(c?.getName(), true)
+    @JvmStatic
+    fun getClassName(c: Class<*>?): String = getClassName(c?.getName(), true)
 
+    @JvmStatic
     fun getClassName(
         className: String?,
         shortClassName: Boolean,
-    ): String? {
-        var className = className
-        if (FooString.isNullOrEmpty(className)) {
-            className = "null"
-        }
-        return if (shortClassName) className!!.substring(className.lastIndexOf('.') + 1) else className
+    ): String {
+        val className = className ?: "null"
+        return if (shortClassName) className.substring(className.lastIndexOf('.') + 1) else className
     }
 
-    fun getShortClassName(className: String?): String? = getClassName(className, true)
+    @JvmStatic
+    fun getShortClassName(className: String?): String = getClassName(className, true)
 
-    fun getShortClassName(o: Any?): String? = getShortClassName(o?.javaClass)
+    @JvmStatic
+    fun getShortClassName(o: Any?): String = getShortClassName(o?.javaClass)
 
-    fun <T> getShortClassName(c: Class<T?>?): String? = FooReflectionUtils.getShortClassName(c?.getName())
+    @JvmStatic
+    fun getShortClassName(c: Class<*>?): String = FooReflectionUtils.getShortClassName(c?.getName())
 
+    @JvmStatic
     fun getMethodName(methodName: String?): String {
         var methodName = methodName
         if (methodName == null) {
@@ -41,11 +45,13 @@ object FooReflectionUtils {
         return methodName
     }
 
+    @JvmStatic
     fun getShortClassAndMethodName(
         o: Any?,
         methodName: String?,
     ): String = getShortClassName(o) + getMethodName(methodName)
 
+    @JvmStatic
     fun <T> getInstanceSignature(instance: T): String {
         val sb = StringBuilder()
         val instanceClass = instance!!.javaClass
@@ -58,6 +64,7 @@ object FooReflectionUtils {
             .trim { it <= ' ' }
     }
 
+    @JvmStatic
     fun getClassSignature(
         instanceClass: Class<*>,
         sb: StringBuilder,
@@ -74,6 +81,7 @@ object FooReflectionUtils {
         }
     }
 
+    @JvmStatic
     fun getInterfaceSignature(
         instanceClass: Class<*>,
         sb: StringBuilder,
@@ -90,6 +98,7 @@ object FooReflectionUtils {
         }
     }
 
+    @JvmStatic
     fun isAssignableFrom(
         instanceExpected: Any?,
         instanceActual: Any?,
@@ -126,6 +135,7 @@ object FooReflectionUtils {
         return true
     }
 
+    @JvmStatic
     fun getFieldValue(
         o: Any?,
         fieldName: String,
@@ -148,6 +158,7 @@ object FooReflectionUtils {
         return fieldValue
     }
 
+    @JvmStatic
     fun getFieldValueString(
         o: Any?,
         fieldName: String,

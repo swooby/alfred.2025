@@ -18,6 +18,7 @@ import android.os.Handler
 import android.os.Looper
 import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
+import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -156,9 +158,11 @@ class AudioProfileController(
     //val bluetoothPermission: StateFlow<BluetoothPermissionState> = bluetoothPermissionState
     val headsetEvents: SharedFlow<HeadsetEvent> = events
 
-    fun evaluateGate(): AudioProfileGate {
-        val snapshots = profiles.value
-        val selectedId = selectedProfileId.value
+    private fun computeGate(
+        snapshots: List<AudioProfileSnapshot>,
+        selectedId: AudioProfileId?,
+        effective: EffectiveAudioProfile?,
+    ): AudioProfileGate {
         val resolvedSelected = selectedId?.let(::findProfileById)
         if (snapshots.isEmpty()) {
             val allow = resolvedSelected == null || resolvedSelected is AudioProfile.AlwaysOn
@@ -174,9 +178,9 @@ class AudioProfileController(
                 snapshot = null,
             )
         }
+
         val selectedSnapshot = snapshots.firstOrNull { it.isSelected }
         if (selectedSnapshot == null) {
-            val effective = effectiveProfile.value
             val allow = effective != null
             val reason = if (allow) AudioProfileGateReason.ALLOWED else AudioProfileGateReason.UNINITIALIZED
             return AudioProfileGate(allow, reason, null)
@@ -200,10 +204,26 @@ class AudioProfileController(
         )
     }
 
+    private val gateFlow: StateFlow<AudioProfileGate> =
+        combine(
+            profileSnapshotsFlow,
+            selectedProfileId,
+            effectiveProfileFlow,
+        ) { snapshots, selectedId, effective ->
+            computeGate(snapshots, selectedId, effective)
+        }.stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            computeGate(profileSnapshotsFlow.value, selectedProfileId.value, effectiveProfileFlow.value),
+        )
+
+    fun evaluateGate(): AudioProfileGate = gateFlow.value
+
     init {
         observeStoredSelection()
         startWiredWatcher()
         refreshBluetoothPermission()
+        observeGateClosures()
     }
 
     suspend fun selectProfile(profileId: AudioProfileId?) {
@@ -306,6 +326,19 @@ class AudioProfileController(
             if (current.bluetooth.isEmpty()) current else current.copy(bluetooth = emptySet())
         }
         pruneDisconnectedProfiles(selectedProfileId.value)
+    }
+
+    private fun observeGateClosures() {
+        scope.launch {
+            gateFlow
+                .distinctUntilChangedBy { it.allow }
+                .collect { gate ->
+                    if (!gate.allow) {
+                        FooLog.i(TAG, "Audio gate closed; stopping speech reason=${gate.reason}")
+                        FooTextToSpeech.instance.stopSpeaking()
+                    }
+                }
+        }
     }
 
     private fun handleDeviceChange(change: DeviceChange) {
