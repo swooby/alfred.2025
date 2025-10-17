@@ -12,9 +12,13 @@ class FooTextToSpeechBuilder {
     companion object {
         private val TAG = FooLog.TAG(FooTextToSpeechBuilder::class.java)
 
-        const val SILENCE_WORD_BREAK_MILLIS = 300
-        const val SILENCE_SENTENCE_BREAK_MILLIS = 500
-        const val SILENCE_PARAGRAPH_BREAK_MILLIS = 750
+        enum class SilenceMillis(
+            val value: Int,
+        ) {
+            Word(300),
+            Sentence(500),
+            Paragraph(750),
+        }
 
         /**
          * 4000 in API36
@@ -84,6 +88,10 @@ class FooTextToSpeechBuilder {
         appendSpeech(text)
     }
 
+    constructor(silenceMillis: Int) {
+        appendSilence(silenceMillis)
+    }
+
     constructor(context: Context, text: String) {
         this.context = context
         appendSpeech(text)
@@ -96,6 +104,10 @@ class FooTextToSpeechBuilder {
 
     constructor(builder: FooTextToSpeechBuilder) {
         append(builder)
+    }
+
+    constructor(part: FooTextToSpeechPart) {
+        append(part)
     }
 
     override fun toString(): String {
@@ -117,11 +129,14 @@ class FooTextToSpeechBuilder {
 
     override fun hashCode(): Int = FooCollections.hashCode(parts)
 
-    val isEmpty: Boolean
-        get() = parts.isEmpty()
-
     val numberOfParts: Int
         get() = parts.size
+
+    val isEmpty: Boolean
+        get() = numberOfParts == 0
+
+    val isNotEmpty: Boolean
+        get() = !isEmpty
 
     fun appendSpeech(
         context: Context,
@@ -146,13 +161,29 @@ class FooTextToSpeechBuilder {
 
     fun appendSpeech(text: String): FooTextToSpeechBuilder = append(FooTextToSpeechPartSpeech(text))
 
-    fun appendSilenceWordBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_WORD_BREAK_MILLIS)
+    fun appendSilenceWordBreak(): FooTextToSpeechBuilder = appendSilence(SilenceMillis.Word.value)
 
-    fun appendSilenceSentenceBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_SENTENCE_BREAK_MILLIS)
+    fun appendSilenceSentenceBreak(): FooTextToSpeechBuilder = appendSilence(SilenceMillis.Sentence.value)
 
-    fun appendSilenceParagraphBreak(): FooTextToSpeechBuilder = appendSilence(SILENCE_PARAGRAPH_BREAK_MILLIS)
+    fun appendSilenceParagraphBreak(): FooTextToSpeechBuilder = appendSilence(SilenceMillis.Paragraph.value)
 
-    fun appendSilence(durationInMs: Int): FooTextToSpeechBuilder = append(FooTextToSpeechPartSilence(durationInMs))
+    fun appendSilence(silenceMillis: Int): FooTextToSpeechBuilder {
+        if (silenceMillis <= 0) {
+            FooLog.w(TAG, "appendSilence: silenceMillis <= 0; ignoring")
+        } else {
+            append(FooTextToSpeechPartSilence(silenceMillis))
+        }
+        return this
+    }
+
+    fun appendEarcon(earcon: String): FooTextToSpeechBuilder {
+        if (earcon.isBlank()) {
+            FooLog.w(TAG, "appendEarcon: earcon.isBlank(); ignoring")
+        } else {
+            append(FooTextToSpeechPartEarcon(earcon))
+        }
+        return this
+    }
 
     fun append(part: FooTextToSpeechPart): FooTextToSpeechBuilder {
         when (part) {
@@ -187,11 +218,11 @@ class FooTextToSpeechBuilder {
     }
 
     /**
-     * @param ensureEndsWithSilence if true and the last part is NOT a [FooTextToSpeechPartSilence] then call [appendSilenceSentenceBreak]
+     * @param ensureNonEmptyEndsWithSilence if true and [isNotEmpty] is false and the last part is NOT a [FooTextToSpeechPartSilence] then call [appendSilenceSentenceBreak]
      * @return a copy of the parts
      */
-    fun build(ensureEndsWithSilence: Boolean = false): List<FooTextToSpeechPart> {
-        if (ensureEndsWithSilence && parts.last() !is FooTextToSpeechPartSilence) {
+    fun build(ensureNonEmptyEndsWithSilence: Boolean = false): List<FooTextToSpeechPart> {
+        if (ensureNonEmptyEndsWithSilence && isNotEmpty && parts.last() !is FooTextToSpeechPartSilence) {
             appendSilenceSentenceBreak()
         }
         val parts = LinkedList(parts)

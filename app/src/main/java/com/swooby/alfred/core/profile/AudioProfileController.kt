@@ -335,7 +335,7 @@ class AudioProfileController(
                 .collect { gate ->
                     if (!gate.allow) {
                         FooLog.i(TAG, "Audio gate closed; stopping speech reason=${gate.reason}")
-                        FooTextToSpeech.instance.stopSpeaking()
+                        FooTextToSpeech.instance.clear(interrupt = true)
                     }
                 }
         }

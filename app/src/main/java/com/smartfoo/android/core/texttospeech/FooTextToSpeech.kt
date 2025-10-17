@@ -3,7 +3,6 @@ package com.smartfoo.android.core.texttospeech
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -15,19 +14,25 @@ import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.media.FooAudioFocusController
 import com.smartfoo.android.core.media.FooAudioUtils
 import com.smartfoo.android.core.platform.FooPlatformUtils
-import com.smartfoo.android.core.texttospeech.FooTextToSpeech.Companion.speak
-import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPart
 import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartEarcon
 import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartSilence
 import com.smartfoo.android.core.texttospeech.FooTextToSpeechBuilder.FooTextToSpeechPartSpeech
 import java.io.File
 
 /**
- * NOTE: There should be only one TextToSpeech instance per application.
- * Callers must use FooTextToSpeech.instance to get the singleton instance.
- * Then call instance.start(context, callbacks) to initialize the instance.
- * This call instance.stop() when done.
- * Optionally call instance.shutdown() when done.
+ * **NOTE: There should be only one TextToSpeech instance per application:**
+ * * Callers must use FooTextToSpeech.instance to get the singleton instance.
+ * * Then call instance.start(context, callbacks) to initialize the instance.
+ * * Then call instance.stop() when done.
+ * * Optionally call instance.shutdown() when done done.
+ *
+ * FooTextToSpeech maintains its own queue of utterances using both a `sequenceId` and an `utteranceId`:
+ * * `sequenceId` identifies the logical batch requested by a single public API call (`speak`, `silence`, `playEarcon`).
+ *   A sequence can span multiple low-level TextToSpeech items (for example, a builder with speech and silence parts).
+ *   Canceling by sequenceId removes the entire batch, whether already started or still queued.
+ * * `utteranceId` matches the framework `TextToSpeech` call that is currently executing.
+ *   It is only used internally to associate run-after callbacks and monitor progress callbacks from `UtteranceProgressListener`.
+ * * Queue placement is configurable via [QueuePlacement]: append (default), play next, interrupt immediately, or clear everything first.
  *
  * References:
  *  * https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/speech/tts/
@@ -49,7 +54,11 @@ class FooTextToSpeech private constructor() {
         var VERBOSE_LOG_EARCON = false
 
         /**
-         * Main thing to debug
+         * Main thing1 to debug
+         */
+        var VERBOSE_LOG_SEQUENCE = true
+        /**
+         * Main thing2 to debug
          */
         var VERBOSE_LOG_UTTERANCE = true
 
@@ -72,7 +81,7 @@ class FooTextToSpeech private constructor() {
         fun speak(
             context: Context,
             text: String,
-        ): Boolean = instance.start(context).speak(text)
+        ): String? = instance.start(context).speak(text)
 
         @JvmStatic
         fun statusToString(status: Int): String =
@@ -94,34 +103,122 @@ class FooTextToSpeech private constructor() {
                 else -> "UNKNOWN"
             }.let { "$it($queueMode)" }
         }
+
+        //
+        //region test hooks
+        //
+
+        private val defaultAudioAttributesFactory = {
+            AudioAttributes
+                .Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+        }
+        private val defaultBundleFactory = { Bundle() }
+
+        internal var audioAttributesFactory: () -> AudioAttributes = defaultAudioAttributesFactory
+        internal var bundleFactory: () -> Bundle = defaultBundleFactory
+
+        internal fun resetAudioAttributesFactory() {
+            audioAttributesFactory = defaultAudioAttributesFactory
+        }
+
+        internal fun resetBundleFactory() {
+            bundleFactory = defaultBundleFactory
+        }
+
+        //
+        //endregion test hooks
+        //
     }
 
     interface FooTextToSpeechCallbacks {
         fun onTextToSpeechInitialized(status: Int)
     }
 
-    abstract class Utterance(
+    private sealed class Utterance(
+        val sequenceId: String,
+        utteranceId: Long,
         val runAfter: Runnable?,
-    )
+        val requestAudioFocus: Boolean,
+    ) {
+        val utteranceId = "${sequenceId}_${utteranceId}_$tag"
 
-    class UtteranceText(
-        val text: String,
-        runAfter: Runnable?,
-    ) : Utterance(runAfter)
+        companion object {
+            fun create(
+                sequenceId: String,
+                utteranceId: Long,
+                part: FooTextToSpeechBuilder.FooTextToSpeechPart,
+                partRunAfter: Runnable?,
+            ): Utterance =
+                when (part) {
+                    is FooTextToSpeechPartSpeech -> {
+                        Text(sequenceId, utteranceId, partRunAfter, part.text)
+                    }
+                    is FooTextToSpeechPartSilence -> {
+                        Silence(sequenceId, utteranceId, partRunAfter, part.durationMillis)
+                    }
+                    is FooTextToSpeechPartEarcon -> {
+                        Earcon(sequenceId, utteranceId, partRunAfter, part.earcon)
+                    }
+                    else -> throw IllegalArgumentException("Unhandled part type ${part.javaClass}")
+                }
+        }
 
-    class UtteranceSilence(
-        val durationMillis: Int,
-        runAfter: Runnable?,
-    ) : Utterance(runAfter)
+        abstract val tag: String
 
-    class UtteranceEarcon(
-        val earcon: String,
-        runAfter: Runnable?,
-    ) : Utterance(runAfter)
+        class Text(
+            sequenceId: String,
+            utteranceId: Long,
+            runAfter: Runnable?,
+            val text: String,
+        ) : Utterance(sequenceId, utteranceId, runAfter, true) {
+            override val tag: String
+                get() = "text"
+        }
+
+        class Silence(
+            sequenceId: String,
+            utteranceId: Long,
+            runAfter: Runnable?,
+            val durationMillis: Int,
+        ) : Utterance(sequenceId, utteranceId, runAfter, false) {
+            override val tag: String
+                get() = "silence"
+        }
+
+        class Earcon(
+            sequenceId: String,
+            utteranceId: Long,
+            runAfter: Runnable?,
+            val earcon: String,
+        ) : Utterance(sequenceId, utteranceId, runAfter, true) {
+            override val tag: String
+                get() = "earcon"
+        }
+    }
+
+    private fun quote(s: String?) = FooString.quote(s)
+
+    /**
+     * Controls how a new sequence is scheduled relative to existing work.
+     */
+    enum class QueuePlacement {
+        /** Enqueue after all existing items. */
+        APPEND,
+        /** Place directly after the current utterance so it runs next. */
+        NEXT,
+        /** Interrupt only the current sequence and start this one immediately. */
+        IMMEDIATE,
+        /** Clear all sequences (active and pending) before enqueueing. */
+        CLEAR,
+    }
 
     private val syncLock = Any()
     private val listeners = FooListenerManager<FooTextToSpeechCallbacks>(TAG)
-    private val initQueue = mutableListOf<Utterance>()
+    private val utteranceQueue = ArrayDeque<Utterance>()
+    private var currentUtterance: Utterance? = null
     private val utteranceCallbacks = mutableMapOf<String, Runnable>()
     private val runAfterSpeak = Runnable { onRunAfterSpeak() }
 
@@ -197,7 +294,7 @@ class FooTextToSpeech private constructor() {
 
     private var applicationContext: Context? = null
     private var tts: TextToSpeech? = null
-    private var nextUtteranceId: Long = 0
+    private var nextSequenceId: Long = 0
 
     val voices: Set<Voice>?
         get() {
@@ -222,7 +319,7 @@ class FooTextToSpeech private constructor() {
      */
     fun setVoiceName(value: String?): Boolean {
         var voiceName = value
-        FooLog.v(TAG, "setVoiceName($voiceName)")
+        FooLog.v(TAG, "#TTS setVoiceName($voiceName)")
         if (voiceName.isNullOrEmpty()) {
             voiceName = null
         }
@@ -239,7 +336,7 @@ class FooTextToSpeech private constructor() {
                     val voices = voices
                     if (voices != null) {
                         for (voice in voices) {
-                            //FooLog.e(TAG, "setVoiceName: voice=${FooString.quote(voice.name)}"); // debug
+                            //FooLog.e(TAG, "#TTS setVoiceName: voice=${quote(voice.name)}"); // debug
                             if (voiceName.equals(voice.name, ignoreCase = true)) {
                                 foundVoice = voice
                                 break
@@ -277,12 +374,7 @@ class FooTextToSpeech private constructor() {
             tts?.setPitch(value)
         }
 
-    var audioAttributes: AudioAttributes =
-        AudioAttributes
-            .Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANT)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-            .build()
+    var audioAttributes: AudioAttributes = audioAttributesFactory()
         get() {
             synchronized(syncLock) { return field }
         }
@@ -347,10 +439,16 @@ class FooTextToSpeech private constructor() {
         FooLog.v(TAG, "#TTS -FooTextToSpeech()")
     }
 
+    /**
+     * Registers callbacks that will be notified once the underlying TextToSpeech engine finishes initializing.
+     */
     fun attach(callbacks: FooTextToSpeechCallbacks) {
         synchronized(syncLock) { listeners.attach(callbacks) }
     }
 
+    /**
+     * Unregisters previously attached callbacks.
+     */
     fun detach(callbacks: FooTextToSpeechCallbacks) {
         synchronized(syncLock) { listeners.detach(callbacks) }
     }
@@ -365,17 +463,14 @@ class FooTextToSpeech private constructor() {
     val isSpeaking: Boolean = synchronized(syncLock) { tts?.isSpeaking ?: false }
 
     /**
-     * Interrupts the current utterance (whether played or rendered to file) and discards other utterances in the queue.
-     *
-     * @return tts?.stop() == TextToSpeech.SUCCESS
-     *
-     * @see [android.speech.tts.TextToSpeech.stop]
+     * Stops all playback, clears internal state, and shuts down the TTS engine.
+     * Callers should invoke this when they no longer need FooTextToSpeech.
      */
-    fun stopSpeaking(): Boolean = synchronized(syncLock) { tts?.stop() == TextToSpeech.SUCCESS }
-
     fun stop() {
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
         synchronized(syncLock) {
-            clear()
+            clearLocked(interrupt = true, runAfters = runAfters, focusHandles = focusHandles)
             isStarted = false
             tts?.let {
                 it.stop()
@@ -384,8 +479,16 @@ class FooTextToSpeech private constructor() {
             }
             isInitialized = false
         }
+        if (runAfters.isNotEmpty() || focusHandles.isNotEmpty()) {
+            executeCleanup(runAfters, focusHandles)
+        }
     }
 
+    /**
+     * Prepares the singleton for use, creating the underlying [TextToSpeech] instance on first call.
+     *
+     * @return this FooTextToSpeech instance for chaining
+     */
     @JvmOverloads
     fun start(
         context: Context,
@@ -414,6 +517,8 @@ class FooTextToSpeech private constructor() {
     }
 
     private fun onTextToSpeechInitialized(status: Int) {
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
         try {
             FooLog.v(TAG, "#TTS +onTextToSpeechInitialized(status=${statusToString(status)})")
             synchronized(syncLock) {
@@ -435,6 +540,13 @@ class FooTextToSpeech private constructor() {
 
                                 override fun onDone(utteranceId: String?) {
                                     this@FooTextToSpeech.onUtteranceDone(utteranceId)
+                                }
+
+                                override fun onStop(
+                                    utteranceId: String?,
+                                    interrupted: Boolean,
+                                ) {
+                                    this@FooTextToSpeech.onUtteranceStop(utteranceId, interrupted)
                                 }
 
                                 @Deprecated(
@@ -477,77 +589,41 @@ class FooTextToSpeech private constructor() {
                 if (!isInitialized) {
                     stop()
                 } else {
-                    val initQueueSize = initQueue.size
-                    if (initQueueSize > 0) {
-                        if (VERBOSE_LOG_INIT_QUEUE) {
-                            FooLog.v(TAG, "#TTS_INIT onTextToSpeechInitialized: speaking initQueue($initQueueSize) items...")
-                        }
-                        val iterator = initQueue.iterator()
-                        var utterance: Utterance
-                        while (iterator.hasNext()) {
-                            utterance = iterator.next()
-                            iterator.remove()
-                            when (utterance) {
-                                is UtteranceText -> speakInternal(true, utterance.text, utterance.runAfter)
-                                is UtteranceSilence -> silence(true, utterance.durationMillis, utterance.runAfter)
-                                is UtteranceEarcon -> playEarcon(true, utterance.earcon, utterance.runAfter)
-                            }
-                        }
-                    }
+                    startNextLocked().collectInto(runAfters, focusHandles)
                 }
             } // syncLock
         } finally {
             FooLog.v(TAG, "#TTS -onTextToSpeechInitialized(status=${statusToString(status)})")
         }
+        executeCleanup(runAfters, focusHandles)
     }
 
     private fun onUtteranceStart(utteranceId: String?) {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceStart(utteranceId=${quote(utteranceId)})")
         }
         audioFocusAcquireTry(audioAttributes)
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceStart(utteranceId=${FooString.quote(utteranceId)})")
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceStart(utteranceId=${quote(utteranceId)})")
         }
     }
 
     private fun onUtteranceDone(utteranceId: String?) {
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
-        }
-        val runAfter: Runnable?
-        synchronized(syncLock) {
-            runAfter = utteranceCallbacks.remove(utteranceId)
-            if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-                FooLog.e(TAG, "#TTS_UTTERANCE_PROGRESS onUtteranceDone: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
-            }
-        }
-        //FooLog.v(TAG, "onUtteranceDone: runAfter=$runAfter");
-        runAfter?.run()
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceDone(utteranceId=${FooString.quote(utteranceId)})")
-        }
+        handleUtteranceCompletion("onUtteranceDone", utteranceId)
     }
 
     private fun onUtteranceError(
         utteranceId: String?,
         errorCode: Int,
     ) {
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS +onUtteranceError(utteranceId=${FooString.quote(utteranceId)}, errorCode=$errorCode)")
-        }
-        val runAfter: Runnable?
-        synchronized(syncLock) {
-            runAfter = utteranceCallbacks.remove(utteranceId)
-            if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-                FooLog.e(TAG, "#TTS_UTTERANCE_PROGRESS onUtteranceError: mUtteranceCallbacks.size() == ${utteranceCallbacks.size}")
-            }
-        }
-        //FooLog.w(TAG, "onUtteranceError: runAfter=$runAfter");
-        runAfter?.run()
-        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
-            FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS -onUtteranceError(utteranceId=${FooString.quote(utteranceId)}), errorCode=$errorCode)")
-        }
+        handleUtteranceCompletion("onUtteranceError($errorCode)", utteranceId)
+    }
+
+    private fun onUtteranceStop(
+        utteranceId: String?,
+        interrupted: Boolean,
+    ) {
+        handleUtteranceCompletion("onUtteranceStopped(interrupted=$interrupted)", utteranceId)
     }
 
     private fun onRunAfterSpeak() {
@@ -576,24 +652,6 @@ class FooTextToSpeech private constructor() {
         }
     }
 
-    fun clear() {
-        FooLog.d(TAG, "#TTS +clear()")
-        synchronized(syncLock) {
-            initQueue.clear()
-
-            if (isInitialized) {
-                tts!!.stop()
-            }
-            utteranceCallbacks.clear()
-
-            audioFocusHandleClearLocked()
-        }?.let {
-            it.release()
-            onAudioFocusStop()
-        }
-        FooLog.d(TAG, "#TTS -clear()")
-    }
-
     private fun onAudioFocusGained(): Boolean {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
             FooLog.e(TAG, "#TTS_AUDIO_FOCUS onAudioFocusGained()")
@@ -605,14 +663,6 @@ class FooTextToSpeech private constructor() {
         if (VERBOSE_LOG_AUDIO_FOCUS) {
             FooLog.e(TAG, "#TTS_AUDIO_FOCUS onAudioFocusLost(focusChange=${FooAudioUtils.audioFocusGainLossToString(focusChange)})")
         }
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
-            -> {
-                // ...
-            }
-        }
         return false
     }
 
@@ -622,21 +672,263 @@ class FooTextToSpeech private constructor() {
         }
     }
 
-    fun speak(text: String): Boolean = speak(false, text)
+    private fun handleUtteranceCompletion(
+        caller: String,
+        utteranceId: String?,
+    ) {
+        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +handleUtteranceCompletion(caller=${quote(caller)}, utteranceId=${quote(utteranceId)})")
+        }
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
+        var completedSequenceId: String? = null
+        synchronized(syncLock) {
+            val current = currentUtterance
+            if (utteranceId != null) {
+                utteranceCallbacks.remove(utteranceId)?.let(runAfters::add)
+                if (current != null) {
+                    if (current.utteranceId == utteranceId) {
+                        val sequenceId = current.sequenceId
+                        val moreInQueue = utteranceQueue.any { it.sequenceId == sequenceId }
+                        currentUtterance = null
+                        if (!moreInQueue) {
+                            completedSequenceId = sequenceId
+                        }
+                    } else if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
+                        FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS handleUtteranceCompletion: UNEXPECTED currentUtteranceId=${quote(current.utteranceId)} does not match callback utteranceId=${quote(utteranceId)}")
+                    }
+                }
+            } else {
+                FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS handleUtteranceCompletion: UNEXPECTED utteranceId == null")
+                currentUtterance = null
+            }
+            startNextLocked().collectInto(runAfters, focusHandles)
+        }
+        executeCleanup(runAfters, focusHandles)
+        if (VERBOSE_LOG_SEQUENCE && completedSequenceId != null) {
+            FooLog.d(TAG, "#TTS_SEQUENCE handleUtteranceCompletion: COMPLETE sequenceId=${quote(completedSequenceId)}")
+        }
+        if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
+            FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -handleUtteranceCompletion(caller=${quote(caller)}, utteranceId=${quote(utteranceId)})")
+        }
+    }
 
-    fun speak(
-        text: String,
-        runAfter: Runnable?,
-    ): Boolean = speak(false, text, runAfter)
+    //
+    //region cleanup/clear/cancel
+    //
 
-    @JvmOverloads
-    fun speak(
-        clear: Boolean,
-        text: String,
-        runAfter: Runnable? = null,
-    ): Boolean = speak(clear, FooTextToSpeechBuilder(text), runAfter)
+    /**
+     * If [sequenceId] is not currently playing then removes it from the queue.<br>
+     * If [sequenceId] is currently playing the stops it.<br>
+     * Continues with any next queued sequence.
+     *
+     * @return true if work was canceled (either currently playing or queued)
+     */
+    fun sequenceStop(sequenceId: String): Boolean {
+        if (VERBOSE_LOG_SEQUENCE) {
+            FooLog.d(TAG, "#TTS_SEQUENCE +stopSequence(sequenceId=${quote(sequenceId)})")
+        }
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
+        val canceled =
+            synchronized(syncLock) {
+                cancelSequenceLocked(sequenceId, runAfters, focusHandles, startNext = true)
+            }
+        if (canceled) {
+            executeCleanup(runAfters, focusHandles)
+        }
+        if (VERBOSE_LOG_SEQUENCE) {
+            FooLog.d(TAG, "#TTS_SEQUENCE -stopSequence(sequenceId=${quote(sequenceId)}) -> canceled=$canceled")
+        }
+        return canceled
+    }
 
-    fun speak(builder: FooTextToSpeechBuilder): Boolean = speak(false, builder, null)
+    /**
+     * Clears all queued sequences, optionally interrupting any current one.
+     *
+     * @param interrupt true to interrupt in-flight sequence, false to allow it to finish before any newly enqueued work begins.
+     * @return true if any work was canceled (either currently playing or queued)
+     */
+    fun clear(interrupt: Boolean = true): Boolean {
+        FooLog.d(TAG, "#TTS +clear(interrupt=$interrupt)")
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
+        synchronized(syncLock) {
+            clearLocked(interrupt, runAfters, focusHandles)
+        }
+        val canceled = runAfters.isNotEmpty() || focusHandles.isNotEmpty()
+        if (canceled) {
+            executeCleanup(runAfters, focusHandles)
+        }
+        FooLog.d(TAG, "#TTS -clear(interrupt=$interrupt) -> canceled=$canceled")
+        return canceled
+    }
+
+    private data class CleanupActions(
+        val runAfters: List<Runnable> = emptyList(),
+        val focusHandles: List<FooAudioFocusController.FocusHandle> = emptyList(),
+    )
+
+    private fun CleanupActions?.collectInto(
+        runAftersOut: MutableList<Runnable>,
+        focusHandlesOut: MutableList<FooAudioFocusController.FocusHandle>,
+    ) {
+        if (this == null) {
+            return
+        }
+        runAftersOut.addAll(runAfters)
+        focusHandlesOut.addAll(focusHandles)
+    }
+
+    private fun executeCleanup(
+        runAfters: Collection<Runnable>,
+        focusHandles: Collection<FooAudioFocusController.FocusHandle>,
+    ) {
+        runAfters.forEach { runnable ->
+            try {
+                runnable.run()
+            } catch (throwable: Throwable) {
+                FooLog.e(TAG, "#TTS executeCleanup: runAfter threw", throwable)
+            }
+        }
+        focusHandles.forEach { handle ->
+            handle.release()
+            onAudioFocusStop()
+        }
+    }
+
+    private fun removeQueuedBySequenceLocked(
+        sequenceId: String,
+        runAfters: MutableList<Runnable>,
+    ): Int {
+        var removedUtteranceCount = 0
+        val iterator = utteranceQueue.iterator()
+        while (iterator.hasNext()) {
+            val queued = iterator.next()
+            if (queued.sequenceId == sequenceId) {
+                // Remove from the queue first so we don't modify while iterating.
+                iterator.remove()
+
+                // Once an utterance is handed to TTS we move its callback into utteranceCallbacks.
+                // If it is still just queued the callback remains on the Utterance itself.
+                // Take utteranceCallbacks' entry if present, otherwise take the Utterance.
+                (utteranceCallbacks.remove(queued.utteranceId) ?: queued.runAfter)?.let(runAfters::add)
+
+                removedUtteranceCount++
+            }
+        }
+        if (VERBOSE_LOG_SEQUENCE && removedUtteranceCount > 0) {
+            FooLog.d(TAG, "#TTS_SEQUENCE removeQueued(sequenceId=${quote(sequenceId)}, …): utteranceQueue.size=${utteranceQueue.size}, removedUtteranceCount=$removedUtteranceCount")
+        }
+        return removedUtteranceCount
+    }
+
+    private fun cancelSequenceLocked(
+        sequenceId: String,
+        runAfters: MutableList<Runnable>,
+        focusHandles: MutableList<FooAudioFocusController.FocusHandle>,
+        startNext: Boolean,
+    ): Boolean {
+        var canceled = false
+        var stopSuccess = true
+
+        var interruptedSequenceId: String? = null
+
+        // Remove the currentUtterance if it is a match
+        val current = currentUtterance
+        if (current != null && current.sequenceId == sequenceId) {
+            interruptedSequenceId = current.sequenceId
+            if (isInitialized) {
+                stopSuccess = tts?.stop() == TextToSpeech.SUCCESS
+            }
+            utteranceCallbacks.remove(current.utteranceId)?.let(runAfters::add)
+            currentUtterance = null
+            canceled = true
+        }
+
+        // Remove any queued utterances if they are a match
+        val removedUtteranceCount = removeQueuedBySequenceLocked(sequenceId, runAfters)
+        if (removedUtteranceCount > 0) {
+            canceled = true
+        }
+
+        if (canceled) {
+            if (VERBOSE_LOG_SEQUENCE) {
+                val assertRemainingShouldBeZero = utteranceQueue.count { it.sequenceId == sequenceId }
+                FooLog.d(TAG, "#TTS_SEQUENCE cancelSequenceLocked(sequenceId=${quote(sequenceId)}, …, startNext=$startNext): interruptedSequenceId=${quote(interruptedSequenceId)}, removedUtteranceCount=$removedUtteranceCount, assertRemainingShouldBeZero=$assertRemainingShouldBeZero")
+            }
+            if (startNext) {
+                startNextLocked().collectInto(runAfters, focusHandles)
+            } else if (currentUtterance == null && utteranceQueue.isEmpty()) {
+                audioFocusHandleClearLocked()?.let(focusHandles::add)
+            }
+        } else {
+            if (VERBOSE_LOG_SEQUENCE) {
+                FooLog.w(TAG, "#TTS_SEQUENCE cancelSequenceLocked(sequenceId=${quote(sequenceId)}, …, startNext=$startNext): no matching sequence")
+            }
+        }
+
+        return canceled && stopSuccess
+    }
+
+    private fun clearLocked(
+        interrupt: Boolean,
+        runAfters: MutableList<Runnable>,
+        focusHandles: MutableList<FooAudioFocusController.FocusHandle>,
+    ) {
+        if (VERBOSE_LOG_SEQUENCE) {
+            FooLog.d(TAG, "#TTS_SEQUENCE +clearLocked(interrupt=$interrupt, …): utteranceQueue.size=${utteranceQueue.size}, currentUtterance?.sequenceId=${quote(currentUtterance?.sequenceId)}")
+        }
+        var interruptedSequenceId: String? = null
+        if (interrupt) {
+            currentUtterance?.let { current ->
+                interruptedSequenceId = current.sequenceId
+                if (isInitialized) {
+                    tts?.stop()
+                }
+                utteranceCallbacks.remove(current.utteranceId)?.let(runAfters::add)
+                currentUtterance = null
+            }
+        }
+
+        var removedCount = 0
+        while (utteranceQueue.isNotEmpty()) {
+            val removed = utteranceQueue.removeFirst()
+            utteranceCallbacks.remove(removed.utteranceId)?.let(runAfters::add)
+                ?: removed.runAfter?.let(runAfters::add)
+            removedCount++
+        }
+
+        val releaseFocus = interrupt || currentUtterance == null
+        if (releaseFocus) {
+            audioFocusHandleClearLocked()?.let(focusHandles::add)
+        }
+
+        if (VERBOSE_LOG_SEQUENCE) {
+            FooLog.d(TAG, "#TTS_SEQUENCE -clearLocked(interrupt=$interrupt, …): utteranceQueue.size=${utteranceQueue.size}, interruptedSequenceId=${quote(interruptedSequenceId)} removedCount=$removedCount, releaseFocus=$releaseFocus")
+        }
+    }
+
+    //
+    //endregion cleanup/clear/cancel
+    //
+
+    //
+    //region enqueue internal
+    //
+
+    private fun enqueueUtterancesLocked(
+        utterances: List<Utterance>,
+        prepend: Boolean,
+    ) {
+        if (prepend) {
+            for (utterance in utterances.asReversed()) {
+                utteranceQueue.addFirst(utterance)
+            }
+        } else {
+            utterances.forEach(utteranceQueue::addLast)
+        }
+    }
 
     private inner class Runnables(
         private vararg val runnables: Runnable,
@@ -649,222 +941,236 @@ class FooTextToSpeech private constructor() {
     }
 
     /**
-     * ALWAYS ALSO CALLS builder?.[FooTextToSpeechBuilder.appendSilenceSentenceBreak]
-     * so that there is ALWAYS a clear break before the NEXT speech.
+     * @return sequenceId if enqueued, otherwise null
      */
-    fun speak(
-        clear: Boolean,
-        builder: FooTextToSpeechBuilder?,
+    private fun sequenceEnqueue(
+        caller: String,
+        builder: FooTextToSpeechBuilder,
+        placement: QueuePlacement,
         runAfter: Runnable?,
-    ): Boolean {
-        //
-        // Always suffix runAfterSpeak to release any audio focus acquired in onUtteranceStart.
-        //
-        val runAfter =
-            if (runAfter == null) {
-                runAfterSpeak
-            } else {
-                Runnables(runAfterSpeak, runAfter)
+    ): String? {
+        var sequenceId: String? = null
+        try {
+            if (VERBOSE_LOG_SEQUENCE) {
+                FooLog.d(TAG, "#TTS_SEQUENCE +sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, runAfter)")
             }
-
-        var anySuccess = false
-        if (builder != null) {
-            val parts = builder.build(ensureEndsWithSilence = true)
-            //FooLog.e(TAG, "speak: parts(${parts.size})=$parts")
-
-            val last = parts.size - 1
-            for ((i, part) in parts.withIndex()) {
-                anySuccess = anySuccess or
-                    speakInternal(
-                        part,
-                        // TODO: Confirm this code works when passed in an empty builder.
-                        //  In that case appendSilenceSentenceBreak() adds one part.
-                        //  Meaning, does this code logic work when there is only one part?
-                        if (i == 0) clear else null,
-                        if (i == last) runAfter else null,
-                    )
-            }
-        } else {
-            anySuccess = true
-        }
-        if (!anySuccess) {
-            runAfter.run()
-        }
-        return anySuccess
-    }
-
-    /**
-     * Only ever called by private [speak]`(clear: Boolean, builder: FooTextToSpeechBuilder?, runAfter: Runnable?)`
-     * as part of [FooTextToSpeechBuilder.build] sequence that ALWAYS calls [FooTextToSpeechBuilder.appendSilenceSentenceBreak].
-     *
-     * @param part FooTextToSpeechPart of the calling sequence
-     * @param clear true or false if the first part of the calling sequence, otherwise null
-     * @param runAfter Runnable to call if the last part of the calling sequence, otherwise null
-     */
-    private fun speakInternal(
-        part: FooTextToSpeechPart,
-        clear: Boolean?,
-        runAfter: Runnable?,
-    ): Boolean {
-        when (part) {
-            is FooTextToSpeechPartSpeech -> {
-                val text = part.text
-                return if (clear != null) {
-                    // Keep runAfter reserved for the trailing silence so audio-focus cleanup fires after the full sequence.
-                    speakInternal(clear, text, null)
+            //
+            // Always suffix runAfterSpeak to release any audio focus acquired in onUtteranceStart.
+            //
+            val runAfter =
+                if (runAfter == null) {
+                    runAfterSpeak
                 } else {
-                    speakInternal(false, text, runAfter)
+                    Runnables(runAfterSpeak, runAfter)
                 }
+            val parts = builder.build(ensureNonEmptyEndsWithSilence = true)
+            //FooLog.e(TAG, "#TTS enqueueInternal: parts(${parts.size})=$parts")
+            if (parts.isEmpty()) {
+                FooLog.w(TAG, "#TTS sequenceEnqueue: builder is empty; not enqueueing")
+                runAfter.run()
+                return null
             }
-            is FooTextToSpeechPartSilence -> {
-                val durationMillis = part.durationMillis
-                return if (clear != null) {
-                    // Keep runAfter reserved for the trailing silence so audio-focus cleanup fires after the full sequence.
-                    silence(clear, durationMillis, null)
-                } else {
-                    silence(false, durationMillis, runAfter)
+            val runAfters = mutableListOf<Runnable>()
+            val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
+            synchronized(syncLock) {
+                if (tts == null) {
+                    throw IllegalStateException("start(context) must be called first")
                 }
-            }
-            is FooTextToSpeechPartEarcon -> {
-                val earcon = part.earcon
-                return if (clear != null) {
-                    // Keep runAfter reserved for the trailing silence so audio-focus cleanup fires after the full sequence.
-                    playEarcon(clear, earcon, null)
-                } else {
-                    playEarcon(false, earcon, runAfter)
+                if (VERBOSE_LOG_SEQUENCE) {
+                    FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: BEFORE utteranceQueue.size=${utteranceQueue.size}, currentUtterance?.sequenceId=${quote(currentUtterance?.sequenceId)}")
                 }
+                when (placement) {
+                    QueuePlacement.CLEAR -> {
+                        if (VERBOSE_LOG_SEQUENCE) {
+                            FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: placement=CLEAR -> clearing all sequences before enqueue")
+                        }
+                        clearLocked(interrupt = true, runAfters = runAfters, focusHandles = focusHandles)
+                    }
+                    QueuePlacement.IMMEDIATE -> {
+                        currentUtterance?.sequenceId?.let { currentUtteranceSequenceId ->
+                            if (VERBOSE_LOG_SEQUENCE) {
+                                FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: placement=IMMEDIATE -> interrupting currentUtterance?.sequenceId=${quote(currentUtteranceSequenceId)}")
+                            }
+                            cancelSequenceLocked(currentUtteranceSequenceId, runAfters, focusHandles, startNext = false)
+                        }
+                    }
+                    QueuePlacement.NEXT,
+                    QueuePlacement.APPEND,
+                    -> {
+                        // no-op
+                    }
+                }
+                sequenceId = "seq_${nextSequenceId++}"
+                if (VERBOSE_LOG_SEQUENCE) {
+                    FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: START sequenceId=${quote(sequenceId)}, parts.size=(${parts.size})")
+                }
+                val lastIndex = parts.lastIndex
+                var nextUtteranceId = 0L
+                val utterances =
+                    parts.mapIndexed { index, part ->
+                        Utterance.create(sequenceId, nextUtteranceId++, part, if (index == lastIndex) runAfter else null)
+                    }
+                val prepend = placement != QueuePlacement.APPEND
+                enqueueUtterancesLocked(utterances, prepend)
+                if (VERBOSE_LOG_SEQUENCE) {
+                    FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: AFTER utteranceQueue.size=${utteranceQueue.size}, currentUtterance?.sequenceId=${quote(currentUtterance?.sequenceId)}")
+                }
+                startNextLocked().collectInto(runAfters, focusHandles)
             }
-            else -> throw IllegalArgumentException("Unhandled part type ${part.javaClass}")
+            executeCleanup(runAfters, focusHandles)
+            return sequenceId
+        } finally {
+            if (VERBOSE_LOG_SEQUENCE) {
+                FooLog.d(TAG, "#TTS_SEQUENCE -sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, runAfter) -> sequenceId=${quote(sequenceId)}")
+            }
         }
     }
 
-    /**
-     * Only ever called by private [speakInternal]`(part: FooTextToSpeechPart, clear: Boolean?, runAfter: Runnable?)`
-     *
-     * @return true if isInitialized == false (in which case the text is enqueued) or if tts.speak(...) == TextToSpeech.SUCCESS, otherwise false
-     */
-    private fun speakInternal(
-        clear: Boolean,
-        text: String,
-        runAfter: Runnable?,
-    ): Boolean {
-        if (VERBOSE_LOG_SPEAK) {
-            FooLog.d(TAG, "#TTS_SPEAK +speakInternal(clear=$clear, text=${FooString.quote(text)}, runAfter=$runAfter)")
+    //
+    //endregion enqueue internal
+    //
+
+    private fun startNextLocked(): CleanupActions? {
+        if (!isInitialized || currentUtterance != null) {
+            return null
         }
-        var success = false
-        synchronized(syncLock) {
-            if (tts == null) {
-                throw IllegalStateException("start(context) must be called first")
-            }
-            if (isInitialized) {
+        val runAfters = mutableListOf<Runnable>()
+        val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
+
+        val params = bundleFactory()
+        /** NOTE: Setting KEY_PARAM_UTTERANCE_ID is deprecated by calling [android.speech.tts.TextToSpeech.speak] with utteranceId */
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
+        // TODO: KEY_PARAM_STREAM and KEY_PARAM_SESSION_ID
+        // TODO: KEY_PARAM_PAN?
+
+        val queueMode = TextToSpeech.QUEUE_FLUSH
+
+        while (utteranceQueue.isNotEmpty()) {
+            val next = utteranceQueue.removeFirst()
+            if (next.requestAudioFocus) {
                 if (!audioFocusAcquireTry(audioAttributes)) {
-                    // Being denied an audio focus request poses an interesting dilemma.
-                    // Something else has exclusive audio focus; The right thing to do is to either queue this utterance or drop it [and call runAfter]...
-                    //FooLog.w(TAG, "speak: audio focus denied; skipping utteranceId=${FooString.quote(utteranceId)}")
-                    //runAfter?.run()
-                    //return false
-                    // BUT FOR NOW we will do neither and INTENTIONALLY CONTINUE to speak even if audio focus is denied!
-                    // If this causes any usability problem (ex: TTS speaking while we are in a call) then it should be obvious and we can address it then.
-                    // If it is never obvious then there is nothing to fix here and we are already doing the right thing.
-                    FooLog.w(TAG, "#TTS_AUDIO_FOCUS speakInternal: audio focus denied; speaking anyway; TODO: fix any usability problem this exposes")
+                    /**
+                     * Being denied an audio focus request poses an interesting dilemma.
+                     * Something else has exclusive audio focus.
+                     * The right thing to do is to either queue this utterance or drop it [and call runAfter]...
+                     * ```
+                     * FooLog.w(TAG, "#TTS speak: audio focus denied; skipping utteranceId=${quote(utteranceId)}")
+                     * runAfter?.run()
+                     * return false
+                     * ```
+                     * BUT FOR NOW we will do neither and INTENTIONALLY CONTINUE to speak even if audio focus is denied!
+                     * If this causes any usability problem (ex: TTS speaking while we are in a call) then it should be obvious and we can address it then.
+                     * If it is never obvious then there is nothing to fix here and we are already doing the right thing.
+                     *
+                     * TODO: Make Aggressive/Lenient audio focus requirement a settable property
+                     */
+                    FooLog.w(TAG, "#TTS_AUDIO_FOCUS startNextLocked: audio focus denied; proceeding anyway; TODO: handle denied focus more gracefully")
                 }
-
-                val queueMode = if (clear) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-
-                val params = Bundle()
-                /** NOTE: Setting KEY_PARAM_UTTERANCE_ID is deprecated by calling [android.speech.tts.TextToSpeech.speak] with utteranceId */
-                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
-                // TODO: KEY_PARAM_STREAM and KEY_PARAM_SESSION_ID
-                // TODO: KEY_PARAM_PAN?
-
-                val utteranceId = "${nextUtteranceId}_text"
-                if (runAfter != null) {
-                    utteranceCallbacks[utteranceId] = runAfter
+            }
+            val result =
+                when (next) {
+                    is Utterance.Text -> {
+                        if (VERBOSE_LOG_UTTERANCE) {
+                            FooLog.d(TAG, "#TTS_UTTERANCE SPEAK startNextLocked: tts.speak(utteranceId=${quote(next.utteranceId)}, queueMode=${queueModeToString(queueMode)}, params=${FooPlatformUtils.toString(params)}, text=${quote(next.text)})")
+                        }
+                        tts!!.speak(next.text, queueMode, params, next.utteranceId)
+                    }
+                    is Utterance.Silence -> {
+                        if (VERBOSE_LOG_UTTERANCE) {
+                            FooLog.i(TAG, "#TTS_UTTERANCE SILENCE startNextLocked: tts.playSilentUtterance(utteranceId=${quote(next.utteranceId)}, queueMode=${queueModeToString(queueMode)}, durationMillis=${next.durationMillis})")
+                        }
+                        tts!!.playSilentUtterance(next.durationMillis.toLong(), queueMode, next.utteranceId)
+                    }
+                    is Utterance.Earcon -> {
+                        if (VERBOSE_LOG_UTTERANCE) {
+                            FooLog.i(TAG, "#TTS_UTTERANCE EARCON startNextLocked: tts.playEarcon(utteranceId=${quote(next.utteranceId)}, queueMode=${queueModeToString(queueMode)}, params=${FooPlatformUtils.toString(params)}, earcon=${quote(next.earcon)})")
+                        }
+                        tts!!.playEarcon(next.earcon, queueMode, params, next.utteranceId)
+                    }
                 }
-
-                if (VERBOSE_LOG_UTTERANCE) {
-                    FooLog.d(TAG, "#TTS_UTTERANCE speakInternal: tts.speak(utteranceId=${FooString.quote(utteranceId)}, queueMode=${queueModeToString(queueMode)}, params=${FooPlatformUtils.toString(params)}, text=${FooString.quote(text)})")
+            if (result == TextToSpeech.SUCCESS) {
+                currentUtterance = next
+                next.runAfter?.let { utteranceCallbacks[next.utteranceId] = it }
+                if (VERBOSE_LOG_SEQUENCE) {
+                    val remainingForSequence = utteranceQueue.count { it.sequenceId == next.sequenceId }
+                    FooLog.d(TAG, "#TTS_SEQUENCE startNextLocked: sequenceId=${quote(next.sequenceId)} utteranceId=${quote(next.utteranceId)} remainingInSequence=$remainingForSequence utteranceQueue.size=${utteranceQueue.size}")
                 }
-                val result =
-                    tts!!.speak(
-                        text,
-                        queueMode,
-                        params,
-                        utteranceId,
-                    )
-                if (result == TextToSpeech.SUCCESS) {
-                    nextUtteranceId++
-                    success = true
-                } else {
-                    utteranceCallbacks.remove(utteranceId)
-                    runAfter?.run()
-                }
+                return if (runAfters.isEmpty() && focusHandles.isEmpty()) null else CleanupActions(runAfters, focusHandles)
             } else {
-                if (VERBOSE_LOG_INIT_QUEUE) {
-                    FooLog.d(TAG, "#TTS_INIT speakInternal: isInitialized == false; enqueuing")
+                if (VERBOSE_LOG_UTTERANCE) {
+                    FooLog.w(TAG, "#TTS_UTTERANCE startNextLocked: failed to play utteranceId=${quote(next.utteranceId)}; result=${statusToString(result)}")
                 }
-                val utteranceInfo = UtteranceText(text, runAfter)
-                initQueue.add(utteranceInfo)
-                success = true
+                currentUtterance = null
+                next.runAfter?.let(runAfters::add)
+                audioFocusHandleClearLocked()?.let(focusHandles::add)
             }
         }
-        if (VERBOSE_LOG_SPEAK) {
-            FooLog.d(TAG, "#TTS_SPEAK -speakInternal(text=${FooString.quote(text)}, clear=$clear, runAfter=$runAfter)")
-        }
-        return success
+        audioFocusHandleClearLocked()?.let(focusHandles::add)
+        return if (runAfters.isEmpty() && focusHandles.isEmpty()) null else CleanupActions(runAfters, focusHandles)
     }
 
+    /**
+     * Enqueues [builder] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion of the full builder sequence.
+     *
+     * @return a `sequenceId` that can be canceled via [sequenceStop], or null if builder is empty.
+     */
+    fun sequenceEnqueue(
+        builder: FooTextToSpeechBuilder,
+        placement: QueuePlacement = QueuePlacement.APPEND,
+        runAfter: Runnable? = null,
+    ) = sequenceEnqueue("sequenceEnqueue", builder, placement, runAfter)
+
+    /**
+     * [sequenceEnqueue]s [text] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     *
+     * @return a `sequenceId` that can be canceled via [sequenceStop], or null if text is empty.
+     */
+    @JvmOverloads
+    fun speak(
+        text: String,
+        placement: QueuePlacement = QueuePlacement.APPEND,
+        runAfter: Runnable? = null,
+    ): String? {
+        if (VERBOSE_LOG_SPEAK) {
+            FooLog.d(TAG, "#TTS_SPEAK speak(text=${quote(text)}, placement=$placement, runAfter=$runAfter)")
+        }
+        return sequenceEnqueue("speak", FooTextToSpeechBuilder(text), placement, runAfter)
+    }
+
+    /**
+     * [sequenceEnqueue]s silence of [durationMillis] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     *
+     * Non-audio silence placement does not make much sense, but it is included for consistency.
+     *
+     * @return a `sequenceId` that can be canceled via [sequenceStop], or null if durationMillis is <= 0.
+     */
     @JvmOverloads
     fun silence(
-        clear: Boolean,
         durationMillis: Int,
+        placement: QueuePlacement = QueuePlacement.APPEND,
         runAfter: Runnable? = null,
-    ): Boolean {
-        if (VERBOSE_LOG_SILENCE) {
-            FooLog.d(TAG, "#TTS_SILENCE +silence(clear=$clear, durationMillis=$durationMillis, runAfter=$runAfter)")
+    ): String? {
+        if (VERBOSE_LOG_SPEAK) {
+            FooLog.d(TAG, "#TTS_SILENCE silence(durationMillis=$durationMillis, placement=$placement, runAfter=$runAfter)")
         }
-        var success = false
-        synchronized(syncLock) {
-            if (tts == null) {
-                throw IllegalStateException("start(context) must be called first")
-            }
-            if (isInitialized) {
-                val durationMillis = durationMillis.toLong()
-                val queueMode = if (clear) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-                val utteranceId = "${nextUtteranceId}_silence"
-                if (runAfter != null) {
-                    utteranceCallbacks[utteranceId] = runAfter
-                }
+        return sequenceEnqueue("silence", FooTextToSpeechBuilder(durationMillis), placement, runAfter)
+    }
 
-                if (VERBOSE_LOG_UTTERANCE) {
-                    FooLog.i(TAG, "#TTS_UTTERANCE silence: tts.playSilentUtterance(utteranceId=${FooString.quote(utteranceId)}, queueMode=${queueModeToString(queueMode)}, durationMillis=$durationMillis)")
-                }
-                val result =
-                    tts!!.playSilentUtterance(
-                        durationMillis,
-                        queueMode,
-                        utteranceId,
-                    )
-                if (result == TextToSpeech.SUCCESS) {
-                    nextUtteranceId++
-                    success = true
-                } else {
-                    utteranceCallbacks.remove(utteranceId)
-                    runAfter?.run()
-                }
-            } else {
-                if (VERBOSE_LOG_INIT_QUEUE) {
-                    FooLog.d(TAG, "#TTS_INIT silence: isInitialized == false; enqueuing")
-                }
-                val utteranceInfo = UtteranceSilence(durationMillis, runAfter)
-                initQueue.add(utteranceInfo)
-                success = true
-            }
+    /**
+     * [sequenceEnqueue]s [earcon] (aka: "audio icon") respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     *
+     * @return a `sequenceId` that can be canceled via [sequenceStop], or null if earcon is empty.
+     */
+    @JvmOverloads
+    fun earcon(
+        earcon: String,
+        placement: QueuePlacement = QueuePlacement.APPEND,
+        runAfter: Runnable? = null,
+    ): String? {
+        if (VERBOSE_LOG_EARCON) {
+            FooLog.d(TAG, "#TTS_EARCON earcon(earcon=${quote(earcon)}, placement=$placement, runAfter=$runAfter)")
         }
-        if (VERBOSE_LOG_SILENCE) {
-            FooLog.d(TAG, "#TTS_SILENCE -silence(clear=$clear, durationMillis=$durationMillis, runAfter=$runAfter)")
-        }
-        return success
+        return sequenceEnqueue("earcon", FooTextToSpeechBuilder().appendEarcon(earcon), placement, runAfter)
     }
 
     /**
@@ -911,73 +1217,5 @@ class FooTextToSpeech private constructor() {
             }
             tts!!.addEarcon(earcon, uri)
         }
-    }
-
-    /**
-     * @see [android.speech.tts.TextToSpeech.playEarcon]
-     */
-    fun playEarcon(
-        clear: Boolean,
-        earcon: String,
-        runAfter: Runnable? = null,
-    ): Boolean {
-        if (VERBOSE_LOG_EARCON) {
-            FooLog.d(TAG, "#TTS_EARCON +playEarcon(clear=$clear, earcon=${FooString.quote(earcon)}, runAfter=$runAfter)")
-        }
-        var success = false
-        synchronized(syncLock) {
-            if (tts == null) {
-                throw IllegalStateException("start(context) must be called first")
-            }
-            if (isInitialized) {
-                if (!audioFocusAcquireTry(audioAttributes)) {
-                    // Being denied an audio focus request poses an interesting dilemma.
-                    // Something else has exclusive audio focus; The right thing to do is to either queue this utterance or drop it [and call runAfter]...
-                    //FooLog.w(TAG, "speak: audio focus denied; skipping utteranceId=${FooString.quote(utteranceId)}")
-                    //runAfter?.run()
-                    //return false
-                    // BUT FOR NOW we will do neither and INTENTIONALLY CONTINUE to speak even if audio focus is denied!
-                    // If this causes any usability problem (ex: TTS speaking while we are in a call) then it should be obvious and we can address it then.
-                    // If it is never obvious then there is nothing to fix here and we are already doing the right thing.
-                    FooLog.w(TAG, "#TTS_AUDIO_FOCUS playEarcon: audio focus denied; speaking anyway; TODO: fix any usability problem this exposes")
-                }
-
-                val queueMode = if (clear) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-
-                val params = Bundle()
-                /** NOTE: Setting KEY_PARAM_UTTERANCE_ID is deprecated by calling [android.speech.tts.TextToSpeech.speak] with utteranceId */
-                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeRelativeToAudioStream)
-                // TODO: KEY_PARAM_STREAM and KEY_PARAM_SESSION_ID
-                // TODO: KEY_PARAM_PAN?
-
-                val utteranceId = "${nextUtteranceId}_earcon"
-                if (runAfter != null) {
-                    utteranceCallbacks[utteranceId] = runAfter
-                }
-
-                if (VERBOSE_LOG_UTTERANCE) {
-                    FooLog.i(TAG, "#TTS_UTTERANCE playEarcon: tts.playEarcon(utteranceId=${FooString.quote(utteranceId)}, queueMode=${queueModeToString(queueMode)}, params=${FooPlatformUtils.toString(params)}, earcon=${FooString.quote(earcon)})")
-                }
-                val result = tts!!.playEarcon(earcon, queueMode, params, utteranceId)
-                if (result == TextToSpeech.SUCCESS) {
-                    nextUtteranceId++
-                    success = true
-                } else {
-                    utteranceCallbacks.remove(utteranceId)
-                    runAfter?.run()
-                }
-            } else {
-                if (VERBOSE_LOG_INIT_QUEUE) {
-                    FooLog.d(TAG, "#TTS_INIT playEarcon: isInitialized == false; enqueuing")
-                }
-                val utteranceInfo = UtteranceEarcon(earcon, runAfter)
-                initQueue.add(utteranceInfo)
-                success = true
-            }
-        }
-        if (VERBOSE_LOG_EARCON) {
-            FooLog.d(TAG, "#TTS_EARCON -playEarcon(clear=$clear, earcon=${FooString.quote(earcon)}, runAfter=$runAfter)")
-        }
-        return success
     }
 }

@@ -106,6 +106,16 @@ android {
         // Suppress "Access to private method getAudioProfileDataStore of class {X} requires synthetic accessor"
         disable += "SyntheticAccessor"
     }
+
+    /*
+    testOptions {
+        unitTests {
+            // Used to help building out mocks.
+            // See https://developer.android.com/training/testing/local-tests#error
+            isReturnDefaultValues = true
+        }
+    }
+     */
 }
 
 //
@@ -156,5 +166,7 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.material.kolor)
 
+    // Test
     testImplementation(kotlin("test"))
+    testImplementation(libs.mockk)
 }

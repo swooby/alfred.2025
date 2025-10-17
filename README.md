@@ -8,6 +8,20 @@ or possibly make this project eventually better than Alfred2017.
 
 NOTE: Regularly check Keep notes and vet into here.
 
+UNVETTED:
+* Improve FooTextToSpeech.QueuePlacement.IMMEDIATE to resume/restart any interrupted sequence.  
+  Rename to "INTERRUPT" or "INTERRUPT_AND_THEN_REPEAT" and "INTERRUPT_AND_THEN_RESUME"?  
+  `codex resume 0199f135-14b7-7c73-807f-0c3e79a3e70a`
+* Add the ability to cancel any currently speaking sequence.
+* Abstract out Android TTS from foo TTS so that any speech provider could be used
+* Option to ignore silent (might limit some awareness)
+* Announce when headset is connected
+* Announce headset battery level, especially when low
+* Add to hourly announcement:
+  * Number of emails/chats/calls/etc received.
+  * Total time spent in appx, appy, etc.
+  * Total time screen on.
+
 ### Notification & Audio Controls
 1. Detect and honor system Do Not Disturb schedules before speaking or playing announcements.
 1. Implement timed notification controls (mute, snooze, temporary volume attenuation) so users can pause Alfred for set durations.
@@ -53,6 +67,8 @@ NOTE: Regularly check Keep notes and vet into here.
 1. Expand `MediaControllerCallback.toString()` logging so it captures more than just `MediaMetadata.getDescription()`.
 1. Capture `notificationChannel.vibrationEffect` in `NotificationExtractor.buildAttachments` for richer metadata.
 1. Handle `NotificationsSource.onNotificationRemoved` to keep Alfred's state aligned with dismissed notifications.
+   1. Remember the sequenceId returned from FooTextToSpeech.speak(...)
+   1. When notification is removed, call FooTextToSpeech.sequenceCancel(sequenceId)
 1. Improve coalescing logic for similar media and notification events to reduce repeated speech.
 1. Stop the "Smart Switch" backup notification from generating repeated "Backing Up" announcements.
 1. Fix the "Android System: Data warning" notification so it dedupes instead of repeating very frequently.
@@ -105,6 +121,7 @@ NOTE: Regularly check Keep notes and vet into here.
 ... 
 
 ## Done
+* FooTextToSpeech now queues requests, returns a cancelable `sequenceId`, and supports NEXT/IMMEDIATE/CLEAR placement to preempt playback.
 * "Screen on. Was off for X." / "Screen off. Was on for Y."
 * Add notification PendingIntent that launches app.
 * Audio profiles now gate speech output (Always Off / headset-only modes)
