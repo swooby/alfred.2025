@@ -204,6 +204,7 @@
     <string name="event_list_label_entity_id">Entity ID</string>
     <string name="event_list_label_parent_id">Parent ID</string>
     <string name="event_list_label_fingerprint">Fingerprint</string>
+    <string name="event_list_label_coalesce_key">Coalesce key</string>
     <string name="event_list_section_identity">Identity</string>
     <string name="event_list_section_context">Context</string>
     <string name="event_list_section_bubble">Bubble</string>
