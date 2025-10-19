@@ -1773,6 +1773,8 @@ internal object LocalizedStrings {
         @Composable get() = stringResource(R.string.event_list_label_parent_id)
     val labelFingerprint: String
         @Composable get() = stringResource(R.string.event_list_label_fingerprint)
+    val labelCoalesceKey: String
+        @Composable get() = stringResource(R.string.event_list_label_coalesce_key)
     val sectionSummary: String
         @Composable get() = stringResource(R.string.event_list_section_identity)
     val sectionContext: String
