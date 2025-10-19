@@ -1124,8 +1124,8 @@ private fun deriveCoalesceKey(
         SourceComponentIds.NOTIFICATION_SOURCE -> event.subjectEntityId?.takeIf { it.isNotBlank() }
         SourceComponentIds.MEDIA_SOURCE ->
             event.appPkg?.takeIf { it.isNotBlank() }?.let { pkg ->
-                val action = event.eventAction.takeIf { it.isNotBlank() }
-                    ?: event.eventType.substringAfterLast('.')
+                val action = (event.eventAction.takeIf { it.isNotBlank() }
+                    ?: event.eventType.substringAfterLast('.')).lowercase(Locale.ROOT)
                 "media:$pkg:now_playing:$action"
             }
         SourceComponentIds.SYSTEM_EVENT_SOURCE ->
