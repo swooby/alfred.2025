@@ -20,12 +20,16 @@ val enableLabelHeuristics =
         else -> false
     }
 
+// Detect if running as GitHub Action
+val isCi = System.getenv("CI") == "true"
+
 android {
     namespace = "com.swooby.alfred"
     compileSdk = 36
 
     defaultConfig {
-        val appId = "com.swooby.alfred2025"
+        val appId = if (isCi) "com.swooby.alfred2025" else "com.swooby.alfred2025dev"
+        val appName = if (isCi) "Alfred 2025" else "Alfred 2025 (dev)"
 
         applicationId = appId
         versionCode = 1
@@ -41,6 +45,8 @@ android {
 
         // Used in some Composable Previews
         buildConfigField("String", "PACKAGE_NAME", "\"$appId\"")
+
+        manifestPlaceholders["appName"] = appName
     }
 
     buildTypes {
