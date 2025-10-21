@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [EventEntity::class], version = 1, exportSchema = true)
+@Database(entities = [EventEntity::class], version = 2, exportSchema = true)
 @TypeConverters(RoomConverters::class)
 abstract class AlfredDb : RoomDatabase() {
     abstract fun events(): EventDao

@@ -49,6 +49,7 @@ data class EventEntity(
     val api: String? = null,
     val confidence: Double? = null,
     val rawFingerprint: String? = null,
+    val coalesceKey: String? = null,
 
     val deviceBrand: String? = null,
     val deviceModel: String? = null,

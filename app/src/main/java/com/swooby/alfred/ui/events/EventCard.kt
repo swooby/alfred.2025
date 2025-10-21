@@ -180,7 +180,19 @@ internal fun EventCard(
     val postedLabel = formatInstant(eventInstant, timeFormatter)
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
     val fingerprint = event.rawFingerprint?.takeIf { it.isNotBlank() }
-    val coalesceKey = deriveCoalesceKey(event, refsJson)
+    val storedCoalesceKey = event.coalesceKey?.takeIf { it.isNotBlank() }
+    val derivedCoalesceKey =
+        if (storedCoalesceKey == null) {
+            deriveCoalesceKey(event, refsJson)?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+    val coalesceKey =
+        when {
+            storedCoalesceKey != null -> storedCoalesceKey
+            derivedCoalesceKey != null -> "${derivedCoalesceKey} (derived)"
+            else -> null
+        }
 
     val peopleList = traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
     val actionsList = traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
@@ -1125,7 +1137,8 @@ private fun deriveCoalesceKey(
         SourceComponentIds.MEDIA_SOURCE ->
             event.appPkg?.takeIf { it.isNotBlank() }?.let { pkg ->
                 val action = (event.eventAction.takeIf { it.isNotBlank() }
-                    ?: event.eventType.substringAfterLast('.')).lowercase(Locale.ROOT)
+                    ?: event.eventType.substringAfterLast('.'))
+                    .lowercase(Locale.ROOT)
                 "media:$pkg:now_playing:$action"
             }
         SourceComponentIds.SYSTEM_EVENT_SOURCE ->

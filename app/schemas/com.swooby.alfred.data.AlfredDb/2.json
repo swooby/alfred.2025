@@ -1,0 +1,324 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "bc06c1e344dd92ed53abfd5fae387add",
+    "entities": [
+      {
+        "tableName": "events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`eventId` TEXT NOT NULL, `schemaVer` INTEGER NOT NULL, `userId` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `appPkg` TEXT, `component` TEXT, `parserVer` TEXT, `eventType` TEXT NOT NULL, `eventCategory` TEXT NOT NULL, `eventAction` TEXT NOT NULL, `subjectEntity` TEXT NOT NULL, `subjectEntityId` TEXT, `subjectParentId` TEXT, `tsStart` TEXT NOT NULL, `tsEnd` TEXT, `durationMs` INTEGER, `timezone` TEXT, `ingestAt` TEXT, `platform` TEXT NOT NULL, `api` TEXT, `confidence` REAL, `rawFingerprint` TEXT, `coalesceKey` TEXT, `deviceBrand` TEXT, `deviceModel` TEXT, `deviceSdk` INTEGER, `userInteractive` INTEGER, `userRinger` TEXT, `userDnd` INTEGER, `audioRoute` TEXT, `netTransport` TEXT, `ssidHash` TEXT, `bssidHash` TEXT, `vpn` INTEGER, `locLevel` TEXT, `latE7` INTEGER, `lngE7` INTEGER, `sensitivity` TEXT NOT NULL, `e2ee` INTEGER NOT NULL, `retention` TEXT, `piiTags` TEXT NOT NULL, `attributes` TEXT NOT NULL, `metrics` TEXT NOT NULL, `tags` TEXT NOT NULL, `sessionId` TEXT, `refs` TEXT NOT NULL, `attachments` TEXT NOT NULL, `integritySig` TEXT, PRIMARY KEY(`eventId`))",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "eventId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaVer",
+            "columnName": "schemaVer",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appPkg",
+            "columnName": "appPkg",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "component",
+            "columnName": "component",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "parserVer",
+            "columnName": "parserVer",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "eventType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventCategory",
+            "columnName": "eventCategory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventAction",
+            "columnName": "eventAction",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subjectEntity",
+            "columnName": "subjectEntity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subjectEntityId",
+            "columnName": "subjectEntityId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "subjectParentId",
+            "columnName": "subjectParentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tsStart",
+            "columnName": "tsStart",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tsEnd",
+            "columnName": "tsEnd",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timezone",
+            "columnName": "timezone",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ingestAt",
+            "columnName": "ingestAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "platform",
+            "columnName": "platform",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "api",
+            "columnName": "api",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rawFingerprint",
+            "columnName": "rawFingerprint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "coalesceKey",
+            "columnName": "coalesceKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deviceBrand",
+            "columnName": "deviceBrand",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deviceModel",
+            "columnName": "deviceModel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deviceSdk",
+            "columnName": "deviceSdk",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userInteractive",
+            "columnName": "userInteractive",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userRinger",
+            "columnName": "userRinger",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userDnd",
+            "columnName": "userDnd",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "audioRoute",
+            "columnName": "audioRoute",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "netTransport",
+            "columnName": "netTransport",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ssidHash",
+            "columnName": "ssidHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bssidHash",
+            "columnName": "bssidHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "vpn",
+            "columnName": "vpn",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "locLevel",
+            "columnName": "locLevel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latE7",
+            "columnName": "latE7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lngE7",
+            "columnName": "lngE7",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sensitivity",
+            "columnName": "sensitivity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "e2ee",
+            "columnName": "e2ee",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retention",
+            "columnName": "retention",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "piiTags",
+            "columnName": "piiTags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attributes",
+            "columnName": "attributes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metrics",
+            "columnName": "metrics",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "refs",
+            "columnName": "refs",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attachments",
+            "columnName": "attachments",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "integritySig",
+            "columnName": "integritySig",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "eventId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_events_userId_tsStart",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "tsStart"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_events_userId_tsStart` ON `${TABLE_NAME}` (`userId`, `tsStart`)"
+          },
+          {
+            "name": "index_events_eventType_tsStart",
+            "unique": false,
+            "columnNames": [
+              "eventType",
+              "tsStart"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_events_eventType_tsStart` ON `${TABLE_NAME}` (`eventType`, `tsStart`)"
+          },
+          {
+            "name": "index_events_deviceId_tsStart",
+            "unique": false,
+            "columnNames": [
+              "deviceId",
+              "tsStart"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_events_deviceId_tsStart` ON `${TABLE_NAME}` (`deviceId`, `tsStart`)"
+          },
+          {
+            "name": "index_events_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_events_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bc06c1e344dd92ed53abfd5fae387add')"
+    ]
+  }
+}

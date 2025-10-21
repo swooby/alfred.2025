@@ -148,6 +148,7 @@ class EventIngestImpl(
                     e.durationMs ?: e.tsEnd?.let { end ->
                         end.toEpochMilliseconds() - e.tsStart.toEpochMilliseconds()
                     },
+                coalesceKey = e.coalesceKey ?: raw.coalesceKey?.takeIf { it.isNotBlank() },
             )
         stats.emitted()
         if (LOG_FILTER) {
