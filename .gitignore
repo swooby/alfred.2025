@@ -4,7 +4,6 @@
 .kotlin
 build
 app/build
-app/schemas
 scratch/
 
 .DS_Store

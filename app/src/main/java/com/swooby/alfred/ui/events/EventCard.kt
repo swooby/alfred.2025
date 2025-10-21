@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -178,6 +179,20 @@ internal fun EventCard(
     val timeFormatter = rememberTimeFormatter()
     val postedLabel = formatInstant(eventInstant, timeFormatter)
     val tagLine = event.tags.takeIf { it.isNotEmpty() }?.joinToString(", ")
+    val fingerprint = event.rawFingerprint?.takeIf { it.isNotBlank() }
+    val storedCoalesceKey = event.coalesceKey?.takeIf { it.isNotBlank() }
+    val derivedCoalesceKey =
+        if (storedCoalesceKey == null) {
+            deriveCoalesceKey(event, refsJson)?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+    val coalesceKey =
+        when {
+            storedCoalesceKey != null -> storedCoalesceKey
+            derivedCoalesceKey != null -> "${derivedCoalesceKey} (derived)"
+            else -> null
+        }
 
     val peopleList = traits?.arrayOrNull("people")?.mapNotNull { it.toPersonDisplay() } ?: emptyList()
     val actionsList = traits?.arrayOrNull("actions")?.mapNotNull { it.toActionDisplay() } ?: emptyList()
@@ -407,7 +422,8 @@ internal fun EventCard(
             add(InfoItem(LocalizedStrings.labelEventType, event.eventType))
             event.subjectEntityId?.let { add(InfoItem(LocalizedStrings.labelEntityId, it)) }
             event.subjectParentId?.let { add(InfoItem(LocalizedStrings.labelParentId, it)) }
-            event.rawFingerprint?.let { add(InfoItem(LocalizedStrings.labelFingerprint, it)) }
+            coalesceKey?.let { add(InfoItem(LocalizedStrings.labelCoalesceKey, it)) }
+            fingerprint?.let { add(InfoItem(LocalizedStrings.labelFingerprint, it)) }
         }
 
     val extrasText = rawExtrasJson?.let { PrettyJson.encodeToString(JsonObject.serializer(), it) }
@@ -480,6 +496,24 @@ internal fun EventCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (fingerprint != null || coalesceKey != null) {
+                        SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                fingerprint?.let {
+                                    DebugInfoLine(
+                                        label = LocalizedStrings.labelFingerprint,
+                                        value = it,
+                                    )
+                                }
+                                coalesceKey?.let {
+                                    DebugInfoLine(
+                                        label = LocalizedStrings.labelCoalesceKey,
+                                        value = it,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 IconButton(
@@ -723,6 +757,31 @@ private fun InfoLine(item: InfoItem) {
             },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun DebugInfoLine(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val valueColor = MaterialTheme.colorScheme.onSurface
+    Text(
+        modifier = modifier,
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = primary)) {
+                append(label)
+                append(": ")
+            }
+            withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = valueColor)) {
+                append(value)
+            }
+        },
+        style = MaterialTheme.typography.bodySmall,
+        //maxLines = 2,
+        //overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -1053,6 +1112,53 @@ private val PrettyJson =
         explicitNulls = false
     }
 
+/**
+ * Attempts to derive a stable coalesce key for an [EventEntity].
+ *
+ * Precedence rules:
+ * 1. `refsJson.key` – trusted server-provided identifier when present.
+ * 2. Component-specific heuristics:
+ *    - Notifications reuse `subjectEntityId` (typically the notification key).
+ *    - Media events map to `media:<pkg>:now_playing:<action>` using `eventAction`
+ *      or the trailing segment of `eventType` as a fallback.
+ *    - System events collapse well-known types into shared buckets such as
+ *      `display_state`, `device_state`, or `wifi_state`.
+ *
+ * Example outputs: `media:com.spotify.music:now_playing:play`,
+ * `display_state`, `power_connection`.
+ */
+private fun deriveCoalesceKey(
+    event: EventEntity,
+    refsJson: JsonObject?,
+): String? {
+    refsJson?.stringOrNull("key")?.takeIf { it.isNotBlank() }?.let { return it }
+    return when (event.component) {
+        SourceComponentIds.NOTIFICATION_SOURCE -> event.subjectEntityId?.takeIf { it.isNotBlank() }
+        SourceComponentIds.MEDIA_SOURCE ->
+            event.appPkg?.takeIf { it.isNotBlank() }?.let { pkg ->
+                val action = (event.eventAction.takeIf { it.isNotBlank() }
+                    ?: event.eventType.substringAfterLast('.'))
+                    .lowercase(Locale.ROOT)
+                "media:$pkg:now_playing:$action"
+            }
+        SourceComponentIds.SYSTEM_EVENT_SOURCE ->
+            when (event.eventType) {
+                SourceEventTypes.DISPLAY_ON,
+                SourceEventTypes.DISPLAY_OFF -> "display_state"
+                SourceEventTypes.DEVICE_UNLOCK -> "device_unlock"
+                SourceEventTypes.DEVICE_BOOT,
+                SourceEventTypes.DEVICE_SHUTDOWN -> "device_state"
+                SourceEventTypes.POWER_CONNECTED,
+                SourceEventTypes.POWER_DISCONNECTED -> "power_connection"
+                SourceEventTypes.POWER_CHARGING_STATUS -> "power_status"
+                SourceEventTypes.NETWORK_WIFI_CONNECT,
+                SourceEventTypes.NETWORK_WIFI_DISCONNECT -> "wifi_state"
+                else -> null
+            }
+        else -> null
+    }
+}
+
 private fun JsonObject.stringOrNull(key: String): String? {
     val element = this[key] ?: return null
     return (element as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
@@ -1215,6 +1321,7 @@ internal val PreviewNotificationEvent =
                     },
                 )
             },
+        rawFingerprint = "notif:mail:apollo",
     )
 
 internal val PreviewMediaSessionEvent =
@@ -1252,6 +1359,7 @@ internal val PreviewMediaSessionEvent =
                 put("played_ms", JsonPrimitive(192_000))
                 put("volume_stream_music", JsonPrimitive(7))
             },
+        rawFingerprint = "media:spotify:track:stop",
     )
 
 internal val PreviewGenericEvent =
@@ -1288,6 +1396,7 @@ internal val PreviewGenericEvent =
                     },
                 )
             },
+        rawFingerprint = "system:event:preview",
     )
 
 internal val PreviewEvents =
