@@ -19,6 +19,7 @@ import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
 import com.swooby.alfred.core.profile.AudioProfileGate
+import com.swooby.alfred.core.profile.AudioProfileGateReason
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
@@ -106,6 +107,7 @@ class PipelineService : Service() {
     private var cfg = RulesConfig()
     private var systemEventsJob: Job? = null
     private var callStateJob: Job? = null
+    private var audioGateJob: Job? = null
     private val speechMutex = Mutex()
     private val pendingUtterances = ArrayDeque<Utterance.Live>()
     private var currentCallStatus: CallStatus = CallStatus.UNKNOWN
@@ -180,6 +182,19 @@ class PipelineService : Service() {
         }
 
         updateOngoingNotification(promptEnable = !hasNotificationListenerAccess)
+
+        // Observe audio gate state for notification updates
+        audioGateJob =
+            scope.launch {
+                app.audioProfiles.uiState.collect { uiState ->
+                    val gate = app.audioProfiles.evaluateGate()
+                    if (!gate.allow && gate.reason == AudioProfileGateReason.NO_ACTIVE_DEVICES) {
+                        updateOngoingNotification()
+                    } else if (gate.allow) {
+                        updateOngoingNotification()
+                    }
+                }
+            }
 
         // Live settings → cfg
         scope.launch {
@@ -257,6 +272,7 @@ class PipelineService : Service() {
         @Suppress("MemberExtensionConflict")
         systemEventsJob?.cancel()
         callStateJob?.cancel()
+        audioGateJob?.cancel()
         app.systemEvents.stop()
         app.mediaSource.stop("$TAG.onDestroy")
         tts.stop()
@@ -385,12 +401,14 @@ class PipelineService : Service() {
             }
 
             val promptEnable = promptEnable ?: !hasNotificationListenerAccess(this@PipelineService)
+            val audioGate = app.audioProfiles.evaluateGate()
 
             updateNotification(
                 NOTIFICATION_ID,
                 buildOngoingNotification(
                     pinEnable = pinEnable,
                     promptEnable = promptEnable,
+                    audioGate = audioGate,
                 ),
             )
         }
@@ -399,6 +417,7 @@ class PipelineService : Service() {
     private fun buildOngoingNotification(
         pinEnable: Boolean = false,
         promptEnable: Boolean = false,
+        audioGate: AudioProfileGate? = null,
     ): Notification {
         val chId = "alfred_pipeline"
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -418,11 +437,20 @@ class PipelineService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
+        // Determine notification title based on audio gate state
+        val notificationTitle =
+            if (audioGate != null && !audioGate.allow && audioGate.reason == AudioProfileGateReason.NO_ACTIVE_DEVICES) {
+                val profileName = audioGate.snapshot?.profile?.displayName ?: "audio profile"
+                getString(R.string.pipeline_notification_title_waiting, profileName)
+            } else {
+                getString(R.string.pipeline_notification_title)
+            }
+
         val builder =
             NotificationCompat
                 .Builder(this, chId)
                 .setSmallIcon(android.R.drawable.stat_notify_more)
-                .setContentTitle(getString(R.string.pipeline_notification_title))
+                .setContentTitle(notificationTitle)
                 .setOngoing(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setContentIntent(pendingIntentShow)

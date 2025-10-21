@@ -14,6 +14,7 @@
     <string name="settings_enabled_event_types_label">Enabled event types (CSV)</string>
     <string name="pipeline_notification_channel_name" tools:ignore="DuplicateStrings">Alfred</string>
     <string name="pipeline_notification_title">Alfred is listening</string>
+    <string name="pipeline_notification_title_waiting">Waiting for %1$s</string>
     <!--
     <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
     -->
