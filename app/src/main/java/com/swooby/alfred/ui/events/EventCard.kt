@@ -780,8 +780,8 @@ private fun DebugInfoLine(
             }
         },
         style = MaterialTheme.typography.bodySmall,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
+        //maxLines = 2,
+        //overflow = TextOverflow.Ellipsis,
     )
 }
 
