@@ -41,6 +41,8 @@
     <string name="permissions_action_open_settings">Open Settings</string>
     <string name="permissions_notification_listener_title" tools:ignore="DuplicateStrings">Notification Listener Access</string>
     <string name="permissions_notification_listener_description">Allows Alfred 2025 to read media sessions and notifications for smarter announcements.</string>
+    <string name="permissions_phone_state_title">Phone status</string>
+    <string name="permissions_phone_state_description">Allows Alfred 2025 to pause announcements during calls and resume after.</string>
     <string name="permissions_ignore_battery_title">Ignore Battery Optimizations</string>
     <string name="permissions_ignore_battery_description">Keeps Alfred 2025 responsive in the background. Recommended.</string>
     <string name="permissions_action_allow">Allow</string>

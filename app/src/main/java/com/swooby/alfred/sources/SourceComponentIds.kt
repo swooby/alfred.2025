@@ -27,4 +27,7 @@ object SourceEventTypes {
     const val POWER_CONNECTED = "power.connected"
     const val POWER_DISCONNECTED = "power.disconnected"
     const val POWER_CHARGING_STATUS = "power.charging.status"
+    const val CALL_ACTIVE = "call.active"
+    const val CALL_IDLE = "call.idle"
+    const val CALL_RINGING = "call.ringing"
 }

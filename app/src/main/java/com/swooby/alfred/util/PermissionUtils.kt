@@ -13,6 +13,8 @@ import androidx.core.net.toUri
 
 fun isNotificationPermissionGranted(ctx: Context): Boolean = ActivityCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
+fun isCallStatePermissionGranted(ctx: Context): Boolean = ActivityCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+
 fun isIgnoringBatteryOptimizations(ctx: Context): Boolean {
     val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
     return pm.isIgnoringBatteryOptimizations(ctx.packageName)

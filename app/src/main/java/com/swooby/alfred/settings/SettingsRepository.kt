@@ -44,6 +44,9 @@ class SettingsRepository(
             SourceEventTypes.POWER_CHARGING_STATUS,
             SourceEventTypes.NETWORK_WIFI_CONNECT,
             SourceEventTypes.NETWORK_WIFI_DISCONNECT,
+            SourceEventTypes.CALL_ACTIVE,
+            SourceEventTypes.CALL_IDLE,
+            SourceEventTypes.CALL_RINGING,
         )
 
     val rulesConfigFlow: Flow<RulesConfig> =

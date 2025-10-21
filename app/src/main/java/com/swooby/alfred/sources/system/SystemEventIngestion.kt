@@ -1,10 +1,16 @@
 package com.swooby.alfred.sources.system
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.BatteryManager
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
+import androidx.core.content.ContextCompat
 import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.platform.FooPlatformUtils
@@ -12,8 +18,11 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
@@ -59,6 +68,17 @@ class SystemEventIngestion(
     private val mutex = Mutex()
     private var started = false
     private var lastPowerSnapshot: PowerSnapshot? = null
+    private val telephonyManager: TelephonyManager? = appContext.getSystemService(TelephonyManager::class.java)
+    private val callStateInternal = MutableStateFlow(CallStatus.UNKNOWN)
+    val callState: StateFlow<CallStatus> = callStateInternal.asStateFlow()
+    private var callCallbackRegistered = false
+    private var lastCallStatus: CallStatus = CallStatus.UNKNOWN
+    private val callStateCallback =
+        object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+            override fun onCallStateChanged(state: Int) {
+                handleCallStateChanged(state, "telephony")
+            }
+        }
 
     private val displayReceiver =
         object : BroadcastReceiver() {
@@ -90,6 +110,116 @@ class SystemEventIngestion(
             }
         }
 
+    private fun hasCallStatePermission(): Boolean = ContextCompat.checkSelfPermission(appContext, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+
+    private fun mapCallState(state: Int): CallStatus =
+        when (state) {
+            TelephonyManager.CALL_STATE_IDLE -> CallStatus.IDLE
+            TelephonyManager.CALL_STATE_RINGING -> CallStatus.RINGING
+            TelephonyManager.CALL_STATE_OFFHOOK -> CallStatus.ACTIVE
+            else -> CallStatus.UNKNOWN
+        }
+
+    @SuppressLint("MissingPermission")
+    private fun resolveCallStateSnapshot(): CallStatus {
+        val tm = telephonyManager ?: return CallStatus.UNKNOWN
+        if (!hasCallStatePermission()) return CallStatus.UNKNOWN
+        return mapCallState(tm.callStateForSubscription)
+    }
+
+    init {
+        publishCallState(resolveCallStateSnapshot(), "init", emitWhenUnchanged = true)
+    }
+
+    private fun publishCallState(
+        status: CallStatus,
+        source: String,
+        emitWhenUnchanged: Boolean = false,
+    ) {
+        val previous = lastCallStatus
+        val changed = status != previous
+        lastCallStatus = status
+        callStateInternal.value = status
+        if (!changed && !emitWhenUnchanged) return
+
+        FooLog.v(TAG, "publishCallState: status=${status.name}, previous=${previous.name}, source=$source")
+        if (status == CallStatus.UNKNOWN) {
+            return
+        }
+        offer(
+            CallStateEvent(
+                status = status,
+                timestamp = clock.now(),
+                source = source,
+            ),
+        )
+    }
+
+    fun currentCallStatus(): CallStatus = callStateInternal.value
+
+    private fun handleCallStateChanged(
+        state: Int,
+        source: String,
+    ) {
+        val status = mapCallState(state)
+        externalScope.launch {
+            mutex.withLock {
+                publishCallState(status, "$source:${status.name.lowercase()}")
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun updateCallStateListenerLocked(reason: String) {
+        val tm = telephonyManager
+        if (tm == null) {
+            FooLog.v(TAG, "updateCallStateListenerLocked: telephonyManager unavailable; reason=$reason")
+            publishCallState(CallStatus.UNKNOWN, "$reason:no_telephony", emitWhenUnchanged = true)
+            return
+        }
+
+        if (!hasCallStatePermission()) {
+            FooLog.i(TAG, "updateCallStateListenerLocked: READ_PHONE_STATE missing; reason=$reason")
+            if (callCallbackRegistered) {
+                runCatching { tm.unregisterTelephonyCallback(callStateCallback) }
+                    .onFailure { FooLog.w(TAG, "updateCallStateListenerLocked: unregister while revoking permission", it) }
+                callCallbackRegistered = false
+            }
+            publishCallState(CallStatus.UNKNOWN, "$reason:permission_missing", emitWhenUnchanged = true)
+            return
+        }
+
+        var stateBefore: CallStatus? = null
+
+        if (!callCallbackRegistered) {
+            // Capture state before registration
+            stateBefore = mapCallState(tm.callStateForSubscription)
+
+            tm.registerTelephonyCallback(ContextCompat.getMainExecutor(appContext), callStateCallback)
+            callCallbackRegistered = true
+            FooLog.v(TAG, "updateCallStateListenerLocked: registered call state listener; reason=$reason")
+        }
+
+        val stateAfter = mapCallState(tm.callStateForSubscription)
+
+        // If we just registered, check for race
+        if (stateBefore != null && stateBefore != stateAfter) {
+            publishCallState(stateBefore, "$reason:initial_pre_register")
+            publishCallState(stateAfter, "$reason:initial_post_register")
+        } else {
+            publishCallState(stateAfter, "$reason:initial")
+        }
+    }
+
+    private fun unregisterCallStateListenerLocked(reason: String) {
+        if (!callCallbackRegistered) return
+        val tm = telephonyManager
+        runCatching { tm?.unregisterTelephonyCallback(callStateCallback) }
+            .onFailure { FooLog.w(TAG, "unregisterCallStateListenerLocked: reason=$reason", it) }
+        callCallbackRegistered = false
+        publishCallState(CallStatus.UNKNOWN, "$reason:unregistered", emitWhenUnchanged = true)
+    }
+
     /**
      * Registers the underlying broadcast receivers. Safe to call multiple times.
      */
@@ -108,6 +238,7 @@ class SystemEventIngestion(
                 // Populate initial charging snapshot so we can immediately emit summaries.
                 withContext(mainDispatcher) {
                     fetchBatteryIntent()?.let { handlePowerIntent(it) }
+                    updateCallStateListenerLocked("start")
                 }
                 started = true
                 FooLog.v(TAG, "start: receivers registered")
@@ -129,10 +260,24 @@ class SystemEventIngestion(
                         .onFailure { FooLog.w(TAG, "stop: powerReceiver", it) }
                     runCatching { appContext.unregisterReceiver(shutdownReceiver) }
                         .onFailure { FooLog.w(TAG, "stop: shutdownReceiver", it) }
+                    unregisterCallStateListenerLocked("stop")
                 }
                 lastPowerSnapshot = null
                 started = false
                 FooLog.v(TAG, "stop: receivers unregistered")
+            }
+        }
+    }
+
+    /**
+     * Re-evaluates call state monitoring. Invoke after runtime permission changes.
+     */
+    fun refreshCallStateObserver() {
+        externalScope.launch {
+            mutex.withLock {
+                withContext(mainDispatcher) {
+                    updateCallStateListenerLocked("refresh")
+                }
             }
         }
     }

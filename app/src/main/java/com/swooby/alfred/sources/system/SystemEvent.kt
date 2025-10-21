@@ -34,6 +34,17 @@ enum class PlugType { AC, USB, WIRELESS, CAR, OTHER, NONE }
 
 enum class ChargingStatus { CHARGING, FULL, NOT_CHARGING, DISCHARGING, UNKNOWN }
 
+enum class CallStatus { UNKNOWN, IDLE, RINGING, ACTIVE }
+
+data class CallStateEvent(
+    val status: CallStatus,
+    override val timestamp: Instant,
+    override val source: String,
+) : SystemEvent {
+    val inCall: Boolean
+        get() = status == CallStatus.ACTIVE
+}
+
 data class PowerConnectedEvent(
     val plugType: PlugType,
     val status: ChargingStatus,

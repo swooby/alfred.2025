@@ -190,7 +190,7 @@ internal fun EventCard(
     val coalesceKey =
         when {
             storedCoalesceKey != null -> storedCoalesceKey
-            derivedCoalesceKey != null -> "${derivedCoalesceKey} (derived)"
+            derivedCoalesceKey != null -> "$derivedCoalesceKey (derived)"
             else -> null
         }
 
@@ -770,15 +770,16 @@ private fun DebugInfoLine(
     val valueColor = MaterialTheme.colorScheme.onSurface
     Text(
         modifier = modifier,
-        text = buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = primary)) {
-                append(label)
-                append(": ")
-            }
-            withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = valueColor)) {
-                append(value)
-            }
-        },
+        text =
+            buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = primary)) {
+                    append(label)
+                    append(": ")
+                }
+                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, color = valueColor)) {
+                    append(value)
+                }
+            },
         style = MaterialTheme.typography.bodySmall,
         //maxLines = 2,
         //overflow = TextOverflow.Ellipsis,
@@ -1136,23 +1137,29 @@ private fun deriveCoalesceKey(
         SourceComponentIds.NOTIFICATION_SOURCE -> event.subjectEntityId?.takeIf { it.isNotBlank() }
         SourceComponentIds.MEDIA_SOURCE ->
             event.appPkg?.takeIf { it.isNotBlank() }?.let { pkg ->
-                val action = (event.eventAction.takeIf { it.isNotBlank() }
-                    ?: event.eventType.substringAfterLast('.'))
-                    .lowercase(Locale.ROOT)
+                val action =
+                    (
+                        event.eventAction.takeIf { it.isNotBlank() }
+                            ?: event.eventType.substringAfterLast('.')
+                    ).lowercase(Locale.ROOT)
                 "media:$pkg:now_playing:$action"
             }
         SourceComponentIds.SYSTEM_EVENT_SOURCE ->
             when (event.eventType) {
                 SourceEventTypes.DISPLAY_ON,
-                SourceEventTypes.DISPLAY_OFF -> "display_state"
+                SourceEventTypes.DISPLAY_OFF,
+                -> "display_state"
                 SourceEventTypes.DEVICE_UNLOCK -> "device_unlock"
                 SourceEventTypes.DEVICE_BOOT,
-                SourceEventTypes.DEVICE_SHUTDOWN -> "device_state"
+                SourceEventTypes.DEVICE_SHUTDOWN,
+                -> "device_state"
                 SourceEventTypes.POWER_CONNECTED,
-                SourceEventTypes.POWER_DISCONNECTED -> "power_connection"
+                SourceEventTypes.POWER_DISCONNECTED,
+                -> "power_connection"
                 SourceEventTypes.POWER_CHARGING_STATUS -> "power_status"
                 SourceEventTypes.NETWORK_WIFI_CONNECT,
-                SourceEventTypes.NETWORK_WIFI_DISCONNECT -> "wifi_state"
+                SourceEventTypes.NETWORK_WIFI_DISCONNECT,
+                -> "wifi_state"
                 else -> null
             }
         else -> null

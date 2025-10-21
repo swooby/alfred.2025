@@ -18,13 +18,16 @@ import com.smartfoo.android.core.platform.FooPlatformUtils
 import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
+import com.swooby.alfred.core.profile.AudioProfileGate
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
+import com.swooby.alfred.core.summary.Utterance
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.sources.SourceComponentIds
 import com.swooby.alfred.sources.SourceEventTypes
 import com.swooby.alfred.sources.SystemSources
+import com.swooby.alfred.sources.system.CallStatus
 import com.swooby.alfred.sources.system.SystemEvent
 import com.swooby.alfred.support.AppShutdownManager
 import com.swooby.alfred.ui.events.EventListActivity
@@ -36,6 +39,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
 
 class PipelineService : Service() {
@@ -100,6 +105,20 @@ class PipelineService : Service() {
     private val tz = TimeZone.currentSystemDefault()
     private var cfg = RulesConfig()
     private var systemEventsJob: Job? = null
+    private var callStateJob: Job? = null
+    private val speechMutex = Mutex()
+    private val pendingUtterances = ArrayDeque<Utterance.Live>()
+    private var currentCallStatus: CallStatus = CallStatus.UNKNOWN
+
+    private fun CallStatus.blocksSpeech(): Boolean =
+        when (this) {
+            CallStatus.ACTIVE,
+            CallStatus.RINGING,
+            -> true
+            CallStatus.UNKNOWN,
+            CallStatus.IDLE,
+            -> false
+        }
 
     override fun onCreate() {
         FooLog.v(TAG, "+onCreate()")
@@ -132,6 +151,15 @@ class PipelineService : Service() {
         sysSources = SystemSources(app)
         sysSources.start()
         app.systemEvents.start()
+        app.systemEvents.refreshCallStateObserver()
+        currentCallStatus = app.systemEvents.currentCallStatus()
+        FooLog.i(TAG, "#PIPELINE initial call state=${currentCallStatus.name.lowercase()}")
+        callStateJob =
+            scope.launch {
+                app.systemEvents.callState.collect { status ->
+                    handleCallStateChange(status)
+                }
+            }
         systemEventsJob =
             scope.launch {
                 app.systemEvents.events.collect { event: SystemEvent ->
@@ -192,25 +220,9 @@ class PipelineService : Service() {
                         cfg = cfg,
                     )
                 if (decision is Decision.Speak) {
-                    val gate = app.audioProfiles.evaluateGate()
-                    if (!gate.allow) {
-                        val selectedId =
-                            gate.snapshot
-                                ?.profile
-                                ?.id
-                                ?.value
-                                ?: app.audioProfiles.uiState.value.selectedProfileId
-                                    ?.value
-                                ?: "none"
-                        val devices =
-                            gate.snapshot
-                                ?.activeDevices
-                                ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
-                                ?: "[]"
-                        FooLog.i(TAG, "#PIPELINE audio profile blocked speech; reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
-                        return@collect
+                    app.summarizer.livePhrase(ev)?.let { utter ->
+                        handleUtterance(utter)
                     }
-                    app.summarizer.livePhrase(ev)?.let { utter -> tts.speak(utter.text) }
                 }
             }
         }
@@ -223,6 +235,7 @@ class PipelineService : Service() {
         startId: Int,
     ): Int {
         FooLog.v(TAG, "onStartCommand(intent=${FooPlatformUtils.toString(intent)}, flags=$flags, startId=$startId)")
+        app.systemEvents.refreshCallStateObserver()
         when (intent?.action) {
             ACTION_REFRESH_NOTIFICATION -> {
                 updateOngoingNotification()
@@ -243,6 +256,7 @@ class PipelineService : Service() {
             .onFailure { FooLog.w(TAG, "onDestroy: sysSources.stop failed", it) }
         @Suppress("MemberExtensionConflict")
         systemEventsJob?.cancel()
+        callStateJob?.cancel()
         app.systemEvents.stop()
         app.mediaSource.stop("$TAG.onDestroy")
         tts.stop()
@@ -261,6 +275,103 @@ class PipelineService : Service() {
     ) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(id, notification)
+    }
+
+    private suspend fun handleUtterance(utterance: Utterance.Live) {
+        val gate = app.audioProfiles.evaluateGate()
+        if (!gate.allow) {
+            logAudioGateBlocked(gate, "live")
+            return
+        }
+        val queued =
+            speechMutex.withLock {
+                if (currentCallStatus.blocksSpeech()) {
+                    pendingUtterances.addLast(utterance)
+                    FooLog.i(TAG, "#PIPELINE call state=${currentCallStatus.name.lowercase()} queued speech; pending=${pendingUtterances.size}")
+                    true
+                } else {
+                    false
+                }
+            }
+        if (queued) {
+            return
+        }
+        speakWithGate(utterance, gate, context = "live")
+    }
+
+    private suspend fun handleCallStateChange(status: CallStatus) {
+        val queuedToSpeak = mutableListOf<Utterance.Live>()
+        speechMutex.withLock {
+            currentCallStatus = status
+            if (status.blocksSpeech()) {
+                FooLog.i(TAG, "#PIPELINE call state=${status.name.lowercase()} -> speech gated; pending=${pendingUtterances.size}")
+                return
+            }
+            if (pendingUtterances.isEmpty()) {
+                FooLog.v(TAG, "#PIPELINE call state=${status.name.lowercase()} -> no queued speech to flush")
+                return
+            }
+            queuedToSpeak.addAll(pendingUtterances)
+            pendingUtterances.clear()
+        }
+        if (queuedToSpeak.isNotEmpty()) {
+            FooLog.i(TAG, "#PIPELINE call state=${status.name.lowercase()} -> flushing ${queuedToSpeak.size} queued utterances")
+            // TODO: tts.speak probably needs to evaluate the gate immediately before each utterance?
+            val gate = app.audioProfiles.evaluateGate()
+            queuedToSpeak.forEachIndexed { index, utterance ->
+                val shouldSpeak =
+                    speechMutex.withLock {
+                        if (currentCallStatus.blocksSpeech()) {
+                            val remaining = queuedToSpeak.subList(index, queuedToSpeak.size)
+                            pendingUtterances.addAll(0, remaining.asReversed())
+                            FooLog.i(TAG, "#PIPELINE call state=${currentCallStatus.name.lowercase()} -> speech re-gated; re-queued ${remaining.size} utterances")
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                if (!shouldSpeak) {
+                    return
+                }
+                speakWithGate(utterance, evaluatedGate = gate, context = "flush")
+            }
+        }
+    }
+
+    private fun speakWithGate(
+        utterance: Utterance.Live,
+        evaluatedGate: AudioProfileGate?,
+        context: String,
+    ) {
+        val gate = evaluatedGate ?: app.audioProfiles.evaluateGate()
+        if (!gate.allow) {
+            logAudioGateBlocked(gate, context)
+            return
+        }
+        @Suppress("UnusedVariable")
+        val sequenceId = tts.speak(utterance.text)
+        // TODO: Remember the sequenceId and put it into a Notification that can be dismissed and the speech canceled.
+        //...
+    }
+
+    private fun logAudioGateBlocked(
+        gate: AudioProfileGate,
+        context: String,
+    ) {
+        val selectedId =
+            gate.snapshot
+                ?.profile
+                ?.id
+                ?.value
+                ?: app.audioProfiles.uiState.value.selectedProfileId
+                    ?.value
+                ?: "none"
+        val devices =
+            gate.snapshot
+                ?.activeDevices
+                ?.joinToString(prefix = "[", postfix = "]") { it.safeDisplayName }
+                ?: "[]"
+        FooLog.i(TAG, "#PIPELINE audio profile blocked speech ($context); reason=${gate.reason}; selected=$selectedId activeDevices=$devices")
     }
 
     private fun updateOngoingNotification(promptEnable: Boolean? = null) {

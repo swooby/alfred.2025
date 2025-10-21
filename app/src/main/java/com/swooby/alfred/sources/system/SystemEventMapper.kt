@@ -51,6 +51,7 @@ class SystemEventMapper(
                 is PowerConnectedEvent -> buildPowerConnectedMetadata(event)
                 is PowerDisconnectedEvent -> buildPowerDisconnectedMetadata(event)
                 is PowerStatusEvent -> buildPowerStatusMetadata(event)
+                is CallStateEvent -> buildCallStateMetadata(event)
             }
 
         val entity =
@@ -197,6 +198,31 @@ class SystemEventMapper(
             fingerprint = "${SourceEventTypes.POWER_CHARGING_STATUS}:${event.status.serialized()}:${event.plugType.serialized()}",
             coalesceKey = "power_status",
         )
+
+    private fun buildCallStateMetadata(event: CallStateEvent): EventMetadata {
+        val (eventType, action) =
+            when (event.status) {
+                CallStatus.ACTIVE -> SourceEventTypes.CALL_ACTIVE to "active"
+                CallStatus.IDLE -> SourceEventTypes.CALL_IDLE to "idle"
+                CallStatus.RINGING -> SourceEventTypes.CALL_RINGING to "ringing"
+                CallStatus.UNKNOWN -> SourceEventTypes.CALL_IDLE to "unknown"
+            }
+        val subject = "call"
+        val attributes =
+            buildJsonObject {
+                put("status", JsonPrimitive(event.status.name.lowercase(Locale.US)))
+                put("source", JsonPrimitive(event.source))
+            }
+        return EventMetadata(
+            eventType = eventType,
+            category = subject,
+            action = action,
+            subject = subject,
+            attributes = attributes,
+            fingerprint = "$eventType:${event.status.name.lowercase(Locale.US)}",
+            coalesceKey = "call_state",
+        )
+    }
 }
 
 private fun PlugType.serialized(): String = name.lowercase(Locale.US)

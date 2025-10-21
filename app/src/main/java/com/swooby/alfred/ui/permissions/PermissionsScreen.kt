@@ -10,10 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -22,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,9 +39,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.smartfoo.android.core.notification.FooNotificationListener
+import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
 import com.swooby.alfred.sources.NotificationsSource
 import com.swooby.alfred.util.intentRequestIgnoreBatteryOptimizations
+import com.swooby.alfred.util.isCallStatePermissionGranted
 import com.swooby.alfred.util.isIgnoringBatteryOptimizations
 import com.swooby.alfred.util.isNotificationPermissionGranted
 
@@ -53,6 +58,11 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
             isNotificationPermissionGranted(ctx),
         )
     }
+    var callPermissionGranted by remember {
+        mutableStateOf(
+            isCallStatePermissionGranted(ctx),
+        )
+    }
     var listenerGranted by remember {
         mutableStateOf(
             FooNotificationListener.hasNotificationListenerAccess(ctx, NotificationsSource::class.java),
@@ -60,10 +70,19 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
     }
     var ignoringDoze by remember { mutableStateOf(isIgnoringBatteryOptimizations(ctx)) }
 
+    val app = remember(ctx) { ctx.applicationContext as AlfredApp }
+
+    LaunchedEffect(callPermissionGranted) {
+        if (callPermissionGranted) {
+            app.systemEvents.refreshCallStateObserver()
+        }
+    }
+
     fun refreshAll() {
         notificationPermissionGranted = isNotificationPermissionGranted(ctx)
         listenerGranted = FooNotificationListener.hasNotificationListenerAccess(ctx, NotificationsSource::class.java)
         ignoringDoze = isIgnoringBatteryOptimizations(ctx)
+        callPermissionGranted = isCallStatePermissionGranted(ctx)
     }
 
     // --- runtime POST_NOTIFICATIONS launcher (unchanged) ---
@@ -73,6 +92,12 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
         ) { granted ->
             // Some OEMs return false positives; re-check authoritative state.
             notificationPermissionGranted = granted || isNotificationPermissionGranted(ctx)
+        }
+    val callPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            callPermissionGranted = granted || isCallStatePermissionGranted(ctx)
         }
 
     // ✅ 1) Observe the secure setting for enabled notification listeners
@@ -103,7 +128,8 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
     Column(
         modifier =
             Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -133,6 +159,14 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
         )
 
         PermissionCard(
+            title = stringResource(R.string.permissions_phone_state_title),
+            description = stringResource(R.string.permissions_phone_state_description),
+            granted = callPermissionGranted,
+            actionLabel = stringResource(R.string.permissions_action_grant),
+            onClick = { callPermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE) },
+        )
+
+        PermissionCard(
             title = stringResource(R.string.permissions_ignore_battery_title),
             description = stringResource(R.string.permissions_ignore_battery_description),
             granted = ignoringDoze,
@@ -141,7 +175,7 @@ fun PermissionsScreen(onEssentialsGranted: () -> Unit) {
             optional = true,
         )
 
-        val essentialsGranted = notificationPermissionGranted && listenerGranted
+        val essentialsGranted = notificationPermissionGranted && listenerGranted && callPermissionGranted
         Button(
             enabled = essentialsGranted,
             onClick = onEssentialsGranted,

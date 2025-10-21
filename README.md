@@ -9,6 +9,7 @@ or possibly make this project eventually better than Alfred2017.
 Alfred 2025 needs a few runtime permissions to stay useful:
 - **Post Notifications** so the app can keep its persistent status card visible.
 - **Notification Listener Access** to ingest notifications and media sessions.
+- **Phone status (READ_PHONE_STATE)** to pause speech while you're on a call, queue announcements quietly, and resume once the call ends.
 
 ## TODO
 
