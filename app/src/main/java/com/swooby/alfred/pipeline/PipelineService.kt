@@ -18,7 +18,9 @@ import com.smartfoo.android.core.platform.FooPlatformUtils
 import com.smartfoo.android.core.texttospeech.FooTextToSpeech
 import com.swooby.alfred.AlfredApp
 import com.swooby.alfred.R
+import com.swooby.alfred.core.profile.AudioProfile
 import com.swooby.alfred.core.profile.AudioProfileGate
+import com.swooby.alfred.core.profile.AudioProfileGateReason
 import com.swooby.alfred.core.rules.Decision
 import com.swooby.alfred.core.rules.DeviceState
 import com.swooby.alfred.core.rules.RulesConfig
@@ -106,6 +108,7 @@ class PipelineService : Service() {
     private var cfg = RulesConfig()
     private var systemEventsJob: Job? = null
     private var callStateJob: Job? = null
+    private var audioGateNotificationJob: Job? = null
     private val speechMutex = Mutex()
     private val pendingUtterances = ArrayDeque<Utterance.Live>()
     private var currentCallStatus: CallStatus = CallStatus.UNKNOWN
@@ -180,6 +183,29 @@ class PipelineService : Service() {
         }
 
         updateOngoingNotification(promptEnable = !hasNotificationListenerAccess)
+
+        audioGateNotificationJob =
+            scope.launch {
+                var last: AudioGateNotificationState? = null
+                app.audioProfiles.uiState.collect {
+                    val gate = app.audioProfiles.evaluateGate()
+                    val snapshotId =
+                        gate.snapshot
+                            ?.profile
+                            ?.id
+                            ?.value
+                    val state =
+                        AudioGateNotificationState(
+                            allow = gate.allow,
+                            reason = gate.reason,
+                            snapshotId = snapshotId,
+                        )
+                    if (state != last) {
+                        last = state
+                        updateOngoingNotification()
+                    }
+                }
+            }
 
         // Live settings → cfg
         scope.launch {
@@ -257,6 +283,7 @@ class PipelineService : Service() {
         @Suppress("MemberExtensionConflict")
         systemEventsJob?.cancel()
         callStateJob?.cancel()
+        audioGateNotificationJob?.cancel()
         app.systemEvents.stop()
         app.mediaSource.stop("$TAG.onDestroy")
         tts.stop()
@@ -301,18 +328,29 @@ class PipelineService : Service() {
 
     private suspend fun handleCallStateChange(status: CallStatus) {
         val queuedToSpeak = mutableListOf<Utterance.Live>()
+        var statusChanged = false
+        var shouldFlush = false
         speechMutex.withLock {
+            val previous = currentCallStatus
             currentCallStatus = status
+            statusChanged = previous != status
             if (status.blocksSpeech()) {
                 FooLog.i(TAG, "#PIPELINE call state=${status.name.lowercase()} -> speech gated; pending=${pendingUtterances.size}")
-                return
+                return@withLock
             }
             if (pendingUtterances.isEmpty()) {
                 FooLog.v(TAG, "#PIPELINE call state=${status.name.lowercase()} -> no queued speech to flush")
-                return
+                return@withLock
             }
             queuedToSpeak.addAll(pendingUtterances)
             pendingUtterances.clear()
+            shouldFlush = true
+        }
+        if (statusChanged) {
+            updateOngoingNotification()
+        }
+        if (!shouldFlush) {
+            return
         }
         if (queuedToSpeak.isNotEmpty()) {
             FooLog.i(TAG, "#PIPELINE call state=${status.name.lowercase()} -> flushing ${queuedToSpeak.size} queued utterances")
@@ -385,12 +423,14 @@ class PipelineService : Service() {
             }
 
             val promptEnable = promptEnable ?: !hasNotificationListenerAccess(this@PipelineService)
+            val contentText = buildNotificationContentText()
 
             updateNotification(
                 NOTIFICATION_ID,
                 buildOngoingNotification(
                     pinEnable = pinEnable,
                     promptEnable = promptEnable,
+                    contentText = contentText,
                 ),
             )
         }
@@ -399,6 +439,7 @@ class PipelineService : Service() {
     private fun buildOngoingNotification(
         pinEnable: Boolean = false,
         promptEnable: Boolean = false,
+        contentText: String? = null,
     ): Notification {
         val chId = "alfred_pipeline"
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -426,6 +467,7 @@ class PipelineService : Service() {
                 .setOngoing(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setContentIntent(pendingIntentShow)
+        contentText?.let { builder.setContentText(it) }
 
         if (pinEnable) {
             val pendingIntentPin =
@@ -467,4 +509,44 @@ class PipelineService : Service() {
 
         return builder.build()
     }
+
+    private fun buildNotificationContentText(): String? {
+        if (currentCallStatus.blocksSpeech()) {
+            return when (currentCallStatus) {
+                CallStatus.ACTIVE -> getString(R.string.pipeline_notification_call_active)
+                CallStatus.RINGING -> getString(R.string.pipeline_notification_call_ringing)
+                CallStatus.UNKNOWN,
+                CallStatus.IDLE,
+                -> null
+            }
+        }
+        val gate = app.audioProfiles.evaluateGate()
+        if (gate.allow) {
+            return getString(R.string.pipeline_notification_ready_for_events)
+        }
+        return when (gate.reason) {
+            AudioProfileGateReason.PROFILE_DISABLED -> getString(R.string.pipeline_notification_profile_disabled)
+            AudioProfileGateReason.NO_ACTIVE_DEVICES ->
+                gate.snapshot?.profile?.let(::describeDevicePrompt)
+                    ?: getString(R.string.pipeline_notification_need_device_generic)
+            AudioProfileGateReason.UNINITIALIZED -> getString(R.string.pipeline_notification_profile_uninitialized)
+            AudioProfileGateReason.ALLOWED -> getString(R.string.pipeline_notification_ready_for_events)
+        }
+    }
+
+    private fun describeDevicePrompt(profile: AudioProfile): String =
+        when (profile) {
+            is AudioProfile.Disabled -> getString(R.string.pipeline_notification_profile_disabled)
+            is AudioProfile.AlwaysOn -> getString(R.string.pipeline_notification_ready_for_events)
+            is AudioProfile.WiredOnly -> getString(R.string.pipeline_notification_need_wired_headset)
+            is AudioProfile.BluetoothAny -> getString(R.string.pipeline_notification_need_bluetooth_any)
+            is AudioProfile.BluetoothDevice -> getString(R.string.pipeline_notification_need_bluetooth_device, profile.displayName)
+            is AudioProfile.AnyHeadset -> getString(R.string.pipeline_notification_need_any_headset)
+        }
+
+    private data class AudioGateNotificationState(
+        val allow: Boolean,
+        val reason: AudioProfileGateReason,
+        val snapshotId: String?,
+    )
 }

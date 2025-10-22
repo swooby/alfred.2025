@@ -13,7 +13,17 @@
     <string name="settings_disabled_apps_label">Disabled apps (CSV of package names)</string>
     <string name="settings_enabled_event_types_label">Enabled event types (CSV)</string>
     <string name="pipeline_notification_channel_name" tools:ignore="DuplicateStrings">Alfred</string>
-    <string name="pipeline_notification_title">Alfred is listening</string>
+    <string name="pipeline_notification_title">Alfred status</string>
+    <string name="pipeline_notification_ready_for_events">Ready to speak when there\'s something to share</string>
+    <string name="pipeline_notification_profile_disabled">Speech muted: audio profile is set to Off</string>
+    <string name="pipeline_notification_need_wired_headset">Speech muted until a wired headset is connected</string>
+    <string name="pipeline_notification_need_bluetooth_any">Speech muted until a Bluetooth audio device is connected</string>
+    <string name="pipeline_notification_need_bluetooth_device">Speech muted until %1$s is connected</string>
+    <string name="pipeline_notification_need_any_headset">Speech muted until a headset is connected</string>
+    <string name="pipeline_notification_need_device_generic">Speech muted until an audio device is connected</string>
+    <string name="pipeline_notification_profile_uninitialized">Speech muted while audio profile initializes</string>
+    <string name="pipeline_notification_call_active">Speech muted during call</string>
+    <string name="pipeline_notification_call_ringing">Speech muted while phone is ringing</string>
     <!--
     <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
     -->
