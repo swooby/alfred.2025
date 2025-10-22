@@ -243,6 +243,12 @@ class NotificationsSource : NotificationListenerService() {
         }
 
         if (sbn == null) return
+        if (sbn.packageName == BuildConfig.PACKAGE_NAME) {
+            if (LOG_NOTIFICATION) {
+                FooLog.v(TAG, "#NOTIFICATION onNotificationPosted: ignoring self package")
+            }
+            return
+        }
 
         val envelope = NotificationExtractor.extract(this, SourceEventTypes.NOTIFICATION_POST, sbn, rankingMap)
         val pkg =
@@ -363,6 +369,12 @@ class NotificationsSource : NotificationListenerService() {
         }
 
         if (sbn == null) return
+        if (sbn.packageName == BuildConfig.PACKAGE_NAME) {
+            if (LOG_NOTIFICATION) {
+                FooLog.v(TAG, "#NOTIFICATION onNotificationRemoved: ignoring self package")
+            }
+            return
+        }
 
         val cancelReason = FooNotificationListener.notificationCancelReasonToString(reason)
         val cancelReasonLabel = cancelReason.substringBefore('(')
