@@ -11,6 +11,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -77,14 +79,14 @@ class FooTextToSpeechTest {
         )
         setPrivateField("nextSequenceId", 0L)
         utteranceQueue().clear()
-        utteranceCallbacks().clear()
+        sequenceStates().clear()
     }
 
     @AfterTest
     fun tearDown() {
         if (this::subject.isInitialized) {
             utteranceQueue().clear()
-            utteranceCallbacks().clear()
+            sequenceStates().clear()
             setPrivateField("isStarted", false)
             setPrivateField("isInitialized", false)
             setPrivateField("tts", null)
@@ -121,7 +123,7 @@ class FooTextToSpeechTest {
         }
         assertEquals("Text", enqueued.first().javaClass.simpleName)
         assertEquals("Silence", enqueued.last().javaClass.simpleName)
-        assertNotNull(enqueued.last().runAfter(), "Final utterance must carry the run-after hook")
+        assertTrue(sequenceStates().containsKey(sequenceId), "Sequence state should be tracked for enqueued items")
     }
 
     @Test
@@ -130,6 +132,7 @@ class FooTextToSpeechTest {
         val canceled = subject.sequenceStop(requireNotNull(sequenceId))
         assertTrue(canceled)
         assertTrue(utteranceQueue().isEmpty(), "Queue should be empty after stopping the sequence")
+        assertTrue(sequenceStates().isEmpty(), "Sequence state should be cleared once the sequence stops")
     }
 
     @Test
@@ -180,6 +183,43 @@ class FooTextToSpeechTest {
         assertTrue(utteranceQueue().all { it.sequenceId() == immediateId }, "Interrupted sequence should be purged from the queue")
     }
 
+    @Test
+    fun speak_notifiesSequenceCallbacksOnLifecycle() {
+        setPrivateField("isInitialized", true)
+        val starts = mutableListOf<String>()
+        val completes = mutableListOf<Triple<String, Boolean, Int>>()
+        val startLatch = CountDownLatch(1)
+        val completeLatch = CountDownLatch(1)
+        val callbacks =
+            object : FooTextToSpeech.SequenceCallbacks {
+                override fun onSequenceStart(sequenceId: String) {
+                    starts += sequenceId
+                    startLatch.countDown()
+                }
+
+                override fun onSequenceComplete(
+                    sequenceId: String,
+                    neverStarted: Boolean,
+                    errorCode: Int,
+                ) {
+                    completes += Triple(sequenceId, neverStarted, errorCode)
+                    completeLatch.countDown()
+                }
+            }
+        val sequenceId = subject.speak("Notify me", callbacks = callbacks)
+        assertNotNull(sequenceId)
+        assertTrue(startLatch.await(1, TimeUnit.SECONDS), "Sequence start callback should fire within timeout")
+        assertEquals(listOf(sequenceId), starts, "Sequence start should be reported exactly once")
+        val canceled = subject.sequenceStop(sequenceId)
+        assertTrue(canceled, "Stopping the sequence should succeed")
+        assertTrue(completeLatch.await(1, TimeUnit.SECONDS), "Sequence completion callback should fire within timeout")
+        assertEquals(
+            listOf(Triple(sequenceId, false, TextToSpeech.STOPPED)),
+            completes,
+            "Sequence completion should be reported exactly once with expected state",
+        )
+    }
+
     private fun setPrivateField(
         name: String,
         value: Any?,
@@ -214,15 +254,13 @@ class FooTextToSpeechTest {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun utteranceCallbacks(): MutableMap<String, Runnable> {
-        val field = FooTextToSpeech::class.java.getDeclaredField("utteranceCallbacks")
+    private fun sequenceStates(): MutableMap<String, Any> {
+        val field = FooTextToSpeech::class.java.getDeclaredField("sequenceStates")
         field.isAccessible = true
-        return field.get(subject) as MutableMap<String, Runnable>
+        return field.get(subject) as MutableMap<String, Any>
     }
 
     private fun Any.sequenceId(): String = readUtteranceProperty("sequenceId") as String
-
-    private fun Any.runAfter(): Runnable? = readUtteranceProperty("runAfter") as? Runnable
 
     private fun Any.readUtteranceProperty(name: String): Any? {
         var clazz: Class<*>? = this.javaClass

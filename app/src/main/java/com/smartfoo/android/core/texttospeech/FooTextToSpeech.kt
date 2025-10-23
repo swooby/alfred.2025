@@ -5,6 +5,9 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
@@ -104,6 +107,8 @@ class FooTextToSpeech private constructor() {
             }.let { "$it($queueMode)" }
         }
 
+        private fun quote(s: String?) = FooString.quote(s)
+
         //
         //region test hooks
         //
@@ -137,69 +142,25 @@ class FooTextToSpeech private constructor() {
         fun onTextToSpeechInitialized(status: Int)
     }
 
-    private sealed class Utterance(
-        val sequenceId: String,
-        utteranceId: Long,
-        val runAfter: Runnable?,
-        val requestAudioFocus: Boolean,
-    ) {
-        val utteranceId = "${sequenceId}_${utteranceId}_$tag"
+    interface SequenceCallbacks {
+        /**
+         * @param sequenceId the sequenceId returned from [sequenceEnqueue].
+         * @see [UtteranceProgressListener.onStart]
+         */
+        fun onSequenceStart(sequenceId: String)
 
-        companion object {
-            fun create(
-                sequenceId: String,
-                utteranceId: Long,
-                part: FooTextToSpeechBuilder.FooTextToSpeechPart,
-                partRunAfter: Runnable?,
-            ): Utterance =
-                when (part) {
-                    is FooTextToSpeechPartSpeech -> {
-                        Text(sequenceId, utteranceId, partRunAfter, part.text)
-                    }
-                    is FooTextToSpeechPartSilence -> {
-                        Silence(sequenceId, utteranceId, partRunAfter, part.durationMillis)
-                    }
-                    is FooTextToSpeechPartEarcon -> {
-                        Earcon(sequenceId, utteranceId, partRunAfter, part.earcon)
-                    }
-                    else -> throw IllegalArgumentException("Unhandled part type ${part.javaClass}")
-                }
-        }
-
-        abstract val tag: String
-
-        class Text(
+        /**
+         * @param sequenceId the sequenceId returned from [sequenceEnqueue].
+         * @param neverStarted If true, then the utterance was flushed before the synthesis started. If false, then the utterance was interrupted while being synthesized and its output is incomplete.
+         * @param errorCode one of the ERROR_* codes from [TextToSpeech]
+         * @see [UtteranceProgressListener.onDone], [UtteranceProgressListener.onError], and [UtteranceProgressListener.onStop].
+         */
+        fun onSequenceComplete(
             sequenceId: String,
-            utteranceId: Long,
-            runAfter: Runnable?,
-            val text: String,
-        ) : Utterance(sequenceId, utteranceId, runAfter, true) {
-            override val tag: String
-                get() = "text"
-        }
-
-        class Silence(
-            sequenceId: String,
-            utteranceId: Long,
-            runAfter: Runnable?,
-            val durationMillis: Int,
-        ) : Utterance(sequenceId, utteranceId, runAfter, false) {
-            override val tag: String
-                get() = "silence"
-        }
-
-        class Earcon(
-            sequenceId: String,
-            utteranceId: Long,
-            runAfter: Runnable?,
-            val earcon: String,
-        ) : Utterance(sequenceId, utteranceId, runAfter, true) {
-            override val tag: String
-                get() = "earcon"
-        }
+            neverStarted: Boolean,
+            errorCode: Int,
+        )
     }
-
-    private fun quote(s: String?) = FooString.quote(s)
 
     /**
      * Controls how a new sequence is scheduled relative to existing work.
@@ -215,12 +176,85 @@ class FooTextToSpeech private constructor() {
         CLEAR,
     }
 
+    private sealed class Utterance(
+        val sequenceId: String,
+        utteranceId: Long,
+        val requestAudioFocus: Boolean,
+    ) {
+        val utteranceId = "${sequenceId}_${utteranceId}_$tag"
+
+        companion object {
+            fun create(
+                sequenceId: String,
+                utteranceId: Long,
+                part: FooTextToSpeechBuilder.FooTextToSpeechPart,
+            ): Utterance =
+                when (part) {
+                    is FooTextToSpeechPartSpeech -> {
+                        Text(sequenceId, utteranceId, part.text)
+                    }
+                    is FooTextToSpeechPartSilence -> {
+                        Silence(sequenceId, utteranceId, part.durationMillis)
+                    }
+                    is FooTextToSpeechPartEarcon -> {
+                        Earcon(sequenceId, utteranceId, part.earcon)
+                    }
+                    else -> throw IllegalArgumentException("Unhandled part type ${part.javaClass}")
+                }
+        }
+
+        abstract val tag: String
+
+        class Text(
+            sequenceId: String,
+            utteranceId: Long,
+            val text: String,
+        ) : Utterance(sequenceId, utteranceId, true) {
+            override val tag: String
+                get() = "text"
+        }
+
+        class Silence(
+            sequenceId: String,
+            utteranceId: Long,
+            val durationMillis: Int,
+        ) : Utterance(sequenceId, utteranceId, false) {
+            override val tag: String
+                get() = "silence"
+        }
+
+        class Earcon(
+            sequenceId: String,
+            utteranceId: Long,
+            val earcon: String,
+        ) : Utterance(sequenceId, utteranceId, true) {
+            override val tag: String
+                get() = "earcon"
+        }
+    }
+
+    private data class SequenceState(
+        val callbacks: SequenceCallbacks?,
+        var started: Boolean = false,
+    )
+
     private val syncLock = Any()
     private val listeners = FooListenerManager<FooTextToSpeechCallbacks>(TAG)
     private val utteranceQueue = ArrayDeque<Utterance>()
     private var currentUtterance: Utterance? = null
-    private val utteranceCallbacks = mutableMapOf<String, Runnable>()
+    private val sequenceStates = mutableMapOf<String, SequenceState>()
     private val runAfterSpeak = Runnable { onRunAfterSpeak() }
+    private var callbackHandlerThread: HandlerThread? = null
+    private val callbackHandler: Handler by lazy {
+        val mainLooper = Looper.getMainLooper()
+        if (mainLooper != null) {
+            Handler(mainLooper)
+        } else {
+            val thread = HandlerThread("FooTextToSpeechCallbacks").apply { start() }
+            callbackHandlerThread = thread
+            Handler(thread.looper)
+        }
+    }
 
     private val audioFocusController: FooAudioFocusController
     private val audioFocusControllerCallbacks: FooAudioFocusController.Callbacks
@@ -479,6 +513,7 @@ class FooTextToSpeech private constructor() {
             }
             isInitialized = false
         }
+        callbackHandler.removeCallbacksAndMessages(null)
         if (runAfters.isNotEmpty() || focusHandles.isNotEmpty()) {
             executeCleanup(runAfters, focusHandles)
         }
@@ -609,21 +644,21 @@ class FooTextToSpeech private constructor() {
     }
 
     private fun onUtteranceDone(utteranceId: String?) {
-        handleUtteranceCompletion("onUtteranceDone", utteranceId)
+        handleUtteranceCompletion("onUtteranceDone", utteranceId, false, TextToSpeech.SUCCESS)
     }
 
     private fun onUtteranceError(
         utteranceId: String?,
         errorCode: Int,
     ) {
-        handleUtteranceCompletion("onUtteranceError($errorCode)", utteranceId)
+        handleUtteranceCompletion("onUtteranceError($errorCode)", utteranceId, false, errorCode)
     }
 
     private fun onUtteranceStop(
         utteranceId: String?,
         interrupted: Boolean,
     ) {
-        handleUtteranceCompletion("onUtteranceStopped(interrupted=$interrupted)", utteranceId)
+        handleUtteranceCompletion("onUtteranceStopped(interrupted=$interrupted)", utteranceId, !interrupted, TextToSpeech.STOPPED)
     }
 
     private fun onRunAfterSpeak() {
@@ -631,15 +666,14 @@ class FooTextToSpeech private constructor() {
             FooLog.v(TAG, "#TTS_AUDIO_FOCUS +onRunAfterSpeak()")
         }
         synchronized(syncLock) {
-            val size = utteranceCallbacks.size
-            if (size == 0) {
+            if (currentUtterance == null && utteranceQueue.isEmpty()) {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: mUtteranceCallbacks.size() == 0; audioFocusStop()")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: queue empty; audioFocusStop()")
                 }
                 audioFocusHandleClearLocked()
             } else {
                 if (VERBOSE_LOG_AUDIO_FOCUS) {
-                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: mUtteranceCallbacks.size()($size) > 0; ignoring (not calling `audioFocusStop()`)")
+                    FooLog.v(TAG, "#TTS_AUDIO_FOCUS onRunAfterSpeak: work remaining; keeping audio focus")
                 }
                 null
             }
@@ -672,27 +706,67 @@ class FooTextToSpeech private constructor() {
         }
     }
 
+    private fun scheduleSequenceStart(
+        sequenceId: String,
+        runAfters: MutableList<Runnable>,
+    ) {
+        val state = sequenceStates[sequenceId] ?: return
+        if (state.started) {
+            return
+        }
+        state.started = true
+        state.callbacks?.let { callbacks ->
+            runAfters.add(Runnable { callbacks.onSequenceStart(sequenceId) })
+        }
+    }
+
+    private fun scheduleSequenceComplete(
+        sequenceId: String,
+        neverStarted: Boolean,
+        errorCode: Int,
+        runAfters: MutableList<Runnable>,
+    ) {
+        val state = sequenceStates.remove(sequenceId) ?: return
+        runAfters.add(runAfterSpeak)
+        state.callbacks?.let { callbacks ->
+            runAfters.add(Runnable { callbacks.onSequenceComplete(sequenceId, neverStarted, errorCode) })
+        }
+    }
+
+    private fun computeNeverStarted(
+        sequenceId: String,
+        interruptedSequenceId: String?,
+    ): Boolean = sequenceStates[sequenceId]?.started != true && sequenceId != interruptedSequenceId
+
+    private fun computeErrorCode(
+        sequenceId: String,
+        interruptedSequenceId: String?,
+    ): Int = if (computeNeverStarted(sequenceId, interruptedSequenceId)) TextToSpeech.SUCCESS else TextToSpeech.STOPPED
+
+    /**
+     * @param errorCode if null then completed successfully, if 0 then interrupted, else [TextToSpeech]`.ERROR_*`.
+     */
     private fun handleUtteranceCompletion(
         caller: String,
         utteranceId: String?,
+        neverStarted: Boolean,
+        errorCode: Int,
     ) {
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS +handleUtteranceCompletion(caller=${quote(caller)}, utteranceId=${quote(utteranceId)})")
         }
         val runAfters = mutableListOf<Runnable>()
         val focusHandles = mutableListOf<FooAudioFocusController.FocusHandle>()
-        var completedSequenceId: String? = null
         synchronized(syncLock) {
             val current = currentUtterance
             if (utteranceId != null) {
-                utteranceCallbacks.remove(utteranceId)?.let(runAfters::add)
                 if (current != null) {
                     if (current.utteranceId == utteranceId) {
                         val sequenceId = current.sequenceId
                         val moreInQueue = utteranceQueue.any { it.sequenceId == sequenceId }
                         currentUtterance = null
                         if (!moreInQueue) {
-                            completedSequenceId = sequenceId
+                            scheduleSequenceComplete(sequenceId, neverStarted, errorCode, runAfters)
                         }
                     } else if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
                         FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS handleUtteranceCompletion: UNEXPECTED currentUtteranceId=${quote(current.utteranceId)} does not match callback utteranceId=${quote(utteranceId)}")
@@ -700,14 +774,12 @@ class FooTextToSpeech private constructor() {
                 }
             } else {
                 FooLog.w(TAG, "#TTS_UTTERANCE_PROGRESS handleUtteranceCompletion: UNEXPECTED utteranceId == null")
+                currentUtterance?.let { scheduleSequenceComplete(it.sequenceId, neverStarted, errorCode, runAfters) }
                 currentUtterance = null
             }
             startNextLocked().collectInto(runAfters, focusHandles)
         }
         executeCleanup(runAfters, focusHandles)
-        if (VERBOSE_LOG_SEQUENCE && completedSequenceId != null) {
-            FooLog.d(TAG, "#TTS_SEQUENCE handleUtteranceCompletion: COMPLETE sequenceId=${quote(completedSequenceId)}")
-        }
         if (VERBOSE_LOG_UTTERANCE_PROGRESS) {
             FooLog.v(TAG, "#TTS_UTTERANCE_PROGRESS -handleUtteranceCompletion(caller=${quote(caller)}, utteranceId=${quote(utteranceId)})")
         }
@@ -785,11 +857,15 @@ class FooTextToSpeech private constructor() {
         focusHandles: Collection<FooAudioFocusController.FocusHandle>,
     ) {
         runAfters.forEach { runnable ->
-            try {
-                runnable.run()
-            } catch (throwable: Throwable) {
-                FooLog.e(TAG, "#TTS executeCleanup: runAfter threw", throwable)
-            }
+            callbackHandler.post(
+                Runnable {
+                    try {
+                        runnable.run()
+                    } catch (throwable: Throwable) {
+                        FooLog.e(TAG, "#TTS executeCleanup: runAfter threw", throwable)
+                    }
+                },
+            )
         }
         focusHandles.forEach { handle ->
             handle.release()
@@ -797,10 +873,7 @@ class FooTextToSpeech private constructor() {
         }
     }
 
-    private fun removeQueuedBySequenceLocked(
-        sequenceId: String,
-        runAfters: MutableList<Runnable>,
-    ): Int {
+    private fun removeQueuedBySequenceLocked(sequenceId: String): Int {
         var removedUtteranceCount = 0
         val iterator = utteranceQueue.iterator()
         while (iterator.hasNext()) {
@@ -808,11 +881,6 @@ class FooTextToSpeech private constructor() {
             if (queued.sequenceId == sequenceId) {
                 // Remove from the queue first so we don't modify while iterating.
                 iterator.remove()
-
-                // Once an utterance is handed to TTS we move its callback into utteranceCallbacks.
-                // If it is still just queued the callback remains on the Utterance itself.
-                // Take utteranceCallbacks' entry if present, otherwise take the Utterance.
-                (utteranceCallbacks.remove(queued.utteranceId) ?: queued.runAfter)?.let(runAfters::add)
 
                 removedUtteranceCount++
             }
@@ -823,6 +891,9 @@ class FooTextToSpeech private constructor() {
         return removedUtteranceCount
     }
 
+    /**
+     * Very similar to [clearLocked], but optimized for a single sequence
+     */
     private fun cancelSequenceLocked(
         sequenceId: String,
         runAfters: MutableList<Runnable>,
@@ -841,13 +912,12 @@ class FooTextToSpeech private constructor() {
             if (isInitialized) {
                 stopSuccess = tts?.stop() == TextToSpeech.SUCCESS
             }
-            utteranceCallbacks.remove(current.utteranceId)?.let(runAfters::add)
             currentUtterance = null
             canceled = true
         }
 
         // Remove any queued utterances if they are a match
-        val removedUtteranceCount = removeQueuedBySequenceLocked(sequenceId, runAfters)
+        val removedUtteranceCount = removeQueuedBySequenceLocked(sequenceId)
         if (removedUtteranceCount > 0) {
             canceled = true
         }
@@ -868,9 +938,21 @@ class FooTextToSpeech private constructor() {
             }
         }
 
+        if (canceled) {
+            scheduleSequenceComplete(
+                sequenceId = sequenceId,
+                neverStarted = computeNeverStarted(sequenceId, interruptedSequenceId),
+                errorCode = computeErrorCode(sequenceId, interruptedSequenceId),
+                runAfters = runAfters,
+            )
+        }
+
         return canceled && stopSuccess
     }
 
+    /**
+     * Very similar to [cancelSequenceLocked], but optimized for all sequences
+     */
     private fun clearLocked(
         interrupt: Boolean,
         runAfters: MutableList<Runnable>,
@@ -879,24 +961,49 @@ class FooTextToSpeech private constructor() {
         if (VERBOSE_LOG_SEQUENCE) {
             FooLog.d(TAG, "#TTS_SEQUENCE +clearLocked(interrupt=$interrupt, …): utteranceQueue.size=${utteranceQueue.size}, currentUtterance?.sequenceId=${quote(currentUtterance?.sequenceId)}")
         }
+
         var interruptedSequenceId: String? = null
+
+        val completedSequenceIds = mutableSetOf<String>()
         if (interrupt) {
             currentUtterance?.let { current ->
                 interruptedSequenceId = current.sequenceId
                 if (isInitialized) {
                     tts?.stop()
                 }
-                utteranceCallbacks.remove(current.utteranceId)?.let(runAfters::add)
+                completedSequenceIds += current.sequenceId
                 currentUtterance = null
             }
         }
 
-        var removedCount = 0
-        while (utteranceQueue.isNotEmpty()) {
-            val removed = utteranceQueue.removeFirst()
-            utteranceCallbacks.remove(removed.utteranceId)?.let(runAfters::add)
-                ?: removed.runAfter?.let(runAfters::add)
-            removedCount++
+        var removedUtteranceCount = 0
+        val activeSequenceId = if (interrupt) null else currentUtterance?.sequenceId
+        if (activeSequenceId == null) {
+            while (utteranceQueue.isNotEmpty()) {
+                val removed = utteranceQueue.removeFirst()
+                completedSequenceIds += removed.sequenceId
+                removedUtteranceCount++
+            }
+        } else {
+            val iterator = utteranceQueue.iterator()
+            while (iterator.hasNext()) {
+                val queued = iterator.next()
+                if (queued.sequenceId == activeSequenceId) {
+                    continue
+                }
+                iterator.remove()
+                completedSequenceIds += queued.sequenceId
+                removedUtteranceCount++
+            }
+        }
+
+        completedSequenceIds.forEach { sequenceId ->
+            scheduleSequenceComplete(
+                sequenceId = sequenceId,
+                neverStarted = computeNeverStarted(sequenceId, interruptedSequenceId),
+                errorCode = computeErrorCode(sequenceId, interruptedSequenceId),
+                runAfters = runAfters,
+            )
         }
 
         val releaseFocus = interrupt || currentUtterance == null
@@ -905,7 +1012,7 @@ class FooTextToSpeech private constructor() {
         }
 
         if (VERBOSE_LOG_SEQUENCE) {
-            FooLog.d(TAG, "#TTS_SEQUENCE -clearLocked(interrupt=$interrupt, …): utteranceQueue.size=${utteranceQueue.size}, interruptedSequenceId=${quote(interruptedSequenceId)} removedCount=$removedCount, releaseFocus=$releaseFocus")
+            FooLog.d(TAG, "#TTS_SEQUENCE -clearLocked(interrupt=$interrupt, …): utteranceQueue.size=${utteranceQueue.size}, interruptedSequenceId=${quote(interruptedSequenceId)} removedUtteranceCount=$removedUtteranceCount, releaseFocus=$releaseFocus")
         }
     }
 
@@ -930,16 +1037,6 @@ class FooTextToSpeech private constructor() {
         }
     }
 
-    private inner class Runnables(
-        private vararg val runnables: Runnable,
-    ) : Runnable {
-        override fun run() {
-            for (runnable in runnables) {
-                runnable.run()
-            }
-        }
-    }
-
     /**
      * @return sequenceId if enqueued, otherwise null
      */
@@ -947,27 +1044,18 @@ class FooTextToSpeech private constructor() {
         caller: String,
         builder: FooTextToSpeechBuilder,
         placement: QueuePlacement,
-        runAfter: Runnable?,
+        callbacks: SequenceCallbacks?,
     ): String? {
         var sequenceId: String? = null
         try {
             if (VERBOSE_LOG_SEQUENCE) {
-                FooLog.d(TAG, "#TTS_SEQUENCE +sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, runAfter)")
+                FooLog.d(TAG, "#TTS_SEQUENCE +sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, callbacks=$callbacks)")
             }
-            //
-            // Always suffix runAfterSpeak to release any audio focus acquired in onUtteranceStart.
-            //
-            val runAfter =
-                if (runAfter == null) {
-                    runAfterSpeak
-                } else {
-                    Runnables(runAfterSpeak, runAfter)
-                }
             val parts = builder.build(ensureNonEmptyEndsWithSilence = true)
             //FooLog.e(TAG, "#TTS enqueueInternal: parts(${parts.size})=$parts")
             if (parts.isEmpty()) {
                 FooLog.w(TAG, "#TTS sequenceEnqueue: builder is empty; not enqueueing")
-                runAfter.run()
+                runAfterSpeak.run()
                 return null
             }
             val runAfters = mutableListOf<Runnable>()
@@ -1001,14 +1089,14 @@ class FooTextToSpeech private constructor() {
                     }
                 }
                 sequenceId = "seq_${nextSequenceId++}"
+                sequenceStates[sequenceId] = SequenceState(callbacks)
                 if (VERBOSE_LOG_SEQUENCE) {
                     FooLog.d(TAG, "#TTS_SEQUENCE sequenceEnqueue: START sequenceId=${quote(sequenceId)}, parts.size=(${parts.size})")
                 }
-                val lastIndex = parts.lastIndex
                 var nextUtteranceId = 0L
                 val utterances =
                     parts.mapIndexed { index, part ->
-                        Utterance.create(sequenceId, nextUtteranceId++, part, if (index == lastIndex) runAfter else null)
+                        Utterance.create(sequenceId, nextUtteranceId++, part)
                     }
                 val prepend = placement != QueuePlacement.APPEND
                 enqueueUtterancesLocked(utterances, prepend)
@@ -1021,7 +1109,7 @@ class FooTextToSpeech private constructor() {
             return sequenceId
         } finally {
             if (VERBOSE_LOG_SEQUENCE) {
-                FooLog.d(TAG, "#TTS_SEQUENCE -sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, runAfter) -> sequenceId=${quote(sequenceId)}")
+                FooLog.d(TAG, "#TTS_SEQUENCE -sequenceEnqueue(caller=${quote(caller)}, builder, placement=$placement, callbacks=$callbacks) -> sequenceId=${quote(sequenceId)}")
             }
         }
     }
@@ -1052,7 +1140,7 @@ class FooTextToSpeech private constructor() {
                     /**
                      * Being denied an audio focus request poses an interesting dilemma.
                      * Something else has exclusive audio focus.
-                     * The right thing to do is to either queue this utterance or drop it [and call runAfter]...
+                     * The right thing to do is to either queue this utterance or drop it and notify callbacks of completion...
                      * ```
                      * FooLog.w(TAG, "#TTS speak: audio focus denied; skipping utteranceId=${quote(utteranceId)}")
                      * runAfter?.run()
@@ -1090,7 +1178,7 @@ class FooTextToSpeech private constructor() {
                 }
             if (result == TextToSpeech.SUCCESS) {
                 currentUtterance = next
-                next.runAfter?.let { utteranceCallbacks[next.utteranceId] = it }
+                scheduleSequenceStart(next.sequenceId, runAfters)
                 if (VERBOSE_LOG_SEQUENCE) {
                     val remainingForSequence = utteranceQueue.count { it.sequenceId == next.sequenceId }
                     FooLog.d(TAG, "#TTS_SEQUENCE startNextLocked: sequenceId=${quote(next.sequenceId)} utteranceId=${quote(next.utteranceId)} remainingInSequence=$remainingForSequence utteranceQueue.size=${utteranceQueue.size}")
@@ -1101,7 +1189,15 @@ class FooTextToSpeech private constructor() {
                     FooLog.w(TAG, "#TTS_UTTERANCE startNextLocked: failed to play utteranceId=${quote(next.utteranceId)}; result=${statusToString(result)}")
                 }
                 currentUtterance = null
-                next.runAfter?.let(runAfters::add)
+                val sequenceHasMore = utteranceQueue.any { it.sequenceId == next.sequenceId }
+            if (!sequenceHasMore) {
+                scheduleSequenceComplete(
+                    sequenceId = next.sequenceId,
+                    neverStarted = computeNeverStarted(next.sequenceId, currentUtterance?.sequenceId),
+                    errorCode = result,
+                    runAfters = runAfters,
+                )
+            }
                 audioFocusHandleClearLocked()?.let(focusHandles::add)
             }
         }
@@ -1110,18 +1206,20 @@ class FooTextToSpeech private constructor() {
     }
 
     /**
-     * Enqueues [builder] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion of the full builder sequence.
+     * Enqueues [builder] respecting [placement] (defaults to [QueuePlacement.APPEND])
+     * and notifying [callbacks] when the sequence starts and completes.
      *
      * @return a `sequenceId` that can be canceled via [sequenceStop], or null if builder is empty.
      */
     fun sequenceEnqueue(
         builder: FooTextToSpeechBuilder,
         placement: QueuePlacement = QueuePlacement.APPEND,
-        runAfter: Runnable? = null,
-    ) = sequenceEnqueue("sequenceEnqueue", builder, placement, runAfter)
+        callbacks: SequenceCallbacks? = null,
+    ) = sequenceEnqueue("sequenceEnqueue", builder, placement, callbacks)
 
     /**
-     * [sequenceEnqueue]s [text] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     * [sequenceEnqueue]s [text] respecting [placement] (defaults to [QueuePlacement.APPEND])
+     * and notifying [callbacks] when the sequence starts and completes.
      *
      * @return a `sequenceId` that can be canceled via [sequenceStop], or null if text is empty.
      */
@@ -1129,16 +1227,17 @@ class FooTextToSpeech private constructor() {
     fun speak(
         text: String,
         placement: QueuePlacement = QueuePlacement.APPEND,
-        runAfter: Runnable? = null,
+        callbacks: SequenceCallbacks? = null,
     ): String? {
         if (VERBOSE_LOG_SPEAK) {
-            FooLog.d(TAG, "#TTS_SPEAK speak(text=${quote(text)}, placement=$placement, runAfter=$runAfter)")
+            FooLog.d(TAG, "#TTS_SPEAK speak(text=${quote(text)}, placement=$placement, callbacks=$callbacks)")
         }
-        return sequenceEnqueue("speak", FooTextToSpeechBuilder(text), placement, runAfter)
+        return sequenceEnqueue("speak", FooTextToSpeechBuilder(text), placement, callbacks)
     }
 
     /**
-     * [sequenceEnqueue]s silence of [durationMillis] respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     * [sequenceEnqueue]s silence of [durationMillis] respecting [placement] (defaults to [QueuePlacement.APPEND])
+     * and notifying [callbacks] when the sequence starts and completes.
      *
      * Non-audio silence placement does not make much sense, but it is included for consistency.
      *
@@ -1148,16 +1247,17 @@ class FooTextToSpeech private constructor() {
     fun silence(
         durationMillis: Int,
         placement: QueuePlacement = QueuePlacement.APPEND,
-        runAfter: Runnable? = null,
+        callbacks: SequenceCallbacks? = null,
     ): String? {
         if (VERBOSE_LOG_SPEAK) {
-            FooLog.d(TAG, "#TTS_SILENCE silence(durationMillis=$durationMillis, placement=$placement, runAfter=$runAfter)")
+            FooLog.d(TAG, "#TTS_SILENCE silence(durationMillis=$durationMillis, placement=$placement, callbacks=$callbacks)")
         }
-        return sequenceEnqueue("silence", FooTextToSpeechBuilder(durationMillis), placement, runAfter)
+        return sequenceEnqueue("silence", FooTextToSpeechBuilder(durationMillis), placement, callbacks)
     }
 
     /**
-     * [sequenceEnqueue]s [earcon] (aka: "audio icon") respecting [placement] (defaults to [QueuePlacement.APPEND]) and running [runAfter] after completion.
+     * [sequenceEnqueue]s [earcon] (aka: "audio icon") respecting [placement] (defaults to [QueuePlacement.APPEND])
+     * and notifying [callbacks] when the sequence starts and completes.
      *
      * @return a `sequenceId` that can be canceled via [sequenceStop], or null if earcon is empty.
      */
@@ -1165,12 +1265,12 @@ class FooTextToSpeech private constructor() {
     fun earcon(
         earcon: String,
         placement: QueuePlacement = QueuePlacement.APPEND,
-        runAfter: Runnable? = null,
+        callbacks: SequenceCallbacks? = null,
     ): String? {
         if (VERBOSE_LOG_EARCON) {
-            FooLog.d(TAG, "#TTS_EARCON earcon(earcon=${quote(earcon)}, placement=$placement, runAfter=$runAfter)")
+            FooLog.d(TAG, "#TTS_EARCON earcon(earcon=${quote(earcon)}, placement=$placement, callbacks=$callbacks)")
         }
-        return sequenceEnqueue("earcon", FooTextToSpeechBuilder().appendEarcon(earcon), placement, runAfter)
+        return sequenceEnqueue("earcon", FooTextToSpeechBuilder().appendEarcon(earcon), placement, callbacks)
     }
 
     /**

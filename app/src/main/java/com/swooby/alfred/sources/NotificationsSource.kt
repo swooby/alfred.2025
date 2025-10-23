@@ -19,6 +19,7 @@ import com.swooby.alfred.core.ingest.RawEvent
 import com.swooby.alfred.data.AttachmentRef
 import com.swooby.alfred.data.EventEntity
 import com.swooby.alfred.data.Sensitivity
+import com.swooby.alfred.support.DebugNotificationController
 import com.swooby.alfred.util.Ulids
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -234,6 +235,19 @@ class NotificationsSource : NotificationListenerService() {
         return FooCrypto.SHA256(normalized)
     }
 
+    private fun ignoreNotification(sbn: StatusBarNotification): Boolean {
+        if (sbn.packageName == FooPlatformUtils.getPackageName(this)) {
+            val isDebugSpeech = sbn.notification?.extras?.getBoolean(DebugNotificationController.EXTRA_DEBUG_SPEECH_NOTIFICATION) == true
+            if (!isDebugSpeech) {
+                if (LOG_NOTIFICATION) {
+                    FooLog.v(TAG, "#NOTIFICATION onNotificationPosted: ignoring self package")
+                }
+                return true
+            }
+        }
+        return false
+    }
+
     override fun onNotificationPosted(
         sbn: StatusBarNotification?,
         rankingMap: RankingMap?,
@@ -243,9 +257,9 @@ class NotificationsSource : NotificationListenerService() {
         }
 
         if (sbn == null) return
-        if (sbn.packageName == BuildConfig.PACKAGE_NAME) {
+        if (ignoreNotification(sbn)) {
             if (LOG_NOTIFICATION) {
-                FooLog.v(TAG, "#NOTIFICATION onNotificationPosted: ignoring self package")
+                FooLog.v(TAG, "#NOTIFICATION onNotificationPosted: ignoring notification")
             }
             return
         }
@@ -369,12 +383,17 @@ class NotificationsSource : NotificationListenerService() {
         }
 
         if (sbn == null) return
-        if (sbn.packageName == BuildConfig.PACKAGE_NAME) {
+        if (ignoreNotification(sbn)) {
             if (LOG_NOTIFICATION) {
-                FooLog.v(TAG, "#NOTIFICATION onNotificationRemoved: ignoring self package")
+                FooLog.v(TAG, "#NOTIFICATION onNotificationRemoved: ignoring notification")
             }
             return
         }
+
+        // TODO: Settings option to speak notification removed (and reason)?
+        // TODO: Settings option to stop speaking some or all notifications on NotificationListenerService.REASON_CLICK
+        //  Tell PipelineService to stop speaking the notification (may need to expose notificationId so what we can cancel it here)
+        //  Maybe not directly here; maybe better in where Pipeline consumes the emit in its ingest?
 
         val cancelReason = FooNotificationListener.notificationCancelReasonToString(reason)
         val cancelReasonLabel = cancelReason.substringBefore('(')

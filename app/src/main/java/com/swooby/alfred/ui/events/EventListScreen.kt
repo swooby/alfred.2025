@@ -144,6 +144,7 @@ fun EventListScreen(
     onAdbWirelessRequested: () -> Unit,
     onTextToSpeechSettingsRequested: () -> Unit,
     onTextToSpeechTestRequested: () -> Unit,
+    onDebugSpeechNotification: () -> Unit,
     debugNoisyNotificationActive: Boolean,
     onToggleDebugNoisyNotification: () -> Unit,
     debugProgressNotificationActive: Boolean,
@@ -302,6 +303,17 @@ fun EventListScreen(
                             modifier = nestedPadding,
                         )
                         if (BuildConfig.DEBUG) {
+                            NavigationDrawerItem(
+                                label = { Text(text = LocalizedStrings.drawerSpeechNotification) },
+                                selected = false,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        drawerState.close()
+                                        onDebugSpeechNotification()
+                                    }
+                                },
+                                modifier = nestedPadding,
+                            )
                             NavigationDrawerItem(
                                 label = { Text(text = LocalizedStrings.drawerNoisyNotificationLabel(debugNoisyNotificationActive)) },
                                 selected = debugNoisyNotificationActive,
@@ -1476,6 +1488,9 @@ internal object LocalizedStrings {
     val drawerDebugHeader: String
         @Composable get() = stringResource(R.string.event_list_drawer_debug_header)
 
+    val drawerSpeechNotification: String
+        @Composable get() = stringResource(R.string.event_list_drawer_speech_notification)
+
     @Composable
     fun drawerNoisyNotificationLabel(isActive: Boolean): String =
         stringResource(
@@ -1924,6 +1939,7 @@ private fun EventListPreview() {
             onAdbWirelessRequested = {},
             onTextToSpeechSettingsRequested = {},
             onTextToSpeechTestRequested = {},
+            onDebugSpeechNotification = {},
             debugNoisyNotificationActive = false,
             onToggleDebugNoisyNotification = {},
             debugProgressNotificationActive = false,

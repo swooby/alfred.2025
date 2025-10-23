@@ -2,33 +2,65 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" tools:ignore="DuplicateStrings">Alfred 2025</string>
     <string name="main_top_app_bar_title" tools:ignore="DuplicateStrings">Alfred 2025</string>
-    <!--
-    <string name="settings_title">Alfred Settings</string>
-    -->
-    <string name="settings_quiet_hours_label">Quiet Hours (HH:mm)</string>
-    <string name="settings_quiet_hours_start_label">Start e.g. 22:00</string>
-    <string name="settings_quiet_hours_end_label">End e.g. 07:00</string>
-    <string name="settings_save">Save</string>
-    <string name="settings_speak_screen_off">Speak only when screen is OFF</string>
-    <string name="settings_disabled_apps_label">Disabled apps (CSV of package names)</string>
-    <string name="settings_enabled_event_types_label">Enabled event types (CSV)</string>
+
+    <string name="audio_profile_disabled_name">Always off</string>
+    <string name="audio_profile_disabled_description">Never output audio.</string>
+    <string name="audio_profile_always_on_name">Always on</string>
+    <string name="audio_profile_always_on_description">Always output audio.</string>
+    <string name="audio_profile_wired_name">Wired headset only</string>
+    <string name="audio_profile_wired_description">Output audio only when a wired headset is connected.</string>
+    <string name="audio_profile_bluetooth_any_name">Any Bluetooth audio device</string>
+    <string name="audio_profile_bluetooth_any_description">Output audio when any Bluetooth audio device is connected.</string>
+    <string name="audio_profile_bluetooth_device_description">Activates when this Bluetooth audio device is connected.</string>
+    <string name="audio_profile_any_headset_name">Any headset</string>
+    <string name="audio_profile_any_headset_description">Output audio when a wired headset or any Bluetooth audio device is connected.</string>
+    <string name="audio_profile_status_available">Available</string>
+    <string name="audio_profile_status_unavailable">Unavailable</string>
+
     <string name="pipeline_notification_channel_name" tools:ignore="DuplicateStrings">Alfred</string>
-    <string name="pipeline_notification_title">Alfred status</string>
-    <string name="pipeline_notification_ready_for_events">Ready to speak when there\'s something to share</string>
-    <string name="pipeline_notification_profile_disabled">Speech muted: audio profile is set to Off</string>
-    <string name="pipeline_notification_need_wired_headset">Speech muted until a wired headset is connected</string>
-    <string name="pipeline_notification_need_bluetooth_any">Speech muted until a Bluetooth audio device is connected</string>
-    <string name="pipeline_notification_need_bluetooth_device">Speech muted until %1$s is connected</string>
-    <string name="pipeline_notification_need_any_headset">Speech muted until a headset is connected</string>
-    <string name="pipeline_notification_need_device_generic">Speech muted until an audio device is connected</string>
-    <string name="pipeline_notification_profile_uninitialized">Speech muted while audio profile initializes</string>
-    <string name="pipeline_notification_call_active">Speech muted during call</string>
-    <string name="pipeline_notification_call_ringing">Speech muted while phone is ringing</string>
+    <string name="pipeline_notification_channel_description">Foreground status for Alfred service</string>
+    <string name="pipeline_notification_initializing">Initializing</string>
+    <string name="pipeline_notification_waiting_for_events">Waiting for events</string>
+    <string name="pipeline_notification_ready_for_events">Ready to speak</string>
+    <string name="pipeline_notification_profile_disabled">Muted: audio profile is set to Off</string>
+    <string name="pipeline_notification_need_wired_headset">Muted until a wired headset is connected</string>
+    <string name="pipeline_notification_need_bluetooth_any">Muted until a Bluetooth audio device is connected</string>
+    <string name="pipeline_notification_need_bluetooth_device">Muted until %1$s is connected</string>
+    <string name="pipeline_notification_need_any_headset">Muted until a headset is connected</string>
+    <string name="pipeline_notification_need_device_generic">Muted until an audio device is connected</string>
+    <string name="pipeline_notification_call_active">Muted: In a call</string>
+    <string name="pipeline_notification_call_ringing">Muted: Incoming call</string>
     <!--
     <string name="pipeline_notification_permission">Enable Notification access for media tracking</string>
     -->
     <string name="pipeline_notification_action_enable">Enable</string>
     <string name="pipeline_notification_action_quit" tools:ignore="DuplicateStrings">Quit</string>
+    <string name="pipeline_notification_action_debug_speak">Test speech</string>
+
+    <string name="speech_notification_channel_name">Spoken announcements</string>
+    <string name="speech_notification_channel_description">Shows queued and active Alfred speech</string>
+    <string name="speech_notification_title_current">Currently speaking</string>
+    <string name="speech_notification_title_queued">Queued to speak</string>
+    <string name="speech_notification_subtext_queued">Waiting to play</string>
+    <string name="speech_notification_swipe_to_dismiss">Swipe to dismiss</string>
+    <string name="speech_notification_action_dismiss" tools:ignore="DuplicateStrings">Dismiss</string>
+    <string name="speech_notification_action_dismiss_all">Dismiss all</string>
+    <string name="speech_notification_summary_title_active">Speaking %1$d queued items</string>
+    <string name="speech_notification_summary_title_idle">Queued %1$d items</string>
+    <string name="speech_notification_summary_text">Alfred speech has %1$d item(s) waiting</string>
+
+    <string name="debug_speech_notification_channel_name">Alfred debug speech</string>
+    <string name="debug_speech_notification_channel_description">Temporary speech notifications for debugging</string>
+    <string name="debug_speech_notification_title">Alfred debug</string>
+    <string name="debug_speech_notification_body">This is a test notification generated by Alfred for speech debugging.</string>
+
+    <string name="debug_notification_channel_name">Debug notifications</string>
+    <string name="debug_notification_channel_description">Helpers for testing event coalescing and progress updates.</string>
+    <string name="debug_notification_noisy_title">Debug noisy notification</string>
+    <string name="debug_notification_noisy_text">This notification intentionally repeats every 10 seconds.</string>
+    <string name="debug_notification_progress_title">Debug progress notification</string>
+    <string name="debug_notification_progress_text">Progress: %1$d%% complete</string>
+    <string name="debug_notification_progress_complete">Progress completed</string>
 
     <string name="alfred_notification_action_persistent">Pin</string>
     <string name="alfred_notification_persistent_dialog_title">Pin Notification To Be Persistent</string>
@@ -63,6 +95,17 @@
     <string name="permissions_status_missing">Missing</string>
     <string name="permissions_optional_description">%1$s (This is optional; Alfred 2025 works without it.)</string>
 
+    <!--
+    <string name="settings_title">Alfred Settings</string>
+    -->
+    <string name="settings_quiet_hours_label">Quiet Hours (HH:mm)</string>
+    <string name="settings_quiet_hours_start_label">Start e.g. 22:00</string>
+    <string name="settings_quiet_hours_end_label">End e.g. 07:00</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_speak_screen_off">Speak only when screen is OFF</string>
+    <string name="settings_disabled_apps_label">Disabled apps (CSV of package names)</string>
+    <string name="settings_enabled_event_types_label">Enabled event types (CSV)</string>
+
     <string name="event_list_drawer_title" tools:ignore="DuplicateStrings">Alfred</string>
     <string name="event_list_drawer_settings">Settings</string>
     <string name="event_list_drawer_notification_access" tools:ignore="DuplicateStrings">Notification Listener Access</string>
@@ -72,10 +115,11 @@
     <string name="event_list_drawer_text_to_speech" tools:ignore="DuplicateStrings">Text-To-Speech</string>
     <string name="event_list_drawer_text_to_speech_test">Text-To-Speech: Test</string>
     <string name="event_list_drawer_debug_header">Debug</string>
-    <string name="event_list_drawer_noisy_notification_start">Noisy Notification: Start</string>
-    <string name="event_list_drawer_noisy_notification_stop">Noisy Notification: Stop</string>
-    <string name="event_list_drawer_progress_notification_start">Progress Notification: Start</string>
-    <string name="event_list_drawer_progress_notification_stop">Progress Notification: Stop</string>
+    <string name="event_list_drawer_speech_notification">Notification Speech</string>
+    <string name="event_list_drawer_noisy_notification_start">Notification Noisy: Start</string>
+    <string name="event_list_drawer_noisy_notification_stop">Notification Noisy: Stop</string>
+    <string name="event_list_drawer_progress_notification_start">Notification Progress: Start</string>
+    <string name="event_list_drawer_progress_notification_stop">Notification Progress: Stop</string>
     <string name="event_list_drawer_quit" tools:ignore="DuplicateStrings">Quit</string>
     <string name="event_list_drawer_theme_mode_title">Theme</string>
     <string name="event_list_theme_mode_dark">Dark</string>
@@ -118,26 +162,6 @@
     <string name="event_list_audio_profiles_permission_body">Grant the Bluetooth connect permission so Alfred can detect Bluetooth headsets.</string>
     <string name="event_list_audio_profiles_permission_action">Check permission</string>
     <string name="event_list_audio_profiles_permission_denied">Permission still missing. Enable Bluetooth Connect for Alfred in system settings.</string>
-    <string name="debug_notification_channel_name">Debug notifications</string>
-    <string name="debug_notification_channel_description">Helpers for testing event coalescing and progress updates.</string>
-    <string name="debug_notification_noisy_title">Debug noisy notification</string>
-    <string name="debug_notification_noisy_text">This notification intentionally repeats every 10 seconds.</string>
-    <string name="debug_notification_progress_title">Debug progress notification</string>
-    <string name="debug_notification_progress_text">Progress: %1$d%% complete</string>
-    <string name="debug_notification_progress_complete">Progress completed</string>
-    <string name="audio_profile_disabled_name">Always off</string>
-    <string name="audio_profile_disabled_description">Never output audio.</string>
-    <string name="audio_profile_always_on_name">Always on</string>
-    <string name="audio_profile_always_on_description">Always output audio.</string>
-    <string name="audio_profile_wired_name">Wired headset only</string>
-    <string name="audio_profile_wired_description">Output audio only when a wired headset is connected.</string>
-    <string name="audio_profile_bluetooth_any_name">Any Bluetooth audio device</string>
-    <string name="audio_profile_bluetooth_any_description">Output audio when any Bluetooth audio device is connected.</string>
-    <string name="audio_profile_bluetooth_device_description">Activates when this Bluetooth audio device is connected.</string>
-    <string name="audio_profile_any_headset_name">Any headset</string>
-    <string name="audio_profile_any_headset_description">Output audio when a wired headset or any Bluetooth audio device is connected.</string>
-    <string name="audio_profile_status_available">Available</string>
-    <string name="audio_profile_status_unavailable">Unavailable</string>
     <!--
     <plurals name="event_list_total_count">
         <item quantity="one">%1$d event stored</item>
