@@ -11,12 +11,15 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
+import com.smartfoo.android.core.FooString
 import com.smartfoo.android.core.logging.FooLog
 import com.smartfoo.android.core.notification.FooNotification
 import com.smartfoo.android.core.notification.FooNotificationListener
 import com.smartfoo.android.core.platform.FooPlatformUtils
 import com.smartfoo.android.core.texttospeech.FooTextToSpeech
+import com.smartfoo.android.core.texttospeech.FooTextToSpeech.SequenceCallbacks
 import com.swooby.alfred.AlfredApp
+import com.swooby.alfred.BuildConfig
 import com.swooby.alfred.R
 import com.swooby.alfred.core.profile.AudioProfile
 import com.swooby.alfred.core.profile.AudioProfileGate
@@ -32,6 +35,7 @@ import com.swooby.alfred.sources.SystemSources
 import com.swooby.alfred.sources.system.CallStatus
 import com.swooby.alfred.sources.system.SystemEvent
 import com.swooby.alfred.support.AppShutdownManager
+import com.swooby.alfred.support.DebugNotificationController
 import com.swooby.alfred.ui.events.EventListActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +48,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class PipelineService : Service() {
     companion object {
@@ -55,9 +64,28 @@ class PipelineService : Service() {
         private const val REQUEST_PIN = 101
         private const val REQUEST_QUIT = 102
         private const val REQUEST_ENABLE = 103
+        private const val REQUEST_DEBUG_SPEECH = 104
 
         private const val ACTION_REFRESH_NOTIFICATION = "com.swooby.alfred.pipeline.action.REFRESH_NOTIFICATION"
         private const val ACTION_APP_SHUTDOWN = "com.swooby.alfred.pipeline.action.APP_SHUTDOWN"
+        private const val ACTION_SPEECH_DISMISS = "com.swooby.alfred.pipeline.action.SPEECH_DISMISS"
+        private const val ACTION_SPEECH_DISMISS_ALL = "com.swooby.alfred.pipeline.action.SPEECH_DISMISS_ALL"
+
+        const val ACTION_DEBUG_SPEECH_NOTIFICATION = "com.swooby.alfred.pipeline.action.DEBUG_SPEECH_NOTIFICATION"
+        const val ACTION_DEBUG_NOISY_START = "com.swooby.alfred.pipeline.action.DEBUG_NOISY_START"
+        const val ACTION_DEBUG_NOISY_STOP = "com.swooby.alfred.pipeline.action.DEBUG_NOISY_STOP"
+        const val ACTION_DEBUG_PROGRESS_START = "com.swooby.alfred.pipeline.action.DEBUG_PROGRESS_START"
+        const val ACTION_DEBUG_PROGRESS_STOP = "com.swooby.alfred.pipeline.action.DEBUG_PROGRESS_STOP"
+
+        private const val EXTRA_SEQUENCE_ID = "extra_sequence_id"
+
+        private const val PIPELINE_NOTIFICATION_CHANNEL_ID = "alfred_pipeline_status"
+        private const val PIPELINE_NOTIFICATION_GROUP_KEY = "alfred_pipeline_group"
+
+        private const val SPEECH_NOTIFICATION_CHANNEL_ID = "alfred_speech_alerts"
+        private const val SPEECH_NOTIFICATION_GROUP_KEY = "alfred_speech_group"
+        private const val SPEECH_NOTIFICATION_ID_START = 5_000
+        private const val SPEECH_SUMMARY_NOTIFICATION_ID = SPEECH_NOTIFICATION_ID_START - 1
 
         fun start(context: Context) {
             startForegroundService(context)
@@ -71,7 +99,7 @@ class PipelineService : Service() {
             startForegroundService(context, ACTION_APP_SHUTDOWN)
         }
 
-        private fun startForegroundService(
+        fun startForegroundService(
             context: Context,
             action: String? = null,
         ) {
@@ -85,11 +113,11 @@ class PipelineService : Service() {
             Intent(context, PipelineService::class.java)
                 .setAction(action)
 
-        private fun intentAppShutdown(context: Context): Intent = intent(context, ACTION_APP_SHUTDOWN)
+        private fun intentAppShutdown(context: Context) = intent(context, ACTION_APP_SHUTDOWN)
 
-        fun isOngoingNotificationNoDismiss(context: Context): Boolean = FooNotification.isCallingAppNotificationNoDismiss(context, NOTIFICATION_ID)
+        fun isOngoingNotificationNoDismiss(context: Context) = FooNotification.isCallingAppNotificationNoDismiss(context, NOTIFICATION_ID)
 
-        fun hasNotificationListenerAccess(context: Context): Boolean = FooNotificationListener.hasNotificationListenerAccess(context, NotificationsSource::class.java)
+        fun hasNotificationListenerAccess(context: Context) = FooNotificationListener.hasNotificationListenerAccess(context, NotificationsSource::class.java)
 
         fun requestNotificationListenerRebind(context: Context) {
             FooNotificationListener.requestNotificationListenerRebind(context, NotificationsSource::class.java)
@@ -101,16 +129,26 @@ class PipelineService : Service() {
     }
 
     private val app by lazy { application as AlfredApp }
-    private lateinit var tts: FooTextToSpeech
-    private lateinit var sysSources: SystemSources
+    private val notificationManager by lazy { getSystemService(NOTIFICATION_SERVICE) as NotificationManager }
+    private val tts by lazy { FooTextToSpeech.instance }
+    private val sysSources by lazy { SystemSources(app) }
+    private val debugNotifications by lazy { DebugNotificationController(this, scope) }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val tz = TimeZone.currentSystemDefault()
+    private val speechMutex = Mutex()
+    private val pendingUtterances = ArrayDeque<Utterance.Live>()
+    private val speechNotificationIdGenerator = AtomicInteger(SPEECH_NOTIFICATION_ID_START)
+    private val speechNotificationOrder = AtomicLong(0)
+    private val pipelineNotificationChannelInitialized = AtomicBoolean(false)
+    private val speechNotificationChannelInitialized = AtomicBoolean(false)
+    private val speechNotifications = ConcurrentHashMap<String, SpeechNotificationEntry>()
+    private val pendingSpeechStarts = ConcurrentHashMap<String, Boolean>()
+
     private var cfg = RulesConfig()
     private var systemEventsJob: Job? = null
     private var callStateJob: Job? = null
     private var audioGateNotificationJob: Job? = null
-    private val speechMutex = Mutex()
-    private val pendingUtterances = ArrayDeque<Utterance.Live>()
     private var currentCallStatus: CallStatus = CallStatus.UNKNOWN
 
     private fun CallStatus.blocksSpeech(): Boolean =
@@ -122,6 +160,25 @@ class PipelineService : Service() {
             CallStatus.IDLE,
             -> false
         }
+
+    private enum class SpeechNotificationState {
+        QUEUED,
+        SPEAKING,
+    }
+
+    private data class SpeechNotificationEntry(
+        val notificationId: Int,
+        val text: String,
+        val createdAt: Long,
+        val order: Long,
+        @Volatile var state: SpeechNotificationState,
+    )
+
+    private data class AudioGateNotificationState(
+        val allow: Boolean,
+        val reason: AudioProfileGateReason,
+        val snapshotId: String?,
+    )
 
     override fun onCreate() {
         FooLog.v(TAG, "+onCreate()")
@@ -150,8 +207,7 @@ class PipelineService : Service() {
 
         val hasNotificationListenerAccess = AppShutdownManager.onPipelineServiceStarted(this)
 
-        tts = FooTextToSpeech.instance.start(app)
-        sysSources = SystemSources(app)
+        tts.start(app)
         sysSources.start()
         app.systemEvents.start()
         app.systemEvents.refreshCallStateObserver()
@@ -266,6 +322,27 @@ class PipelineService : Service() {
             ACTION_REFRESH_NOTIFICATION -> {
                 updateOngoingNotification()
             }
+            ACTION_SPEECH_DISMISS -> {
+                handleSpeechNotificationDismiss(intent.getStringExtra(EXTRA_SEQUENCE_ID))
+            }
+            ACTION_SPEECH_DISMISS_ALL -> {
+                handleSpeechNotificationDismissAll()
+            }
+            ACTION_DEBUG_SPEECH_NOTIFICATION -> {
+                debugNotifications.postDebugSpeechNotification()
+            }
+            ACTION_DEBUG_NOISY_START -> {
+                debugNotifications.startNoisyNotification()
+            }
+            ACTION_DEBUG_NOISY_STOP -> {
+                debugNotifications.stopNoisyNotification()
+            }
+            ACTION_DEBUG_PROGRESS_START -> {
+                debugNotifications.startProgressNotification()
+            }
+            ACTION_DEBUG_PROGRESS_STOP -> {
+                debugNotifications.stopProgressNotification()
+            }
             ACTION_APP_SHUTDOWN -> {
                 AppShutdownManager.markQuitRequested(this)
                 stopSelf()
@@ -287,6 +364,8 @@ class PipelineService : Service() {
         app.systemEvents.stop()
         app.mediaSource.stop("$TAG.onDestroy")
         tts.stop()
+        clearSpeechNotifications()
+        debugNotifications.shutdown()
         scope.cancel()
         AppShutdownManager.onPipelineServiceDestroyed(app)
         super.onDestroy()
@@ -295,13 +374,252 @@ class PipelineService : Service() {
 
     override fun onBind(p0: Intent?): IBinder? = null
 
+    private fun ensureOngoingNotificationChannel() {
+        if (pipelineNotificationChannelInitialized.compareAndSet(false, true)) {
+            val channel =
+                NotificationChannel(
+                    PIPELINE_NOTIFICATION_CHANNEL_ID,
+                    getString(R.string.pipeline_notification_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
+            channel.description = getString(R.string.pipeline_notification_channel_description)
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun ensureSpeechNotificationChannel() {
+        if (speechNotificationChannelInitialized.compareAndSet(false, true)) {
+            val channel =
+                NotificationChannel(
+                    SPEECH_NOTIFICATION_CHANNEL_ID,
+                    getString(R.string.speech_notification_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
+            channel.description = getString(R.string.speech_notification_channel_description)
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
     private fun updateNotification(
         @Suppress("SameParameterValue")
         id: Int,
         notification: Notification,
     ) {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(id, notification)
+        notificationManager.notify(id, notification)
+    }
+
+    private fun postSpeechNotification(
+        sequenceId: String,
+        text: String,
+    ) {
+        val entry =
+            SpeechNotificationEntry(
+                notificationId = speechNotificationIdGenerator.getAndIncrement(),
+                text = text,
+                createdAt = System.currentTimeMillis(),
+                order = speechNotificationOrder.getAndIncrement(),
+                state = SpeechNotificationState.QUEUED,
+            )
+        speechNotifications[sequenceId] = entry
+        if (pendingSpeechStarts.remove(sequenceId) == true) {
+            onSpeechSequenceStarted(sequenceId)
+        } else {
+            showSpeechNotification(sequenceId, entry)
+        }
+    }
+
+    private fun showSpeechNotification(
+        sequenceId: String,
+        entry: SpeechNotificationEntry,
+    ) {
+        ensureSpeechNotificationChannel()
+        notificationManager.notify(entry.notificationId, buildSpeechNotification(sequenceId, entry))
+        updateSpeechGroupSummary()
+    }
+
+    private fun buildSpeechNotification(
+        sequenceId: String,
+        entry: SpeechNotificationEntry,
+    ): Notification {
+        val notificationId = entry.notificationId
+        val dismissIntent =
+            PendingIntent.getService(
+                this,
+                notificationId,
+                intent(this, ACTION_SPEECH_DISMISS)
+                    .putExtra(EXTRA_SEQUENCE_ID, sequenceId),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        val sortKey = String.format(Locale.US, "%020d", entry.order)
+        val builder =
+            NotificationCompat
+                .Builder(this, SPEECH_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_notify_more)
+                .setContentText(entry.text)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setLocalOnly(true)
+                .setDeleteIntent(dismissIntent)
+                .setGroup(SPEECH_NOTIFICATION_GROUP_KEY)
+                .setSortKey(sortKey)
+                .setWhen(entry.createdAt)
+                .setShowWhen(false)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setSound(null) // TODO: Settings option to ding
+                .setVibrate(null) // TODO: Settings option to vibrate
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+
+        val title = StringBuilder()
+        if (BuildConfig.DEBUG) {
+            title.append("[$notificationId] ")
+        }
+        when (entry.state) {
+            SpeechNotificationState.SPEAKING -> {
+                title.append(getString(R.string.speech_notification_title_current))
+                val swipeInstruction = getString(R.string.speech_notification_swipe_to_dismiss)
+                builder
+                    .setContentTitle(title)
+                    .setSubText(swipeInstruction)
+                    .setStyle(
+                        NotificationCompat
+                            .BigTextStyle()
+                            .bigText("${entry.text}\n\n$swipeInstruction"),
+                    ).addAction(0, getString(R.string.speech_notification_action_dismiss), dismissIntent)
+            }
+            SpeechNotificationState.QUEUED -> {
+                title.append(getString(R.string.speech_notification_title_queued))
+                builder
+                    .setContentTitle(title)
+                    .setSubText(getString(R.string.speech_notification_subtext_queued))
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(entry.text))
+            }
+        }
+
+        return builder.build()
+    }
+
+    private fun updateSpeechGroupSummary() {
+        if (speechNotifications.isEmpty()) {
+            notificationManager.cancel(SPEECH_SUMMARY_NOTIFICATION_ID)
+            return
+        }
+        ensureSpeechNotificationChannel()
+        notificationManager.notify(SPEECH_SUMMARY_NOTIFICATION_ID, buildSpeechSummaryNotification())
+    }
+
+    private fun buildSpeechSummaryNotification(): Notification {
+        val dismissIntent =
+            PendingIntent.getService(
+                this,
+                SPEECH_SUMMARY_NOTIFICATION_ID,
+                intent(this, ACTION_SPEECH_DISMISS_ALL),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        val count = speechNotifications.size
+        val speaking = speechNotifications.values.any { it.state == SpeechNotificationState.SPEAKING }
+        val title =
+            if (speaking) {
+                getString(R.string.speech_notification_summary_title_active, count)
+            } else {
+                getString(R.string.speech_notification_summary_title_idle, count)
+            }
+        val text = getString(R.string.speech_notification_summary_text, count)
+        return NotificationCompat
+            .Builder(this, SPEECH_NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_more)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setLocalOnly(true)
+            .setDeleteIntent(dismissIntent)
+            .setGroup(SPEECH_NOTIFICATION_GROUP_KEY)
+            .setGroupSummary(true)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSound(null) // TODO: Settings option to ding
+            .setVibrate(null) // TODO: Settings option to vibrate
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .addAction(0, getString(R.string.speech_notification_action_dismiss_all), dismissIntent)
+            .build()
+    }
+
+    private fun handleSpeechNotificationDismiss(sequenceId: String?) {
+        if (sequenceId.isNullOrBlank()) {
+            return
+        }
+        val entry = speechNotifications.remove(sequenceId)
+        entry?.let {
+            notificationManager.cancel(it.notificationId)
+            updateSpeechGroupSummary()
+        }
+        pendingSpeechStarts.remove(sequenceId)
+        val canceled = tts.sequenceStop(sequenceId)
+        FooLog.i(TAG, "#PIPELINE speech notification dismissed; sequence=$sequenceId canceled=$canceled")
+    }
+
+    private fun handleSpeechNotificationDismissAll() {
+        val ids = speechNotifications.keys.toList()
+        if (ids.isEmpty()) {
+            notificationManager.cancel(SPEECH_SUMMARY_NOTIFICATION_ID)
+            return
+        }
+        ids.forEach { id ->
+            speechNotifications.remove(id)?.let { notificationManager.cancel(it.notificationId) }
+            pendingSpeechStarts.remove(id)
+            tts.sequenceStop(id)
+        }
+        notificationManager.cancel(SPEECH_SUMMARY_NOTIFICATION_ID)
+    }
+
+    private fun onSpeechSequenceStarted(sequenceId: String) {
+        val entry = speechNotifications[sequenceId]
+        //FooLog.e(TAG, "#PIPELINE onSpeechSequenceStarted: speechNotifications[${FooString.quote(sequenceId)}]=$entry")
+        if (entry == null) {
+            pendingSpeechStarts[sequenceId] = true
+            FooLog.v(TAG, "#PIPELINE onSpeechSequenceStarted: pending notification entry for sequence=${sequenceId}")
+            return
+        }
+        pendingSpeechStarts.remove(sequenceId)
+        val updates = mutableListOf<Pair<String, SpeechNotificationEntry>>()
+        if (entry.state != SpeechNotificationState.SPEAKING) {
+            entry.state = SpeechNotificationState.SPEAKING
+        }
+        updates += sequenceId to entry
+        speechNotifications.forEach { (id, other) ->
+            if (id != sequenceId && other.state != SpeechNotificationState.QUEUED) {
+                other.state = SpeechNotificationState.QUEUED
+                updates += id to other
+            }
+        }
+        updates.forEach { (id, updated) -> showSpeechNotification(id, updated) }
+        updateSpeechGroupSummary()
+    }
+
+    private fun onSpeechSequenceCompleted(
+        sequenceId: String,
+        neverStarted: Boolean,
+        errorCode: Int,
+    ) {
+        FooLog.d(TAG, "#PIPELINE onSpeechSequenceCompleted(sequenceId=$sequenceId, neverStarted=$neverStarted, errorCode=$errorCode)")
+        pendingSpeechStarts.remove(sequenceId)
+        val entry = speechNotifications.remove(sequenceId) ?: return
+        notificationManager.cancel(entry.notificationId)
+        FooLog.v(TAG, "#PIPELINE speech sequence completed; sequence=$sequenceId notificationId=${entry.notificationId}")
+        updateSpeechGroupSummary()
+    }
+
+    private fun clearSpeechNotifications() {
+        val entries = speechNotifications.values.toList()
+        speechNotifications.clear()
+        pendingSpeechStarts.clear()
+        if (entries.isEmpty()) {
+            return
+        }
+        entries.forEach { notificationManager.cancel(it.notificationId) }
+        notificationManager.cancel(SPEECH_SUMMARY_NOTIFICATION_ID)
     }
 
     private suspend fun handleUtterance(utterance: Utterance.Live) {
@@ -386,10 +704,31 @@ class PipelineService : Service() {
             logAudioGateBlocked(gate, context)
             return
         }
-        @Suppress("UnusedVariable")
-        val sequenceId = tts.speak(utterance.text)
-        // TODO: Remember the sequenceId and put it into a Notification that can be dismissed and the speech canceled.
-        //...
+        val utteranceText = utterance.text
+        val callbacks =
+            object : SequenceCallbacks {
+                override fun onSequenceStart(sequenceId: String) {
+                    //FooLog.d(TAG, "#PIPELINE speakWithGate: onSequenceStart(sequenceId=${FooString.quote(sequenceId)})")
+                    onSpeechSequenceStarted(sequenceId)
+                }
+
+                override fun onSequenceComplete(
+                    sequenceId: String,
+                    neverStarted: Boolean,
+                    errorCode: Int,
+                ) {
+                    //FooLog.d(TAG, "#PIPELINE speakWithGate: onSequenceComplete(sequenceId=${FooString.quote(sequenceId)}, neverStarted=$neverStarted, errorCode=$errorCode)")
+                    onSpeechSequenceCompleted(sequenceId, neverStarted, errorCode)
+                }
+            }
+        //FooLog.d(TAG, "#PIPELINE speakWithGate: +tts.speak(text=${FooString.quote(utteranceText)}, ...)")
+        val sequenceId = tts.speak(utteranceText, callbacks = callbacks)
+        //FooLog.d(TAG, "#PIPELINE speakWithGate: -tts.speak(text=${FooString.quote(utteranceText)}, ...)")
+        if (sequenceId.isNullOrBlank()) {
+            FooLog.w(TAG, "#PIPELINE speakWithGate: unexpected tts.speak returned null sequenceId; ignoring")
+            return
+        }
+        postSpeechNotification(sequenceId, utterance.text)
     }
 
     private fun logAudioGateBlocked(
@@ -414,6 +753,8 @@ class PipelineService : Service() {
 
     private fun updateOngoingNotification(promptEnable: Boolean? = null) {
         scope.launch {
+            val contentTitle = buildNotificationContentTitle()
+            val contentText = buildNotificationContentText()
             var pinEnable = false
             val isPersistentNotificationActionIgnored = app.settings.persistentNotificationActionIgnoredFlow.first()
             if (!isPersistentNotificationActionIgnored &&
@@ -421,35 +762,33 @@ class PipelineService : Service() {
             ) {
                 pinEnable = true
             }
-
             val promptEnable = promptEnable ?: !hasNotificationListenerAccess(this@PipelineService)
-            val contentText = buildNotificationContentText()
 
             updateNotification(
                 NOTIFICATION_ID,
                 buildOngoingNotification(
+                    contentTitle = contentTitle,
+                    contentText = contentText,
                     pinEnable = pinEnable,
                     promptEnable = promptEnable,
-                    contentText = contentText,
                 ),
             )
         }
     }
 
+    private var contentTitle: String? = null
+
     private fun buildOngoingNotification(
+        contentTitle: String? = null,
+        contentText: String? = null,
         pinEnable: Boolean = false,
         promptEnable: Boolean = false,
-        contentText: String? = null,
     ): Notification {
-        val chId = "alfred_pipeline"
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        nm.createNotificationChannel(
-            NotificationChannel(
-                chId,
-                getString(R.string.pipeline_notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
+        val contentTitle = contentTitle ?: this.contentTitle ?: getString(R.string.pipeline_notification_initializing)
+
+        this.contentTitle = contentTitle
+
+        ensureOngoingNotificationChannel()
 
         val pendingIntentShow =
             PendingIntent.getActivity(
@@ -461,13 +800,21 @@ class PipelineService : Service() {
 
         val builder =
             NotificationCompat
-                .Builder(this, chId)
+                .Builder(this, PIPELINE_NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_notify_more)
-                .setContentTitle(getString(R.string.pipeline_notification_title))
+                .setContentTitle(contentTitle)
+                //.setSubText("TODO")
                 .setOngoing(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .setContentIntent(pendingIntentShow)
-        contentText?.let { builder.setContentText(it) }
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setGroup(PIPELINE_NOTIFICATION_GROUP_KEY)
+                .setSortKey("0000_ongoing")
+                .setWhen(Long.MAX_VALUE)
+                .setShowWhen(false)
+        contentText?.let {
+            builder.setContentText(it)
+        }
 
         if (pinEnable) {
             val pendingIntentPin =
@@ -482,6 +829,7 @@ class PipelineService : Service() {
                 .addAction(R.drawable.ic_warning, getString(R.string.alfred_notification_action_persistent), pendingIntentPin)
         }
 
+        // BUG: "Quit" showed up as disabled once! Why?!?!?
         val pendingIntentAppShutdown =
             PendingIntent.getService(
                 this,
@@ -507,17 +855,28 @@ class PipelineService : Service() {
                 .addAction(0, getString(R.string.pipeline_notification_action_enable), pendingIntentEnable)
         }
 
+        if (BuildConfig.DEBUG) {
+            val debugIntent =
+                PendingIntent.getService(
+                    this,
+                    REQUEST_DEBUG_SPEECH,
+                    intent(this, ACTION_DEBUG_SPEECH_NOTIFICATION),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            builder.addAction(0, getString(R.string.pipeline_notification_action_debug_speak), debugIntent)
+        }
+
         return builder.build()
     }
 
-    private fun buildNotificationContentText(): String? {
+    private fun buildNotificationContentTitle(): String {
         if (currentCallStatus.blocksSpeech()) {
             return when (currentCallStatus) {
                 CallStatus.ACTIVE -> getString(R.string.pipeline_notification_call_active)
                 CallStatus.RINGING -> getString(R.string.pipeline_notification_call_ringing)
                 CallStatus.UNKNOWN,
                 CallStatus.IDLE,
-                -> null
+                -> "Unexpected Call Blocking Speech" // getString(R.string.pipeline_notification_ready_for_events)
             }
         }
         val gate = app.audioProfiles.evaluateGate()
@@ -529,9 +888,14 @@ class PipelineService : Service() {
             AudioProfileGateReason.NO_ACTIVE_DEVICES ->
                 gate.snapshot?.profile?.let(::describeDevicePrompt)
                     ?: getString(R.string.pipeline_notification_need_device_generic)
-            AudioProfileGateReason.UNINITIALIZED -> getString(R.string.pipeline_notification_profile_uninitialized)
+            AudioProfileGateReason.UNINITIALIZED -> getString(R.string.pipeline_notification_initializing)
             AudioProfileGateReason.ALLOWED -> getString(R.string.pipeline_notification_ready_for_events)
         }
+    }
+
+    private fun buildNotificationContentText(): String? {
+        // TODO: Dynamically change this based on state...
+        return getString(R.string.pipeline_notification_waiting_for_events)
     }
 
     private fun describeDevicePrompt(profile: AudioProfile): String =
@@ -543,10 +907,4 @@ class PipelineService : Service() {
             is AudioProfile.BluetoothDevice -> getString(R.string.pipeline_notification_need_bluetooth_device, profile.displayName)
             is AudioProfile.AnyHeadset -> getString(R.string.pipeline_notification_need_any_headset)
         }
-
-    private data class AudioGateNotificationState(
-        val allow: Boolean,
-        val reason: AudioProfileGateReason,
-        val snapshotId: String?,
-    )
 }
